@@ -6,15 +6,16 @@ import pydantic
 import json
 import os
 
+from common.logger import RegisteredLogger
 from wordsmith.data.cache import ConfigPathsManager
-from wordsmith.utils.loader import hashfile
 
 from .modules import *
 from .source import *
 from .schema import *
 from .common import *
 
-from wordsmith.debug.logger import TimeLogger
+from common.utils.loader import hashfile
+from common.logger import TimeLogger
 
 class Config(pydantic.BaseModel):
   name: str
@@ -51,7 +52,7 @@ class Config(pydantic.BaseModel):
     hash_path = self.paths.access_path(RelevantDataPaths.DataSourceHash)
     intermediate_path = self.paths.access_path(RelevantDataPaths.IntermediateDirectory)
     config_path = self.paths.access_path(RelevantDataPaths.Config)
-    logger = logging.getLogger(Config.LOG_NAME)
+    logger = RegisteredLogger().provision(Config.LOG_NAME)
     if cache:
       config_hash = hashfile(config_path)
       source_hash = self.source.hash()

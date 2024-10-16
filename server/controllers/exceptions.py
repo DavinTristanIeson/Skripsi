@@ -1,10 +1,8 @@
-import logging
-from typing import ClassVar, Optional
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from models.server.api import ApiErrorResult
+from common.models.api import ApiErrorResult
 
 class ApiError(Exception):
   def __init__(self, message: str, status_code: int):

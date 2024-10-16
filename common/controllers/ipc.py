@@ -1,11 +1,14 @@
+import concurrent.futures
 from enum import Enum
 import logging
 from multiprocessing.connection import Client, Connection, Listener
 from types import SimpleNamespace
 from typing import Annotated, Callable, Literal, Union
+import concurrent
 import pydantic
 
-from common.metaclass import Singleton
+from common.logger import RegisteredLogger
+from common.models.metaclass import Singleton
 
 class IPCMessageType(str, Enum):
   TopicModelingRequest = "topic_modeling_request"
@@ -35,7 +38,7 @@ IPC_CHANNEL = ("localhost", 5500)
 IPC_AUTH_KEY = b"wordsmith"
 
 
-logger = logging.getLogger("IPC")
+logger = RegisteredLogger().provision("IPC")
 class IPCClient(metaclass=Singleton):
   client: Connection
   def __init__(self) -> None:
@@ -54,6 +57,8 @@ class IPCListener(metaclass=Singleton):
   listener: Listener
   handlers: dict[IPCMessageType, Callable[[IPCMessage], None]]
   running: bool
+  pool: concurrent.futures.ThreadPoolExecutor
+
   def __init__(self, handlers: dict[IPCMessageType, Callable[[IPCMessage], None]]) -> None:
     self.listener = Listener(IPC_CHANNEL, authkey=IPC_AUTH_KEY)
     self.handlers = handlers
@@ -64,13 +69,12 @@ class IPCListener(metaclass=Singleton):
     while self.running:
       conn = self.listener.accept()
       logger.info(f"Successfully established connection")
-      while self.running and not conn.closed:
+      while self.running:
         try:
           msg = conn.recv()
         except EOFError as e:
-          logger.info("Shutting down application as the connection has closed.")
-          self.running = False
-          return
+          logger.info("The connection has closed abruptly. Trying to re-establish connection...")
+          continue
         except Exception as e:
           logger.error(f"Failed to receive a message from the connection. Error: {e}")
           continue

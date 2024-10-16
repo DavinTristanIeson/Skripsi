@@ -1,6 +1,6 @@
 import asyncio
 
-from common.metaclass import Singleton
+from common.models.metaclass import Singleton
 
 class TaskTracker(metaclass=Singleton):
   tasks: set[asyncio.Task]

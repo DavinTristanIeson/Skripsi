@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-import controllers.ipc as ipc
-from models.server.api import ApiResult
+import common.controllers.ipc as ipc
+from common.models.api import ApiResult
 
 
 router = APIRouter()

@@ -1,8 +1,15 @@
+import logging
 from fastapi import FastAPI
-import controllers.server
-import routes.server
+import server.controllers
+import server.routes
+from common.logger import RegisteredLogger
 
 app = FastAPI()
-controllers.server.exceptions.register_error_handlers(app)
+server.controllers.exceptions.register_error_handlers(app)
 
-app.include_router(routes.server.topics.router, prefix="/api/topics")
+RegisteredLogger().configure(
+  level=logging.INFO,
+  terminal=True
+)
+
+app.include_router(server.routes.topics.router, prefix="/api/topics")
