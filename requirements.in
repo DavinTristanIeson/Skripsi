@@ -1,10 +1,13 @@
-pydantic
-bertopic
-fastapi[standard]
+bertopic # BERTopic implementation. Production build needs --no-deps to exclude sentence-transformers
+gensim # Doc2vec implementation
+
+spacy # Preprocessing
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+pydantic # Validation
+pebble # Multiprocessing
+fastapi[standard] # API Server
 
 numpy<2.0
-pandas
-fastparquet
-
-spacy
-en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+pandas # Process dataframes
+fastparquet # Load parquet

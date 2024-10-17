@@ -1,92 +1,51 @@
-from enum import Enum
-import logging
-from typing import Any, ClassVar, Literal, Mapping, Optional, Union, cast
+from functools import lru_cache
+from typing import Annotated, Any, ClassVar, Mapping, Union, cast
 import pandas as pd
 import pydantic
 import json
 import os
 
 from common.logger import RegisteredLogger
-from wordsmith.data.cache import ConfigPathsManager
-
-from .modules import *
-from .source import *
-from .schema import *
-from .common import *
-
 from common.utils.loader import hashfile
 from common.logger import TimeLogger
 
-class Config(pydantic.BaseModel):
-  name: str
-  source: DataSource
-  path: str
-  columns: tuple[SchemaColumn, ...]
-  paths: ConfigPathsManager
-  metadata: dict[str, Any] = pydantic.Field(default_factory=lambda: {})
+from wordsmith.data.schema import SchemaColumn, SchemaColumnType
+from wordsmith.data.schema_manager import SchemaManager
+from wordsmith.data.source import DataSource
+from wordsmith.data.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
+
+    
+@pydantic.field_validator("columns", mode="before")
+def __create_columns_field(cls, value):
+  return SchemaManager.model_validate(dict(
+    columns=value
+  ))
+
+SchemaManagerField = Annotated[SchemaManager, __create_columns_field]
   
-  def get_columns(self, type: SchemaColumnType)->tuple[SchemaColumn,...]:
-    return tuple(filter(lambda x: x.type == type, self.columns))
-
-
-  LOG_NAME: ClassVar[str] = "Config"
+logger = RegisteredLogger().provision("Config")
+class Config(pydantic.BaseModel):
+  project_id: str
+  source: DataSource
+  # schema is taken by pydantic
+  dfschema: SchemaManagerField
+  paths: ProjectPathManager
 
   @staticmethod
-  def parse(source: Union[str, Mapping[str, Any]])->"Config":
-    if isinstance(source, str):
-      source = os.path.normpath(source)
-      with open(source, 'r', encoding='utf-8') as f:
-        contents = json.load(f)
-        dirpath = os.path.dirname(source)
-        contents["path"] = dirpath
+  def from_project(project_id: str)->"Config":
+    source = os.path.join(DATA_DIRECTORY, project_id)
+    with open(source, 'r', encoding='utf-8') as f:
+      contents = json.load(f)
+      contents["paths"] = ProjectPathManager(project_id=project_id)
+      return Config.model_validate(contents)
 
-        paths_manager = ConfigPathsManager(path=dirpath)
-        contents["paths"] = paths_manager
-        return Config.model_validate(contents, context={"paths": paths_manager})
-    else:
-      return Config.model_validate(source)
-    
-
-  def load(self, *, cache:bool = True, preprocessing:bool = True, show_progress:bool=True)->pd.DataFrame:
-    df_path = self.paths.access_path(RelevantDataPaths.Table)
-    hash_path = self.paths.access_path(RelevantDataPaths.DataSourceHash)
-    intermediate_path = self.paths.access_path(RelevantDataPaths.IntermediateDirectory)
-    config_path = self.paths.access_path(RelevantDataPaths.Config)
-    logger = RegisteredLogger().provision(Config.LOG_NAME)
-    if cache:
-      config_hash = hashfile(config_path)
-      source_hash = self.source.hash()
-
-      if self.paths.can_reuse_cache(config_hash + source_hash):
-        logger.info(f"Using intermediate results already cached in {df_path}")
-        return pd.read_parquet(df_path)
-
+  def preprocess(self):
     df = self.source.load()
-    df = df.loc[:, [col.name for col in self.columns]]
-    logger.info(f"Loaded data source from {self.source.path}")
-    for col in self.columns:
-      df.loc[:, col.name] = col.fit(cast(pd.Series, df.loc[:, col.name]))
-      if col.type != SchemaColumnType.Text or not preprocessing:
-        continue
+    df = self.dfschema.preprocess(df)
 
-      with TimeLogger(Config.LOG_NAME, f"Preprocessing {col.name}"):
-        preprocess_column = col.get_preprocess_column()
-        df[preprocess_column] = pd.Series(col.preprocessing.apply(df[col.name], show_progress=show_progress)) # type: ignore
-
-    print(df)
-
-
-    if cache:
-      logger.info(f"Saving intermediate results to {intermediate_path}")
-      if not os.path.exists(intermediate_path):
-        os.mkdir(intermediate_path)
-        logger.info(f"Created an intermediate folder: {intermediate_path}, as it hasn't existed before.")
-
-      config_hash = hashfile(config_path)
-      source_hash = self.source.hash()
-      with open(hash_path, 'w', encoding='utf-8') as f:
-        f.write(config_hash + source_hash)
-      df.to_parquet(df_path)
+    result_path = self.paths.full_path(ProjectPaths.Workspace)
+    logger.info(f"Saving intermediate results to {result_path}")
+    df.to_parquet(result_path)
     return df
 
 

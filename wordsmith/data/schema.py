@@ -1,15 +1,17 @@
 import abc
+import datetime
 from enum import Enum
-from typing import Annotated, ClassVar, Literal, Optional, Union, cast
+from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, Union, cast
 import pydantic
 import pandas as pd
 
-from .preprocessing import PreprocessingConfig
+from wordsmith.data.preprocessing import PreprocessingConfig
 
 class SchemaColumnType(str, Enum):
-  Range = "range"
+  Continuous = "continuous"
   Categorical = "categorical"
-  Text = "text"
+  Temporal = "temporal"
+  Textual = "textual"
   Unique = "unique"
 
 class BaseSchemaColumn(abc.ABC):
@@ -18,9 +20,9 @@ class BaseSchemaColumn(abc.ABC):
   def fit(self, data: pd.Series)->pd.Series:
     pass
 
-class RangeSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Range]
+  type: Literal[SchemaColumnType.Continuous]
   # Will never be None after fitting
   lower_bound: Optional[float] = None
   upper_bound: Optional[float] = None
@@ -52,36 +54,60 @@ class UniqueSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
   type: Literal[SchemaColumnType.Unique]
   def fit(self, data: pd.Series)->pd.Series:
-    return data.astype(str)
+    return data
 
-class TextSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Text]
+  type: Literal[SchemaColumnType.Textual]
   preprocessing: PreprocessingConfig
 
   TOPIC_OUTLIER: ClassVar[str] = '-1'
 
   def fit(self, data: pd.Series)->pd.Series:
     isna_mask = data.isna()
-    new_data = data.copy()
+    new_data = data.astype(str)
     new_data[isna_mask] = ''
-    return new_data.astype(str)
+    documents = new_data[~isna_mask]
+
+    preprocessed_documents = tuple(self.preprocessing.preprocess(documents))
+    new_data[~isna_mask] = preprocessed_documents
+    return new_data
   
-  def get_topic_column(self):
+  @property
+  def topic_column(self):
     return f"{self.name}-topic"
   
-  def get_preprocess_column(self):
+  @property
+  def preprocess_column(self):
     return f"{self.name}-preprocess"
   
+class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+  name: str
+  type: Literal[SchemaColumnType.Temporal]
+  min_date: Optional[datetime.datetime]
+  max_date: Optional[datetime.datetime]
+  bins: int = 15
+  datetime_format: Optional[str]
 
-SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextSchemaColumn, RangeSchemaColumn], pydantic.Field(discriminator="type")]
+  def fit(self, data: pd.Series)->pd.Series:
+    kwargs = dict()
+    if self.datetime_format is not None:
+      kwargs["format"] = self.datetime_format
+    datetime_column = pd.to_datetime(data, **kwargs)
+    if self.min_date is not None:
+      datetime_column[datetime_column < self.min_date] = self.min_date
+    if self.max_date is not None:
+      datetime_column[datetime_column > self.max_date] = self.max_date
+    return datetime_column
+
+SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn], pydantic.Field(discriminator="type")]
 
 __all__ = [
   "BaseSchemaColumn",
   "SchemaColumn",
-  "TextSchemaColumn",
+  "TextualSchemaColumn",
   "UniqueSchemaColumn",
   "CategoricalSchemaColumn",
-  "RangeSchemaColumn",
+  "ContinuousSchemaColumn",
   "SchemaColumnType",
 ]

@@ -2,18 +2,13 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from common.models.api import ApiError
 from common.models.api import ApiErrorResult
 
-class ApiError(Exception):
-  def __init__(self, message: str, status_code: int):
-    self.message = message
-    self.status_code = status_code
 
-  def as_response(self)->Response:
-    return JSONResponse(content=ApiErrorResult(message=self.message).model_dump(), status_code=self.status_code)
 
 def default_exception_handler(request: Request, exc: ApiError):
-  return exc.as_response()
+  return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
   raw_errors = list(exc.errors())

@@ -1,7 +1,7 @@
 import logging
 import sys
 import time
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 from common.models.metaclass import Singleton
 
@@ -52,8 +52,11 @@ class TimeLogger:
   title: str
   logger: logging.Logger
   report_start: bool
-  def __init__(self, log_name: str, title: str, *, report_start: bool = False) -> None:
-    self.logger = RegisteredLogger().provision(log_name)
+  def __init__(self, logger: Union[str, logging.Logger], title: str, *, report_start: bool = False) -> None:
+    if isinstance(logger, logging.Logger):
+      self.logger = logger
+    else:
+      self.logger = RegisteredLogger().provision(logger)
     self.title = title
     self.report_start = report_start
 
