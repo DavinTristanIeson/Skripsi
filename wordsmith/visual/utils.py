@@ -32,19 +32,3 @@ def aggregate_subplot_figures(figures: Sequence[go.Figure], *, cols: int = 2, he
     else:
       col += 1
   return subplots
-
-
-PLOTLY_TEMPLATE_FILE = "wordsmith/visual/plotly_template.html"
-def plot_figures(figures: Iterable[go.Figure], filename: str):
-  divs: list[str] = []
-  for fig in figures:
-    div = plotly.offline.plot(fig, output_type="div", include_plotlyjs=False)
-    divs.append(div)
-
-  with open(PLOTLY_TEMPLATE_FILE, encoding='utf-8') as f:
-    template = f.read()
-  before, after = re.split("<body>\\s*</body>", template)
-  rendered_html = before + '<body>' + '\n'.join(divs) + '</body>' + after
-
-  with open(filename, 'w', encoding='utf-8') as f:
-    f.write(rendered_html)

@@ -29,7 +29,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
   message = str(raw_errors[0]['msg'])
   return JSONResponse(
-    status_code=400,
+    status_code=422,
     content=ApiErrorResult(message=message, errors=errors).model_dump(),
   )
 

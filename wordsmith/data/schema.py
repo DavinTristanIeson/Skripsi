@@ -5,7 +5,7 @@ from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, U
 import pydantic
 import pandas as pd
 
-from wordsmith.data.preprocessing import PreprocessingConfig
+from wordsmith.data.textual import TextPreprocessingConfig, TopicModelingConfig
 
 class SchemaColumnType(str, Enum):
   Continuous = "continuous"
@@ -59,7 +59,8 @@ class UniqueSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
 class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
   type: Literal[SchemaColumnType.Textual]
-  preprocessing: PreprocessingConfig
+  preprocessing: TextPreprocessingConfig
+  topic: TopicModelingConfig
 
   TOPIC_OUTLIER: ClassVar[str] = '-1'
 
@@ -75,11 +76,11 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   
   @property
   def topic_column(self):
-    return f"{self.name}-topic"
+    return f"__topic_{self.name}"
   
   @property
   def preprocess_column(self):
-    return f"{self.name}-preprocess"
+    return f"__preprocess_{self.name}"
   
 class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str

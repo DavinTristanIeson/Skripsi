@@ -83,7 +83,7 @@ class PythonDataSource(pydantic.BaseModel, BaseDataSource):
     spec.loader.exec_module(module)
 
     if self.variable_name is None:
-      raise ApiError("variable_name field is not provided for data source type Python", 400)
+      raise ApiError("variable_name field is not provided for data source type Python", 422)
     try:
       df = cast(pd.DataFrame, module.__dict__[self.variable_name])
       logger.info(f"Loaded data source from {self.path}")
@@ -91,7 +91,7 @@ class PythonDataSource(pydantic.BaseModel, BaseDataSource):
     except ModuleNotFoundError:
       raise ApiError(f"Failed to load {self.path} as a Python module", 404)
     except KeyError:
-      raise ApiError(f"The python script at {self.path} does not seem to contain a global variable with name {self.variable_name}", 400)
+      raise ApiError(f"The python script at {self.path} does not seem to contain a global variable with name {self.variable_name}", 422)
   
 
 DataSource = Annotated[Union[PythonDataSource, CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type")]

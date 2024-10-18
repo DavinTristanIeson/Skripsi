@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Union
 import uuid
 import pydantic
 
-class TopicCorrelationVisualizationMethod(str, Enum):
+class TopicSimilarityVisualizationMethod(str, Enum):
   Heatmap = "heatmap"
   Ldavis = "ldavis"
 
@@ -15,6 +15,7 @@ class IPCRequestType(str, Enum):
   DeleteTopics = "delete_topic"
   CreateTopic = "create_topic"
   TopicCorrelationPlot = "topic_correlation_plot"
+  AssociationPlot = "association_plot"
 
 class IPCRequestBase(pydantic.BaseModel):
   id: str = pydantic.Field(default_factory=lambda: uuid.uuid4().hex)
@@ -31,7 +32,8 @@ class IPCRequestData(SimpleNamespace):
 
   class TopicCorrelationPlot(IPCRequestBase):
     type: Literal[IPCRequestType.TopicCorrelationPlot] = IPCRequestType.TopicCorrelationPlot
-    visualization: TopicCorrelationVisualizationMethod
+    col: str
+    visualization: TopicSimilarityVisualizationMethod
 
 
   class MergeTopics(IPCRequestBase):
@@ -46,6 +48,10 @@ class IPCRequestData(SimpleNamespace):
     type: Literal[IPCRequestType.DeleteTopics] = IPCRequestType.DeleteTopics
     topics: list[int]
 
+  class AssociationPlot(IPCRequestBase):
+    type: Literal[IPCRequestType.AssociationPlot] = IPCRequestType.AssociationPlot
+    col1: str
+    col2: str
   
 
 IPCRequest = Union[

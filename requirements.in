@@ -11,3 +11,4 @@ fastapi[standard] # API Server
 numpy<2.0
 pandas # Process dataframes
 fastparquet # Load parquet
+orjson # Faster JSON for plotly

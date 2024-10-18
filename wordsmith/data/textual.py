@@ -5,7 +5,7 @@ import spacy
 from spacy.symbols import ORTH
 import spacy.symbols
 
-class PreprocessingConfig(pydantic.BaseModel):
+class TextPreprocessingConfig(pydantic.BaseModel):
   ignore_tokens: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
   stopwords: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
   remove_email: bool = True
@@ -42,3 +42,14 @@ class PreprocessingConfig(pydantic.BaseModel):
 
         tokens.append(token.lemma_.lower())
       yield tokens
+
+class TopicModelingConfig(pydantic.BaseModel):
+  low_memory: bool = False
+  min_topic_size: int = 15
+  max_topic_size: float = 1 / 15
+  max_topics: Optional[int] = None
+  n_gram_range: tuple[int, int] = (1, 2)
+  seed_topics: Optional[Sequence[Sequence[str]]] = None
+
+  no_outliers: bool = False
+  represent_outliers: bool = False
