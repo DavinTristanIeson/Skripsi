@@ -2,11 +2,16 @@ from enum import Enum
 from types import SimpleNamespace
 from typing import Annotated, Literal, Optional, Sequence, Union
 
+import pandas as pd
 import pydantic
 import numpy.typing as npt
 
 class IPCResponseDataType(str, Enum):
   Plot = "plot"
+  TopicPlot = "topic_plot"
+  CategoricalAssociationPlot = "categorical_association_plot"
+  ContinuousAssociationPlot = "continuous_association_plot"
+  TemporalAssociationPlot = "continuous_association_plot"
   Empty = "empty"
 
 class IPCResponseData(SimpleNamespace):
@@ -15,18 +20,34 @@ class IPCResponseData(SimpleNamespace):
     plot: str
 
   class TopicPlot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.Plot] = IPCResponseDataType.Plot
+    type: Literal[IPCResponseDataType.TopicPlot] = IPCResponseDataType.TopicPlot
     plot: str
     topic_words: dict[str, Sequence[tuple[str, float]]]
 
   class CategoricalAssociationPlot(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.CategoricalAssociationPlot] = IPCResponseDataType.CategoricalAssociationPlot
     crosstab_heatmap: str
     association_heatmap: str
     biplot: str
-    yaxis: Sequence[str]
-    xaxis: Sequence[str]
+
+    topics: Sequence[str]
+    # Column 2 outcomes
+    outcomes: Sequence[str]
     crosstab: npt.NDArray
     association: npt.NDArray
+
+  class ContinuousAssociationPlot(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.ContinuousAssociationPlot] = IPCResponseDataType.ContinuousAssociationPlot
+    plot: str
+    topics: Sequence[str]
+    statistics: pd.DataFrame
+
+  class TemporalAssociationPlot(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.TemporalAssociationPlot] = IPCResponseDataType.TemporalAssociationPlot
+    plot: str
+    topics: Sequence[str]
+    bins: Sequence[str]
+
 
   class Empty(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty

@@ -32,24 +32,24 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
   )
   crosstab_heatmap.update_layout(
     shared_params,
-    title=f"{a.name} x {b.name} (Frequency)",
+    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Frequency)",
   )
   crosstab_heatmap.update_traces(
     customdata=normalized_crosstab,
     hovertemplate="<br>".join([
-      str(b.name) + ": %{x}",
-      str(a.name) + ": %{y}",
+      str(b.name).capitalize() + ": %{x}",
+      str(a.name).capitalize() + ": %{y}",
       "Frequency: %{z}",
       "Percentage: %{customdata[x][y]}%",
     ])
   )
   association_heatmap.update_layout(
     shared_params,
-    title=f"{a.name} x {b.name} (Association)",
+    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Association)",
     customdata=crosstab,
     hovertemplate="<br>".join([
-      str(b.name) + ": %{x}",
-      str(a.name) + ": %{y}",
+      str(b.name).capitalize() + ": %{x}",
+      str(a.name).capitalize() + ": %{y}",
       "Strength: %{z}",
       "Frequency: %{customdata[x][y]}%",
     ])
@@ -62,10 +62,47 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
     association=indexed_residual_table.to_numpy(),
     crosstab=crosstab.to_numpy(),
 
-    xaxis=tuple(map(str, crosstab.columns)),
-    yaxis=tuple(map(str, crosstab.index)),
+    topics=tuple(map(str, crosstab.columns)),
+    outcomes=tuple(map(str, crosstab.index)),
   )
 
+def continuous_association_plot(a: pd.Series, b: pd.Series):
+  df = pd.DataFrame({
+    a.name: pd.Categorical(a),
+    b.name: b,
+  })
+  violinplot = plotly.express.violin(
+    df,
+    x=a.name,
+    y=b.name,
+    box=True,
+    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} Association"
+  )
+
+  topics = tuple(map(str, df[a.name].cat.categories))
+  statistics = {}
+  for topic in topics:
+    view: pd.Series = df[a.name] == topic
+    rawnumbers = df.loc[view, str(b.name)]
+    statistics[topic] = rawnumbers.describe()
+
+  return IPCResponseData.ContinuousAssociationPlot(
+    statistics=pd.DataFrame(statistics),
+    plot=cast(str, violinplot.to_json()),
+    topics=topics,
+  )
+
+def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
+  model = config.paths.load_bertopic(str(a.name))
+  col1_data = cast(list[str], a)
+  col2_data = cast(list[str], b.astype(str))
+  topics_over_time = model.topics_over_time(col1_data, col2_data)
+  topic_plot = model.visualize_topics_over_time(topics_over_time, title=f"{str(a.name).capitalize()} Topics Over Time {str(b.name).capitalize()}")
+  return IPCResponseData.TemporalAssociationPlot(
+    bins=tuple(map(str, topics_over_time["Bins"])),
+    topics=pd.Categorical(col1_data).categories,
+    plot=cast(str, topic_plot.to_json()),
+  )
 
 def association_plot(message: IPCRequestData.AssociationPlot):
   config = Config.from_project(message.project_id)
@@ -74,36 +111,31 @@ def association_plot(message: IPCRequestData.AssociationPlot):
   col1_schema = config.dfschema.assert_exists(message.col1)
   col2_schema = config.dfschema.assert_exists(message.col2)
 
+  if message.col1 == message.col2:
+    raise ApiError(f"Both columns are the same ({message.col2}). Please select a different column to compare.", 422)
 
-  categorical_comparison = (SchemaColumnType.Textual, SchemaColumnType.Categorical)
-  if col1_schema.type not in categorical_comparison:
-    raise ApiError("Only textual/categorical columns can be used as the left column. Please select a different column for the left side of the comparison.", 422)
+  if col1_schema.type != SchemaColumnType.Textual:
+    raise ApiError("Only textual columns can be used as the left column. Please select a different column for the left side of the comparison.", 422)
   
   if col2_schema.type == SchemaColumnType.Unique:
     raise ApiError(f"Columns of type {SchemaColumnType.Unique.name} ({message.col2}) cannot be compared with any other columns due to their unique nature. Consider changing the type of {message.col2} to {SchemaColumnType.Categorical.name} if you need to analyze that column.", 422)
   
-  if col1_schema.type == SchemaColumnType.Textual:
-    col1_data = assert_column_exists(df, col1_schema.topic_column)
-  else:
-    col1_data = assert_column_exists(df, message.col1)
+  col1_data = assert_column_exists(df, col1_schema.topic_column) \
+    if col1_schema.type == SchemaColumnType.Textual \
+    else assert_column_exists(df, message.col1)
+  
+  col2_data = assert_column_exists(df, col2_schema.topic_column) \
+    if col2_schema.type == SchemaColumnType.Textual \
+    else assert_column_exists(df, message.col1)
 
-  if col2_schema.type == SchemaColumnType.Textual:
-    col2_data = assert_column_exists(df, col2_schema.topic_column)
-  else:
-    col2_data = assert_column_exists(df, message.col1)
-
-  if col2_schema.type in categorical_comparison:
+  if col2_schema.type == SchemaColumnType.Categorical or col2_schema.type == SchemaColumnType.Textual:
     return categorical_association_plot(col1_data, col2_data)
 
   if col2_schema.type == SchemaColumnType.Continuous:
-    return
+    return continuous_association_plot(col1_data, col2_data)
   
   if col2_schema.type == SchemaColumnType.Temporal:
-    model = config.paths.load_bertopic(message.col2)
-    col1_data = cast(list[str], col1_data)
-    col2_data = cast(list[str], col2_data.astype(str))
-    topics_over_time = model.topics_over_time(col1_data, col2_data)
-    return model.visualize_topics_over_time(topics_over_time, title=f"{message.col1.capitalize()} Topics Over Time {message.col2.capitalize()}")
+    return temporal_association_plot(col1_data, col2_data, config)
   
   raise ApiError(f"The type of {message.col2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
 
