@@ -154,6 +154,8 @@ numpy==1.26.4
     #   thinc
     #   transformers
     #   umap-learn
+orjson==3.10.7
+    # via -r requirements.in
 packaging==24.1
     # via
     #   fastparquet

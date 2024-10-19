@@ -1,10 +1,12 @@
 from typing import Sequence, cast
 
 import pandas as pd
+from common.ipc.client import IntraProcessCommunicator
 from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethod
 import plotly.express
 
 from common.ipc.responses import IPCResponseData
+from common.ipc.tasks import ipc_task_handler
 from common.models.api import ApiError
 from common.utils.iterable import array_find
 from topic.controllers.utils import assert_column_exists
@@ -104,7 +106,8 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
     plot=cast(str, topic_plot.to_json()),
   )
 
-def association_plot(message: IPCRequestData.AssociationPlot):
+@ipc_task_handler
+def association_plot(comm: IntraProcessCommunicator, message: IPCRequestData.AssociationPlot):
   config = Config.from_project(message.project_id)
   df = config.paths.load_workspace()
   

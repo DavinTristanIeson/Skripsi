@@ -14,6 +14,10 @@ class IPCResponseDataType(str, Enum):
   TemporalAssociationPlot = "continuous_association_plot"
   Empty = "empty"
 
+class IPCProgressReport(pydantic.BaseModel):
+  progress: float
+  message: Optional[str]
+
 class IPCResponseData(SimpleNamespace):
   class Plot(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Plot] = IPCResponseDataType.Plot

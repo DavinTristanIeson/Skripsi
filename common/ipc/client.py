@@ -1,5 +1,8 @@
 import concurrent.futures
+import multiprocessing
 from multiprocessing.connection import Client, Connection, Listener
+import multiprocessing.connection
+import multiprocessing.synchronize
 from typing import Any, Callable, TypeVar
 import concurrent
 
@@ -77,6 +80,15 @@ class IPCListener:
 
         self.handler(msg)
       conn.close()
+
+class IntraProcessCommunicator(pydantic.BaseModel):
+  lock: multiprocessing.synchronize.Lock
+  pipe: multiprocessing.connection.PipeConnection
+  stop_event: multiprocessing.synchronize.Event
+
+  def check_stop(self):
+    if self.stop_event.is_set():
+      raise Exception("This process has been cancelled.")
 
 __all__ = [
   "IPCListener",

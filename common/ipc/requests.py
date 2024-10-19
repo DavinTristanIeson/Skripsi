@@ -10,6 +10,7 @@ class TopicSimilarityVisualizationMethod(str, Enum):
 
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
+  CancelTask = "cancel_task"
   TopicPlot = "topic_sunburst_plot"
   MergeTopics = "merge_topics"
   DeleteTopics = "delete_topic"
@@ -22,6 +23,9 @@ class IPCRequestBase(pydantic.BaseModel):
   project_id: str
 
 class IPCRequestData(SimpleNamespace):
+  class CancelTask(pydantic.BaseModel):
+    type: Literal[IPCRequestType.CancelTask] = IPCRequestType.CancelTask
+    id: str
   class TopicModeling(IPCRequestBase):
     type: Literal[IPCRequestType.TopicModeling] = IPCRequestType.TopicModeling
 
