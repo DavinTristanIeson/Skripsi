@@ -1,15 +1,11 @@
-from functools import lru_cache
-from typing import Annotated, Any, ClassVar, Mapping, Union, cast
-import pandas as pd
+from typing import Annotated, Callable, Optional
 import pydantic
 import json
 import os
 
 from common.logger import RegisteredLogger
-from common.utils.loader import hashfile
-from common.logger import TimeLogger
 
-from wordsmith.data.schema import SchemaColumn, SchemaColumnType
+from wordsmith.data.schema import SchemaColumn
 from wordsmith.data.schema_manager import SchemaManager
 from wordsmith.data.source import DataSource
 from wordsmith.data.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
@@ -39,9 +35,9 @@ class Config(pydantic.BaseModel):
       contents["paths"] = ProjectPathManager(project_id=project_id)
       return Config.model_validate(contents)
 
-  def preprocess(self):
+  def preprocess(self, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
     df = self.source.load()
-    df = self.dfschema.preprocess(df)
+    df = self.dfschema.preprocess(df, on_start=on_start)
 
     result_path = self.paths.full_path(ProjectPaths.Workspace)
     logger.info(f"Saving intermediate results to {result_path}")

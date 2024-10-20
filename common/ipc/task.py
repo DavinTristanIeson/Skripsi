@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import functools
 import threading
 from typing import Callable, Optional
 
@@ -74,12 +75,4 @@ class IPCTask:
 
 
 IPCTaskHandlerFn = Callable[[IPCTask], None]
-
-def ipc_task_handler(fn: IPCTaskHandlerFn):
-  def inner(comm: IPCTask):
-    try:
-      fn(comm)
-    except Exception as e:
-      comm.error(e)
-  return inner
 

@@ -74,7 +74,7 @@ fsspec==2024.9.0
     #   fastparquet
     #   huggingface-hub
     #   torch
-gensim==4.3.2
+gensim==4.3.3
     # via -r requirements.in
 h11==0.14.0
     # via
@@ -224,7 +224,7 @@ scikit-learn==1.5.2
     #   pynndescent
     #   sentence-transformers
     #   umap-learn
-scipy==1.14.1
+scipy==1.13.1
     # via
     #   gensim
     #   hdbscan

@@ -1,14 +1,12 @@
-from typing import Sequence, cast
+from typing import cast
 
 import pandas as pd
-from common.ipc.client import IntraProcessCommunicator
-from common.ipc.requests import IPCRequest, IPCRequestData, TopicSimilarityVisualizationMethod
+from common.ipc.requests import IPCRequestData
 import plotly.express
 
 from common.ipc.responses import AssociationData, IPCResponseData
-from common.ipc.task import IPCTask, TaskStepTracker, ipc_task_handler
+from common.ipc.task import IPCTask, TaskStepTracker
 from common.models.api import ApiError
-from common.utils.iterable import array_find
 from topic.controllers.utils import assert_column_exists
 
 import wordsmith.stats
@@ -112,7 +110,6 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
     )
   )
 
-@ipc_task_handler
 def association_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 3,

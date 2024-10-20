@@ -18,11 +18,11 @@ class IPCChannel(pydantic.BaseModel):
   authkey: bytes
 
 SERVER2TOPIC_IPC_CHANNEL = IPCChannel(
-  channel=("localhost", 5500),
+  channel=("localhost", 12520),
   authkey=b"wordsmith"
 )
 TOPIC2SERVER_IPC_CHANNEL = IPCChannel(
-  channel=("localhost", 5501),
+  channel=("localhost", 12521),
   authkey=b"wordsmith"
 )
 
@@ -67,6 +67,8 @@ class IPCListener:
       logger.info(f"Successfully established connection")
       
       while self.running:
+        if not conn.poll():
+          continue
         try:
           msg = conn.recv()
           logger.debug(f"Received message {msg} from the connection.")

@@ -5,7 +5,7 @@ from typing import Any
 
 from common.ipc.client import IPCChannel, IPCClient, IPCListener, IntraProcessCommunicator
 from common.ipc.requests import IPCRequest, IPCRequestType, IPCRequestWrapper
-from common.ipc.responses import IPCResponse
+from common.ipc.responses import IPCResponse, IPCResponseData, IPCResponseStatus
 from common.ipc.task import IPCTask, IPCTaskHandlerFn
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.metaclass import Singleton
@@ -26,38 +26,57 @@ class IPCTaskReceiver(metaclass=Singleton):
     client = IPCClient(self.channel)
     try:
       client.send(response)
+      logger.debug(f"Sent {response.model_dump_json()} to {self.channel}")
     except Exception as e:
       logger.error(f"An unexpected error has occurred while sending {response.model_dump_json()} through the client. Error: {e}")
 
   def handle_task(self, handler: IPCTaskHandlerFn, message: IPCRequest):
-    read_pipe, write_pipe = multiprocessing.Pipe()
+    parent_pipe, write_pipe = multiprocessing.Pipe()
     stop_event = multiprocessing.Event()
 
     with TimeLogger(logger, f"Handling task {message.id} with payload: {message.model_dump_json()}"):
-      future = self.pool.submit(
-        handler,
-        IPCTask(
-          id=message.id,
-          comm=IntraProcessCommunicator(
-            lock=self.lock,
-            pipe=write_pipe,
-            stop_event=stop_event
+      try:
+        future = self.pool.submit(
+          handler,
+          IPCTask(
+            id=message.id,
+            comm=IntraProcessCommunicator(
+              lock=self.lock,
+              pipe=write_pipe,
+              stop_event=stop_event
+            ),
+            request=message
           ),
-          request=message
-        ),
-      )
-      self.ongoing_tasks[message.id] = stop_event
+        )
+        self.ongoing_tasks[message.id] = stop_event
+      except Exception as e:
+        logger.error(f"An error has occurred while submitting a task to the process pool. Error: {e}")
+        self.respond(IPCResponse(
+          id=message.id,
+          error=str(e),
+          data=IPCResponseData.Empty(),
+          message=None,
+          progress=1,
+          status=IPCResponseStatus.Failed
+        ))
+        return
 
       try:
         while not future.done():
-          report = read_pipe.recv()
+          print(future.done(), parent_pipe.poll())
+          if not parent_pipe.poll():
+            continue
+          report = parent_pipe.recv()
           if report is not None:
             self.respond(report)
+
+        future.result()
       except Exception as e:
         logger.error(f"An unexpected error has occurred while waiting for task of {message.model_dump_json()} to finish. Error: {e}")
-      
+
     if message.id in self.ongoing_tasks:
       self.ongoing_tasks.pop(message.id)
+      logger.debug(f"Cleaned up task for {message.id}.")
     else:
       logger.warning(f"The ongoing task for task {message.id} had been removed unexpectedly.")
 
@@ -81,6 +100,7 @@ class IPCTaskReceiver(metaclass=Singleton):
     if handler is None:
       logger.error(f"No handler for message of type {response.root.type} has been registered!")
       return
+    
     if response.root.id in self.ongoing_tasks:
       logger.warning(f"Canceling ongoing task for {response.root.id} in lieu of the new task: {response.root.model_dump_json()}")
       self.cancel_task(response.root.id)
@@ -94,16 +114,20 @@ class IPCTaskReceiver(metaclass=Singleton):
     listener_pool: concurrent.futures.ThreadPoolExecutor,
     handlers: dict[IPCRequestType, IPCTaskHandlerFn],
     channel: IPCChannel,
+    lock: multiprocessing.synchronize.Lock,
     backchannel: IPCChannel
   ) :
     self.pool = pool
+    self.lock = lock
     self.listener_pool = listener_pool
     self.handlers = handlers
     self.channel = channel
+    self.ongoing_tasks = {}
     self.listener = IPCListener(backchannel, self.on_received_message)
+    logger.info("Initialized IPCTaskReceiver.")
 
   def listen(self):
-    thread = threading.Thread(target=self.listener.listen)
+    thread = threading.Thread(target=self.listener.listen, daemon=True)
     thread.start()
     return thread
 

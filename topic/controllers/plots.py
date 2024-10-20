@@ -1,15 +1,12 @@
 from typing import Sequence, cast
-from common.ipc.client import IntraProcessCommunicator
 from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethod
 import plotly.express
 
 from common.ipc.responses import IPCResponseData
-from common.ipc.task import IPCTask, TaskStepTracker, ipc_task_handler
-from common.models.api import ApiError
+from common.ipc.task import IPCTask, TaskStepTracker
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 
-@ipc_task_handler
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 4,
@@ -44,7 +41,6 @@ def hierarchical_topic_plot(task: IPCTask):
     topic_words=topic_words
   ), None)
 
-@ipc_task_handler
 def topic_correlation_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 2,

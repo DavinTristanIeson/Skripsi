@@ -12,7 +12,7 @@ import pandas as pd
 import common
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
-from common.ipc.task import IPCTask, ipc_task_handler
+from common.ipc.task import IPCTask, TaskStepTracker
 from common.logger import TimeLogger
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
@@ -20,21 +20,25 @@ from wordsmith.topic.doc2vec import Doc2VecTransformer
 
 logger = logging.getLogger("Topic Modeling Service")
 
-@ipc_task_handler
 def topic_modeling(task: IPCTask):
   message = cast(IPCRequestData.TopicModeling, task.request)
   config = Config.from_project(message.project_id)
+
+  task.progress(0, "Preprocessing all of the available columns")
   df = config.preprocess()
+
+  steps = TaskStepTracker(
+    max_steps=1 + (len(config.dfschema.columns) * 5)
+  )
   textcolumns = config.dfschema.textual()
   for colidx, column in enumerate(textcolumns):
-    progress = colidx/len(textcolumns)
     column_data = df[column.preprocess_column]
     mask = column_data.str.len() != 0
     raw_documents = cast(Sequence[str], column_data[mask])
 
     task.check_stop()
     task.progress(
-      progress=progress,
+      progress=steps.advance(),
       message=f"Preprocessing documents of {column.name}"
     )
 
@@ -47,7 +51,7 @@ def topic_modeling(task: IPCTask):
 
     task.check_stop()
     task.progress(
-      progress=progress,
+      progress=steps.advance(),
       message=f"Transforming documents of {column.name} into document embeddings"
     )
 
@@ -92,7 +96,7 @@ def topic_modeling(task: IPCTask):
 
     task.check_stop()
     task.progress(
-      progress=progress,
+      progress=steps.advance(),
       message=f"Starting the topic modeling process for {column.name}"
     )
 
@@ -101,7 +105,7 @@ def topic_modeling(task: IPCTask):
 
     task.check_stop()
     task.progress(
-      progress=progress,
+      progress=steps.advance(),
       message=f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics."
     )
 
@@ -119,7 +123,7 @@ def topic_modeling(task: IPCTask):
 
     task.check_stop()
     task.progress(
-      progress=progress,
+      progress=steps.advance(),
       message=f"Saving the topic information for {column.name}"
     )
 
