@@ -1,13 +1,19 @@
 import http
 import os
 from fastapi import APIRouter
-from pydantic import RootModel
-from common.models.api import ApiResult
+from pydantic import RootModel, field_validator
+from common.models.api import ApiResult, ApiError
 from wordsmith.data import paths
 from wordsmith.data import source
-
+ 
 class DataSourceWrapper(RootModel):
   root: source.DataSource
+
+  @field_validator('root')
+  def validate_file_path(cls, root):
+    if not os.path.isfile(root.path):
+      raise ApiError("File not found!", http.HTTPStatus.NOT_FOUND)
+    return root
 
 router = APIRouter(
   prefix="/projects/check",
