@@ -29,7 +29,7 @@ class Config(pydantic.BaseModel):
 
   @staticmethod
   def from_project(project_id: str)->"Config":
-    source = os.path.join(DATA_DIRECTORY, project_id)
+    source = os.path.join(DATA_DIRECTORY, project_id, "config.json")
     with open(source, 'r', encoding='utf-8') as f:
       contents = json.load(f)
       contents["paths"] = ProjectPathManager(project_id=project_id)

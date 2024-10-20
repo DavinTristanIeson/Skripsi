@@ -1,7 +1,7 @@
 import datetime
 from enum import Enum
 from types import SimpleNamespace
-from typing import Annotated, Literal, Optional, Sequence, Union
+from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
 import pandas as pd
 import pydantic
@@ -111,6 +111,39 @@ class IPCResponse(pydantic.BaseModel):
   message: Optional[str] = None
   progress: Optional[float] = None
   error: Optional[str] = None
+
+  @staticmethod
+  def Success(id: str, data: Any, message: Optional[str]):
+    return IPCResponse(
+      data=data,
+      error=None,
+      message=message,
+      progress=1,
+      status=IPCResponseStatus.Success,
+      id=id,
+    )
+
+  @staticmethod
+  def Pending(id: str, progress: float, message: str):
+    return IPCResponse(
+      data=IPCResponseData.Empty(),
+      error=None,
+      message=message,
+      progress=progress,
+      status=IPCResponseStatus.Pending,
+      id=id,
+    )
+
+  @staticmethod
+  def Error(id: str, error_message: str):
+    return IPCResponse(
+      data=IPCResponseData.Empty(),
+      error=error_message,
+      message=None,
+      progress=1,
+      status=IPCResponseStatus.Failed,
+      id=id,
+    )
 
 
 __all__ = [

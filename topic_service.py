@@ -1,5 +1,6 @@
 import logging
 import multiprocessing
+import threading
 from common.logger import RegisteredLogger
 
 RegisteredLogger().configure(
@@ -22,32 +23,30 @@ if __name__ == "__main__":
     comm.success(IPCResponseData.Empty(), "Placeholder")
 
 
-  pool = concurrent.futures.ProcessPoolExecutor(4)
-  listener_pool = concurrent.futures.ThreadPoolExecutor(8)
-  lock = multiprocessing.Lock()
+  pool = concurrent.futures.ThreadPoolExecutor(16)
   receiver = ipc.taskqueue.IPCTaskReceiver()
   receiver.initialize(
     channel=ipc.client.TOPIC2SERVER_IPC_CHANNEL,
     backchannel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
-    lock=lock,
     handlers={
       IPCRequestType.TopicModeling: topic.controllers.model.topic_modeling,
-      IPCRequestType.TopicCorrelationPlot: placeholder,
+      IPCRequestType.TopicCorrelationPlot: topic.controllers.plots.topic_correlation_plot,
+      IPCRequestType.TopicPlot: topic.controllers.plots.hierarchical_topic_plot,
+      IPCRequestType.AssociationPlot: topic.controllers.association.association_plot,
       IPCRequestType.CreateTopic: placeholder,
       IPCRequestType.DeleteTopics: placeholder,
       IPCRequestType.MergeTopics: placeholder,
     },
-    listener_pool=listener_pool,
     pool=pool
   )
 
-  receiver.listen()
+  stop_event = threading.Event()
+  receiver.listen(stop_event)
 
   @atexit.register
   def cleanup():
-    receiver.listener.running = False
+    stop_event.set()
     pool.shutdown(wait=False, cancel_futures=True)
-    listener_pool.shutdown(wait=False, cancel_futures=True)
 
   # Allows user to kill process with Ctrl + C
   while True:

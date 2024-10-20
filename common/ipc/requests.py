@@ -19,8 +19,8 @@ class IPCRequestType(str, Enum):
   AssociationPlot = "association_plot"
 
 class IPCRequestBase(pydantic.BaseModel):
-  id: str = pydantic.Field(default_factory=lambda: uuid.uuid4().hex)
   project_id: str
+  id: str
 
 class IPCRequestData(SimpleNamespace):
   class CancelTask(pydantic.BaseModel):
