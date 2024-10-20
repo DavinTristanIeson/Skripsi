@@ -4,23 +4,28 @@ from typing import Annotated, Literal, Union
 import uuid
 import pydantic
 
-class TopicCorrelationVisualizationMethod(str, Enum):
+class TopicSimilarityVisualizationMethod(str, Enum):
   Heatmap = "heatmap"
   Ldavis = "ldavis"
 
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
+  CancelTask = "cancel_task"
   TopicPlot = "topic_sunburst_plot"
   MergeTopics = "merge_topics"
   DeleteTopics = "delete_topic"
   CreateTopic = "create_topic"
   TopicCorrelationPlot = "topic_correlation_plot"
+  AssociationPlot = "association_plot"
 
 class IPCRequestBase(pydantic.BaseModel):
-  id: str = pydantic.Field(default_factory=lambda: uuid.uuid4().hex)
   project_id: str
+  id: str
 
 class IPCRequestData(SimpleNamespace):
+  class CancelTask(pydantic.BaseModel):
+    type: Literal[IPCRequestType.CancelTask] = IPCRequestType.CancelTask
+    id: str
   class TopicModeling(IPCRequestBase):
     type: Literal[IPCRequestType.TopicModeling] = IPCRequestType.TopicModeling
 
@@ -31,7 +36,8 @@ class IPCRequestData(SimpleNamespace):
 
   class TopicCorrelationPlot(IPCRequestBase):
     type: Literal[IPCRequestType.TopicCorrelationPlot] = IPCRequestType.TopicCorrelationPlot
-    visualization: TopicCorrelationVisualizationMethod
+    col: str
+    visualization: TopicSimilarityVisualizationMethod
 
 
   class MergeTopics(IPCRequestBase):
@@ -46,6 +52,10 @@ class IPCRequestData(SimpleNamespace):
     type: Literal[IPCRequestType.DeleteTopics] = IPCRequestType.DeleteTopics
     topics: list[int]
 
+  class AssociationPlot(IPCRequestBase):
+    type: Literal[IPCRequestType.AssociationPlot] = IPCRequestType.AssociationPlot
+    col1: str
+    col2: str
   
 
 IPCRequest = Union[

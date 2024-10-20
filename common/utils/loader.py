@@ -1,4 +1,5 @@
 import hashlib
+from typing import Iterable, Sequence
 
 def hashfile(path: str)->str:
   hasher = hashlib.md5()
@@ -6,3 +7,6 @@ def hashfile(path: str)->str:
     while (chunk := f.read(4096)):
       hasher.update(chunk)
   return hasher.hexdigest()
+
+def concatenate_generator(iterable: Iterable[Sequence[str]], separator: str = ' ')->Iterable[str]:
+  return map(lambda tokens: separator.join(tokens), iterable)

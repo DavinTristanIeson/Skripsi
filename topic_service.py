@@ -1,44 +1,53 @@
 import logging
-
-import concurrent.futures
+import multiprocessing
 import threading
-
-import common.ipc as ipc
-from common.ipc.requests import IPCRequestType, IPCRequest
-from common.ipc.responses import IPCResponse, IPCResponseData, IPCResponseStatus
 from common.logger import RegisteredLogger
 
-def placeholder(message: IPCRequest):
-  client = ipc.client.IPCClient(ipc.client.TOPIC2SERVER_IPC_CHANNEL)
-  client.send(IPCResponse(
-    id=message.id,
-    data=IPCResponseData.Empty(),
-    error=None,
-    status=IPCResponseStatus.Success,
-  ))
-  print(message)
-
-
-pool = concurrent.futures.ProcessPoolExecutor(4)
-receiver = ipc.tasks.IPCTaskReceiver()
-receiver.initialize(
-  backchannel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
-  handlers={
-    IPCRequestType.TopicModeling: placeholder,
-    IPCRequestType.TopicCorrelationPlot: placeholder,
-    IPCRequestType.CreateTopic: placeholder,
-    IPCRequestType.DeleteTopics: placeholder,
-    IPCRequestType.MergeTopics: placeholder,
-  },
-  pool=pool
-)
-
 RegisteredLogger().configure(
-  level=logging.INFO,
+  level=logging.DEBUG,
   terminal=True
 )
+if __name__ == "__main__":
+  import concurrent.futures
+  import atexit
 
-receiver.listen()
-# Allows user to kill process with Ctrl + C
-while True:
-  input()
+  import common.ipc as ipc
+  from common.ipc.requests import IPCRequestType
+  from common.ipc.responses import IPCResponseData
+  from common.ipc.task import IPCTask
+
+  import topic.controllers
+
+  def placeholder(comm: IPCTask):
+    print(comm.request)
+    comm.success(IPCResponseData.Empty(), "Placeholder")
+
+
+  pool = concurrent.futures.ThreadPoolExecutor(16)
+  receiver = ipc.taskqueue.IPCTaskReceiver()
+  receiver.initialize(
+    channel=ipc.client.TOPIC2SERVER_IPC_CHANNEL,
+    backchannel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
+    handlers={
+      IPCRequestType.TopicModeling: topic.controllers.model.topic_modeling,
+      IPCRequestType.TopicCorrelationPlot: topic.controllers.plots.topic_correlation_plot,
+      IPCRequestType.TopicPlot: topic.controllers.plots.hierarchical_topic_plot,
+      IPCRequestType.AssociationPlot: topic.controllers.association.association_plot,
+      IPCRequestType.CreateTopic: placeholder,
+      IPCRequestType.DeleteTopics: placeholder,
+      IPCRequestType.MergeTopics: placeholder,
+    },
+    pool=pool
+  )
+
+  stop_event = threading.Event()
+  receiver.listen(stop_event)
+
+  @atexit.register
+  def cleanup():
+    stop_event.set()
+    pool.shutdown(wait=False, cancel_futures=True)
+
+  # Allows user to kill process with Ctrl + C
+  while True:
+    input()

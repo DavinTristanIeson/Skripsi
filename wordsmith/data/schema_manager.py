@@ -1,9 +1,11 @@
-from typing import Sequence, cast
+from typing import Callable, Optional, Sequence, cast
 
 import pandas as pd
 import pydantic
 
 from common.logger import RegisteredLogger, TimeLogger
+from common.models.api import ApiError
+from common.utils.iterable import array_find
 from wordsmith.data.schema import CategoricalSchemaColumn, ContinuousSchemaColumn, SchemaColumn, SchemaColumnType, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
@@ -28,10 +30,18 @@ class SchemaManager(pydantic.BaseModel):
   def temporal(self)->tuple[TemporalSchemaColumn, ...]:
     return cast(tuple[TemporalSchemaColumn, ...], self.of_type(SchemaColumnType.Temporal))
   
-  def preprocess(self, df: pd.DataFrame):
+  def assert_exists(self, name:str)->SchemaColumn:
+    column = array_find(self.columns, lambda x: x.name == name)
+    if column is None:
+      raise ApiError(f"Column {name} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
+    return column
+  
+  def preprocess(self, df: pd.DataFrame, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
     df = df.loc[:, [col.name for col in self.columns]]
     
     for col in self.columns:
+      if on_start is not None:
+        on_start(col)
       df.loc[:, col.name] = col.fit(cast(pd.Series, df.loc[:, col.name]))
       if col.type != SchemaColumnType.Textual:
         continue

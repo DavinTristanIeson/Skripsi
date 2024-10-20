@@ -1,4 +1,6 @@
+import atexit
 import logging
+import threading
 from fastapi import FastAPI
 import server.controllers
 import server.routes
@@ -14,11 +16,17 @@ RegisteredLogger().configure(
   terminal=True
 )
 
-locker = ipc.tasks.IPCTaskLocker()
+locker = ipc.taskqueue.IPCTaskLocker()
 locker.initialize(
   channel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
   backchannel=ipc.client.TOPIC2SERVER_IPC_CHANNEL
 )
-locker.listen()
+
+stop_event = threading.Event()
+locker.listen(stop_event)
+
+@atexit.register
+def cleanup():
+  stop_event.set()
 
 app.include_router(server.routes.topics.router, prefix="/api/topics")

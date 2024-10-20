@@ -1,6 +1,8 @@
+import functools
 import os
 import shutil
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pandas as pd
 import pydantic
@@ -8,20 +10,36 @@ import pydantic
 from common.logger import RegisteredLogger
 from server.controllers.exceptions import ApiError
 
+if TYPE_CHECKING:
+  import bertopic
+  import gensim
+
 INTERMEDIATE_DIRECTORY = "intermediate"
 RESULTS_DIRECTORY = "results"
 DATA_DIRECTORY = "data"
 
 class ProjectPaths(SimpleNamespace):
   Workspace = "workspace.parquet"
-  Embeddings = "embeddings.npy"
   Config = "config.json"
-  TopicsTable = 'topics.parquet'
 
-  Doc2VecModel = "doc2vec"
-  BERTopicModel = 'bertopic'
+  Doc2Vec = "doc2vec"
+  BERTopic = 'bertopic'
 
 logger = RegisteredLogger().provision("Wordsmith Data Loader")
+
+def file_loading_error_handler(entity_type: str):
+  def decorator(fn):
+    def inner(*args, **kwargs):
+      try:
+        return fn(**kwargs)
+      except ApiError as e:
+        # Ignore api errors
+        raise e
+      except Exception as e:
+        logger.error(f"Failed to load the {entity_type}. Error: {e}")
+        raise ApiError(f"Failed to load the {entity_type}. Please wait for the topic modeling procedure to finish. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
+    return inner
+  return decorator
 
 class ProjectPathManager(pydantic.BaseModel):
   project_id: str
@@ -40,13 +58,23 @@ class ProjectPathManager(pydantic.BaseModel):
       raise ApiError(f"{fullpath} does not exist. Perhaps the file has not been created yet.", 404)
     return fullpath
 
-  def load_preprocessed_table(self)->pd.DataFrame:
+  @file_loading_error_handler("workspace table")
+  def load_workspace(self)->pd.DataFrame:
     path = self.full_path(ProjectPaths.Workspace)
     return pd.read_parquet(path)
-  
-  def load_topics_table(self)->pd.DataFrame:
-    path = self.full_path(ProjectPaths.TopicsTable)
-    return pd.read_parquet(path)
+      
+      
+  @file_loading_error_handler("document embeddings")
+  def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
+    import gensim
+    path = self.full_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.npy"))
+    return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
+
+  @file_loading_error_handler("topic information")  
+  def load_bertopic(self, column: str)->"bertopic.BERTopic":
+    import bertopic
+    path = self.full_path(os.path.join(ProjectPaths.BERTopic, column))
+    return bertopic.BERTopic.load(path)
   
   def cleanup(self):
     EXCLUDED = set(ProjectPaths.Config)
