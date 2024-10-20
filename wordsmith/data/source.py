@@ -15,7 +15,7 @@ from common.utils.loader import hashfile
 from common.models.api import ApiError
 
 class DataSourceTypeEnum(str, Enum):
-  CSV = "csv",
+  CSV = "csv"
   Parquet = "parquet"
   Excel = "excel"
   Python = "python"
