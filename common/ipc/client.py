@@ -1,12 +1,15 @@
-import concurrent.futures
-from multiprocessing.connection import Client, Connection, Listener
-from typing import Any, Callable, TypeVar
-import concurrent
+from dataclasses import dataclass
+import multiprocessing
+from multiprocessing.connection import Client, Listener
+import multiprocessing.connection
+import multiprocessing.synchronize
+import queue
+import threading
+from typing import Any, Callable
 
 import pydantic
 
 from common.logger import RegisteredLogger
-from common.models.metaclass import Singleton
 
 
 logger = RegisteredLogger().provision("IPC")
@@ -16,11 +19,11 @@ class IPCChannel(pydantic.BaseModel):
   authkey: bytes
 
 SERVER2TOPIC_IPC_CHANNEL = IPCChannel(
-  channel=("localhost", 5500),
+  channel=("localhost", 12520),
   authkey=b"wordsmith"
 )
 TOPIC2SERVER_IPC_CHANNEL = IPCChannel(
-  channel=("localhost", 5501),
+  channel=("localhost", 12521),
   authkey=b"wordsmith"
 )
 
@@ -45,18 +48,15 @@ class IPCClient:
 class IPCListener:
   channel: IPCChannel
   listener: Listener
-  running: bool
   handler: Callable[[Any], None]
 
   def __init__(self, channel: IPCChannel, handler: Callable[[Any], None]) -> None:
     self.listener = Listener(channel.channel, authkey=channel.authkey)
     self.handler = handler
-    self.running = False
     self.channel = channel
 
-  def listen(self):
-    self.running = True
-    while self.running:
+  def listen(self, stop_event: threading.Event):
+    while not stop_event.is_set():
       try:
         conn = self.listener.accept()
       except Exception as e:
@@ -64,7 +64,9 @@ class IPCListener:
         continue
       logger.info(f"Successfully established connection")
       
-      while self.running:
+      while not stop_event.is_set():
+        if not conn.poll():
+          continue
         try:
           msg = conn.recv()
           logger.debug(f"Received message {msg} from the connection.")
