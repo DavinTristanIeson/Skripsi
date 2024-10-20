@@ -1,4 +1,4 @@
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar, Union
 from fastapi.encoders import jsonable_encoder
 import pydantic
 
@@ -20,4 +20,6 @@ class ApiResult(pydantic.BaseModel, Generic[T]):
 
 class ApiErrorResult(pydantic.BaseModel):
   message: str
-  errors: Optional[dict[str, Any]] = None
+  errors: Optional[dict[Union[str, int], Any]] = None
+  def as_json(self):
+    return jsonable_encoder(self)

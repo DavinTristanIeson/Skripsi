@@ -2,18 +2,29 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from common.logger import RegisteredLogger
 from common.models.api import ApiError
 from common.models.api import ApiErrorResult
 
-
+logger = RegisteredLogger().provision("FastAPI Error Handler")
 
 def default_exception_handler(request: Request, exc: ApiError):
+  logger.error(f"Error while handling {request.url}. Error: {exc.message}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
   raw_errors = list(exc.errors())
   errors = {}
   for error in raw_errors:
+    if error["type"] == "json_invalid":
+      return JSONResponse(
+        status_code=400,
+        content=ApiErrorResult(
+          message="Invalid JSON in body",
+          errors=None
+        ).as_json(),
+      )
+
     error_mapper = errors
     error_path = error['loc']
     # Create error tree
@@ -25,12 +36,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         error_mapper[loc] = {}
       error_mapper = error_mapper[loc]
 
-    error_mapper[error_path[-1]] = error['msg']
+    error_mapper[error_path[-1]] = str(error['msg'])
 
   message = str(raw_errors[0]['msg'])
+  logger.error(f"Error while handling {request.url}. Error: {exc}")
   return JSONResponse(
     status_code=422,
-    content=ApiErrorResult(message=message, errors=errors).model_dump(),
+    content=ApiErrorResult(message=message, errors=errors).as_json(),
   )
 
 def register_error_handlers(app: FastAPI):

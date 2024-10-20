@@ -5,7 +5,9 @@ from common.ipc.taskqueue import IPCTaskLocker
 from common.models.api import ApiResult
 
 
-router = APIRouter()
+router = APIRouter(
+  tags=["Topics"]
+)
 
 @router.post('/{project_id}')
 def post__topic_modeling_request(project_id: str):

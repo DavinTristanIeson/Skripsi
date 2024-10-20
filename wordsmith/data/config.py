@@ -1,4 +1,4 @@
-from typing import Annotated, Callable, Optional
+from typing import Annotated, Callable, Literal, Optional
 import pydantic
 import json
 import os
@@ -21,11 +21,17 @@ SchemaManagerField = Annotated[SchemaManager, __create_columns_field]
   
 logger = RegisteredLogger().provision("Config")
 class Config(pydantic.BaseModel):
+  version: int = pydantic.Field(default=1)
   project_id: str
   source: DataSource
   # schema is taken by pydantic
   dfschema: SchemaManagerField
-  paths: ProjectPathManager
+  paths: ProjectPathManager = pydantic.Field(exclude=True)
+  
+  @pydantic.model_validator(mode="before")
+  def __validate__paths(self):
+    if self.project_id is not None and isinstance(self.project_id, str):
+      self.paths = ProjectPathManager(project_id=self.project_id)
 
   @staticmethod
   def from_project(project_id: str)->"Config":

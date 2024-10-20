@@ -7,7 +7,7 @@ import server.routes
 
 from common.logger import RegisteredLogger
 import common.ipc as ipc
-import server.routes.api
+import server.routes.projects
 
 app = FastAPI()
 server.controllers.exceptions.register_error_handlers(app)
@@ -31,5 +31,5 @@ def cleanup():
   stop_event.set()
 
 app.include_router(server.routes.topics.router, prefix="/api/topics")
-app.include_router(server.routes.api.router, prefix="/api")
+app.include_router(server.routes.projects.router, prefix="/api/projects")
                    
