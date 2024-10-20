@@ -2,11 +2,11 @@ from typing import Sequence, cast
 
 import pandas as pd
 from common.ipc.client import IntraProcessCommunicator
-from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethod
+from common.ipc.requests import IPCRequest, IPCRequestData, TopicSimilarityVisualizationMethod
 import plotly.express
 
-from common.ipc.responses import IPCResponseData
-from common.ipc.tasks import ipc_task_handler
+from common.ipc.responses import AssociationData, IPCResponseData
+from common.ipc.task import IPCTask, TaskStepTracker, ipc_task_handler
 from common.models.api import ApiError
 from common.utils.iterable import array_find
 from topic.controllers.utils import assert_column_exists
@@ -56,16 +56,18 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
       "Frequency: %{customdata[x][y]}%",
     ])
   )
-  return IPCResponseData.CategoricalAssociationPlot(
-    crosstab_heatmap=cast(str, crosstab_heatmap.to_json()),
-    association_heatmap=cast(str, association_heatmap.to_json()),
-    biplot='',
+  return IPCResponseData.Association(
+    data=AssociationData.Categorical(
+      crosstab_heatmap=cast(str, crosstab_heatmap.to_json()),
+      association_heatmap=cast(str, association_heatmap.to_json()),
+      biplot='',
 
-    association=indexed_residual_table.to_numpy(),
-    crosstab=crosstab.to_numpy(),
+      association_csv=indexed_residual_table.to_csv(),
+      crosstab_csv=crosstab.to_csv(),
 
-    topics=tuple(map(str, crosstab.columns)),
-    outcomes=tuple(map(str, crosstab.index)),
+      topics=tuple(map(str, crosstab.columns)),
+      outcomes=tuple(map(str, crosstab.index)),
+    )
   )
 
 def continuous_association_plot(a: pd.Series, b: pd.Series):
@@ -88,10 +90,12 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
     rawnumbers = df.loc[view, str(b.name)]
     statistics[topic] = rawnumbers.describe()
 
-  return IPCResponseData.ContinuousAssociationPlot(
-    statistics=pd.DataFrame(statistics),
-    plot=cast(str, violinplot.to_json()),
-    topics=topics,
+  return IPCResponseData.Association(
+    data=AssociationData.Continuous(
+      statistics_csv=pd.DataFrame(statistics).to_csv(),
+      plot=cast(str, violinplot.to_json()),
+      topics=topics,
+    )
   )
 
 def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
@@ -100,17 +104,28 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
   col2_data = cast(list[str], b.astype(str))
   topics_over_time = model.topics_over_time(col1_data, col2_data)
   topic_plot = model.visualize_topics_over_time(topics_over_time, title=f"{str(a.name).capitalize()} Topics Over Time {str(b.name).capitalize()}")
-  return IPCResponseData.TemporalAssociationPlot(
-    bins=tuple(map(str, topics_over_time["Bins"])),
-    topics=pd.Categorical(col1_data).categories,
-    plot=cast(str, topic_plot.to_json()),
+  return IPCResponseData.Association(
+    data=AssociationData.Temporal(
+      bins=tuple(map(str, topics_over_time["Bins"])),
+      topics=pd.Categorical(col1_data).categories,
+      plot=cast(str, topic_plot.to_json()),
+    )
   )
 
 @ipc_task_handler
-def association_plot(comm: IntraProcessCommunicator, message: IPCRequestData.AssociationPlot):
+def association_plot(task: IPCTask):
+  steps = TaskStepTracker(
+    max_steps = 3,
+  )
+
+  task.progress(0, "Loading workspace table.")
+
+  message = cast(IPCRequestData.AssociationPlot, task.request)
   config = Config.from_project(message.project_id)
   df = config.paths.load_workspace()
-  
+
+  task.progress(steps.advance(), f"Checking to make sure that {message.col1} and {message.col2} actually exist in the table.")
+
   col1_schema = config.dfschema.assert_exists(message.col1)
   col2_schema = config.dfschema.assert_exists(message.col2)
 
@@ -130,15 +145,20 @@ def association_plot(comm: IntraProcessCommunicator, message: IPCRequestData.Ass
   col2_data = assert_column_exists(df, col2_schema.topic_column) \
     if col2_schema.type == SchemaColumnType.Textual \
     else assert_column_exists(df, message.col1)
+  
+  task.progress(steps.advance(), f"Finding association between {message.col1} and {message.col2}")
 
   if col2_schema.type == SchemaColumnType.Categorical or col2_schema.type == SchemaColumnType.Textual:
-    return categorical_association_plot(col1_data, col2_data)
-
-  if col2_schema.type == SchemaColumnType.Continuous:
-    return continuous_association_plot(col1_data, col2_data)
+    plot = categorical_association_plot(col1_data, col2_data)
+  elif col2_schema.type == SchemaColumnType.Continuous:
+    plot = continuous_association_plot(col1_data, col2_data)
+  elif col2_schema.type == SchemaColumnType.Temporal:
+    plot = temporal_association_plot(col1_data, col2_data, config)
+  else:
+    raise ApiError(f"The type of {message.col2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
   
-  if col2_schema.type == SchemaColumnType.Temporal:
-    return temporal_association_plot(col1_data, col2_data, config)
-  
-  raise ApiError(f"The type of {message.col2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
+  task.success(plot, None)
 
+__all__ = [
+  "association_plot",
+]

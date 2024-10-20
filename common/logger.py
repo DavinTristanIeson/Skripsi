@@ -77,7 +77,7 @@ class TimeLogger:
     
   def __enter__(self):
     if self.report_start:
-      self.logger.info(f"{self.title} - START")
+      self.logger.debug(f"{self.title} - START")
     self.start_time = time.perf_counter()
 
   def __exit__(self, *args):

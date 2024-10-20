@@ -1,3 +1,4 @@
+import datetime
 from enum import Enum
 from types import SimpleNamespace
 from typing import Annotated, Literal, Optional, Sequence, Union
@@ -6,55 +7,17 @@ import pandas as pd
 import pydantic
 import numpy.typing as npt
 
+# ENUMS
 class IPCResponseDataType(str, Enum):
   Plot = "plot"
-  TopicPlot = "topic_plot"
-  CategoricalAssociationPlot = "categorical_association_plot"
-  ContinuousAssociationPlot = "continuous_association_plot"
-  TemporalAssociationPlot = "continuous_association_plot"
+  Topics = "topics"
+  Association = "association"
   Empty = "empty"
 
-class IPCProgressReport(pydantic.BaseModel):
-  progress: float
-  message: Optional[str]
-
-class IPCResponseData(SimpleNamespace):
-  class Plot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.Plot] = IPCResponseDataType.Plot
-    plot: str
-
-  class TopicPlot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.TopicPlot] = IPCResponseDataType.TopicPlot
-    plot: str
-    topic_words: dict[str, Sequence[tuple[str, float]]]
-
-  class CategoricalAssociationPlot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.CategoricalAssociationPlot] = IPCResponseDataType.CategoricalAssociationPlot
-    crosstab_heatmap: str
-    association_heatmap: str
-    biplot: str
-
-    topics: Sequence[str]
-    # Column 2 outcomes
-    outcomes: Sequence[str]
-    crosstab: npt.NDArray
-    association: npt.NDArray
-
-  class ContinuousAssociationPlot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.ContinuousAssociationPlot] = IPCResponseDataType.ContinuousAssociationPlot
-    plot: str
-    topics: Sequence[str]
-    statistics: pd.DataFrame
-
-  class TemporalAssociationPlot(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.TemporalAssociationPlot] = IPCResponseDataType.TemporalAssociationPlot
-    plot: str
-    topics: Sequence[str]
-    bins: Sequence[str]
-
-
-  class Empty(pydantic.BaseModel):
-    type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty
+class AssociationDataType(str, Enum):
+  Categorical = "categorical"
+  Continuous = "continuous"
+  Temporal = "temporal"
 
 class IPCResponseStatus(str, Enum):
   Idle = "idle"
@@ -62,14 +25,88 @@ class IPCResponseStatus(str, Enum):
   Success = "success"
   Failed = "failed"
 
-IPCResponseDataUnion = Union[
-  IPCResponseData.Plot,
-  IPCResponseData.Empty,
-]
+# OTHER DATA
+class AssociationData(SimpleNamespace):
+  class Categorical(pydantic.BaseModel):
+    type: Literal[AssociationDataType.Categorical] = AssociationDataType.Categorical
+    crosstab_heatmap: str
+    association_heatmap: str
+    biplot: str
+
+    topics: Sequence[str]
+    # Column 2 outcomes
+    outcomes: Sequence[str]
+
+    # CSV
+    crosstab_csv: str
+    association_csv: str
+
+  class Continuous(pydantic.BaseModel):
+    type: Literal[AssociationDataType.Continuous] = AssociationDataType.Continuous
+    plot: str
+    topics: Sequence[str]
+
+    # CSV
+    statistics_csv: str
+
+  class Temporal(pydantic.BaseModel):
+    type: Literal[AssociationDataType.Temporal] = AssociationDataType.Temporal
+    plot: str
+    topics: Sequence[str]
+    bins: Sequence[str]
+
+  TypeUnion = Union[Categorical, Continuous, Temporal]
+  DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
+
+# IPC RESPONSE
+
+class IPCProgressReport(pydantic.BaseModel):
+  progress: float
+  message: Optional[str]
+  timestamp: datetime.datetime = pydantic.Field(
+    default_factory=lambda: datetime.datetime.now()
+  )
+  
+  @pydantic.field_serializer("timestamp", when_used="json")
+  def serialize__time(self, timestamp: datetime.datetime):
+    return timestamp.timestamp()
+  
+  @pydantic.field_validator("timestamp", mode="before")
+  def validate__time(cls, timestamp: int):
+    if timestamp is None or not isinstance(timestamp, int):
+      return datetime.datetime.now()
+    return datetime.datetime.fromtimestamp(timestamp)
+
+
+
+class IPCResponseData(SimpleNamespace):
+  class Plot(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Plot] = IPCResponseDataType.Plot
+    plot: str
+
+  class Topics(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
+    plot: str
+    topic_words: dict[str, Sequence[tuple[str, float]]]
+
+  class Association(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
+    data: AssociationData.DiscriminatedUnion
+
+  class Empty(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty
+
+  TypeUnion = Union[
+    Plot,
+    Empty,
+    Topics,
+    Association,
+  ]
+  DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
 class IPCResponse(pydantic.BaseModel):
   id: str
-  data: Annotated[IPCResponseDataUnion, pydantic.Field(discriminator="type")]
+  data: IPCResponseData.DiscriminatedUnion
   status: IPCResponseStatus
   message: Optional[str] = None
   progress: Optional[float] = None

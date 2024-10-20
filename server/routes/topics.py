@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from common.ipc.requests import IPCRequestData
-from common.ipc.tasks import IPCTaskLocker
+from common.ipc.taskqueue import IPCTaskLocker
 from common.models.api import ApiResult
 
 

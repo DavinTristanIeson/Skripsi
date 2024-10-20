@@ -1,15 +1,14 @@
-import concurrent.futures
+from dataclasses import dataclass
 import multiprocessing
-from multiprocessing.connection import Client, Connection, Listener
+from multiprocessing.connection import Client, Listener
 import multiprocessing.connection
 import multiprocessing.synchronize
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 import concurrent
 
 import pydantic
 
 from common.logger import RegisteredLogger
-from common.models.metaclass import Singleton
 
 
 logger = RegisteredLogger().provision("IPC")
@@ -81,14 +80,11 @@ class IPCListener:
         self.handler(msg)
       conn.close()
 
-class IntraProcessCommunicator(pydantic.BaseModel):
+@dataclass
+class IntraProcessCommunicator:
   lock: multiprocessing.synchronize.Lock
   pipe: multiprocessing.connection.PipeConnection
   stop_event: multiprocessing.synchronize.Event
-
-  def check_stop(self):
-    if self.stop_event.is_set():
-      raise Exception("This process has been cancelled.")
 
 __all__ = [
   "IPCListener",

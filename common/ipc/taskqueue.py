@@ -1,69 +1,16 @@
 import concurrent.futures
-import functools
-import multiprocessing
 import multiprocessing.synchronize
 import threading
-from typing import Any, Callable, Generator, Iterable, Union, cast
+from typing import Any
 
-import concurrent
 from common.ipc.client import IPCChannel, IPCClient, IPCListener, IntraProcessCommunicator
-from common.ipc.requests import IPCRequest, IPCRequestData, IPCRequestType, IPCRequestWrapper
-from common.ipc.responses import IPCProgressReport, IPCResponse, IPCResponseData, IPCResponseDataUnion, IPCResponseStatus
+from common.ipc.requests import IPCRequest, IPCRequestType, IPCRequestWrapper
+from common.ipc.responses import IPCResponse
+from common.ipc.task import IPCTask, IPCTaskHandlerFn
 from common.logger import RegisteredLogger, TimeLogger
-from common.models.api import ApiError
 from common.models.metaclass import Singleton
 
 logger = RegisteredLogger().provision("IPC")
-
-IPCTaskHandlerFn = Callable[[IntraProcessCommunicator, IPCRequest], Generator[Union[IPCProgressReport, IPCResponseDataUnion]]]
-IPCTaskEvent = multiprocessing.Event
-
-@functools.wraps
-def ipc_task_handler(fn: IPCTaskHandlerFn):
-  def inner(comm: IntraProcessCommunicator, message: IPCRequest):
-    try:
-      for progress in fn(comm, message):
-        if isinstance(progress, IPCProgressReport):
-          comm.pipe.send(IPCResponse(
-            data=IPCResponseData.Empty(),
-            error=None,
-            message=progress.message,
-            progress=progress.progress,
-            status=IPCResponseStatus.Pending,
-            id=message.id,
-          ))
-        else:
-          comm.pipe.send(IPCResponse(
-            data=progress,
-            error=None,
-            message=None,
-            progress=1,
-            status=IPCResponseStatus.Pending,
-            id=message.id,
-          ))
-    except ApiError as e:
-      if comm.stop_event.is_set():
-        return
-      comm.pipe.send(IPCResponse(
-        data=IPCResponseData.Empty(),
-        error=e.message,
-        message=None,
-        progress=1,
-        status=IPCResponseStatus.Failed,
-        id=message.id,
-      ))
-    except Exception as e:
-      if comm.stop_event.is_set():
-        return
-      comm.pipe.send(IPCResponse(
-        data=IPCResponseData.Empty(),
-        error=str(e),
-        message=None,
-        progress=1,
-        status=IPCResponseStatus.Failed,
-        id=message.id,
-      ))
-  return inner
 
 class IPCTaskReceiver(metaclass=Singleton):
   pool: concurrent.futures.ProcessPoolExecutor
@@ -89,12 +36,15 @@ class IPCTaskReceiver(metaclass=Singleton):
     with TimeLogger(logger, f"Handling task {message.id} with payload: {message.model_dump_json()}"):
       future = self.pool.submit(
         handler,
-        IntraProcessCommunicator(
-          lock=self.lock,
-          pipe=write_pipe,
-          stop_event=stop_event
+        IPCTask(
+          id=message.id,
+          comm=IntraProcessCommunicator(
+            lock=self.lock,
+            pipe=write_pipe,
+            stop_event=stop_event
+          ),
+          request=message
         ),
-        message
       )
       self.ongoing_tasks[message.id] = stop_event
 

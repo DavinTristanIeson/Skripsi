@@ -14,7 +14,7 @@ RegisteredLogger().configure(
   terminal=True
 )
 
-locker = ipc.tasks.IPCTaskLocker()
+locker = ipc.taskqueue.IPCTaskLocker()
 locker.initialize(
   channel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
   backchannel=ipc.client.TOPIC2SERVER_IPC_CHANNEL
