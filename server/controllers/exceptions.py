@@ -3,8 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from common.logger import RegisteredLogger
-from common.models.api import ApiError
-from common.models.api import ApiErrorResult
+from common.models.api import ApiError, ApiErrorResult
 
 logger = RegisteredLogger().provision("FastAPI Error Handler")
 

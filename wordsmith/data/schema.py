@@ -5,14 +5,33 @@ from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, U
 import pydantic
 import pandas as pd
 
+from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from wordsmith.data.textual import TextPreprocessingConfig, TopicModelingConfig
 
-class SchemaColumnType(str, Enum):
+class SchemaColumnTypeEnum(str, Enum):
   Continuous = "continuous"
   Categorical = "categorical"
   Temporal = "temporal"
   Textual = "textual"
   Unique = "unique"
+
+ExposedEnum().register(SchemaColumnTypeEnum, {
+  SchemaColumnTypeEnum.Continuous: EnumMemberDescriptor(
+    label="Continuous",
+  ),
+  SchemaColumnTypeEnum.Categorical: EnumMemberDescriptor(
+    label="Categorical"
+  ),
+  SchemaColumnTypeEnum.Temporal: EnumMemberDescriptor(
+    label="Temporal",
+  ),
+  SchemaColumnTypeEnum.Textual: EnumMemberDescriptor(
+    label="Textual",
+  ),
+  SchemaColumnTypeEnum.Unique: EnumMemberDescriptor(
+    label="Unique",
+  ),
+})
 
 class BaseSchemaColumn(abc.ABC):
   name: str
@@ -22,7 +41,7 @@ class BaseSchemaColumn(abc.ABC):
 
 class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Continuous]
+  type: Literal[SchemaColumnTypeEnum.Continuous]
   # Will never be None after fitting
   lower_bound: Optional[float] = None
   upper_bound: Optional[float] = None
@@ -37,7 +56,7 @@ class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
 
 class CategoricalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Categorical]
+  type: Literal[SchemaColumnTypeEnum.Categorical]
   min_frequency: int = 1
 
   def fit(self, data: pd.Series)->pd.Series:
@@ -52,13 +71,13 @@ class CategoricalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
 
 class UniqueSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Unique]
+  type: Literal[SchemaColumnTypeEnum.Unique]
   def fit(self, data: pd.Series)->pd.Series:
     return data
 
 class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Textual]
+  type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
   topic: TopicModelingConfig
 
@@ -84,7 +103,7 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   
 class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
-  type: Literal[SchemaColumnType.Temporal]
+  type: Literal[SchemaColumnTypeEnum.Temporal]
   min_date: Optional[datetime.datetime]
   max_date: Optional[datetime.datetime]
   bins: int = 15
@@ -110,5 +129,5 @@ __all__ = [
   "UniqueSchemaColumn",
   "CategoricalSchemaColumn",
   "ContinuousSchemaColumn",
-  "SchemaColumnType",
+  "SchemaColumnTypeEnum",
 ]

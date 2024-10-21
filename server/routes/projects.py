@@ -1,13 +1,11 @@
-import datetime
 import http
 import os
 from fastapi import APIRouter
 import numpy as np
-import pandas as pd
 from common.models.api import ApiResult
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource
 from wordsmith.data import paths
-from wordsmith.data.schema import SchemaColumnType
+from wordsmith.data.schema import SchemaColumnTypeEnum
  
 router = APIRouter(
   tags=['Projects']
@@ -35,19 +33,19 @@ async def check_dataset(body: CheckDatasetSchema):
   columns: list[DatasetInferredColumnResource] = []
   for column in df.columns:
     dtype = df[column].dtype
-    coltype: SchemaColumnType
+    coltype: SchemaColumnTypeEnum
     if dtype == np.float_ or dtype == np.int_:
-      coltype = SchemaColumnType.Continuous
+      coltype = SchemaColumnTypeEnum.Continuous
     else:
       uniquescnt = len(df[column].unique())
       if uniquescnt < 0.2 * len(df[column]):
-        coltype = SchemaColumnType.Categorical
+        coltype = SchemaColumnTypeEnum.Categorical
       else:
         has_long_text = df[column].str.len().mean() >= 20
         if has_long_text:
-          coltype = SchemaColumnType.Textual
+          coltype = SchemaColumnTypeEnum.Textual
         else:
-          coltype = SchemaColumnType.Unique
+          coltype = SchemaColumnTypeEnum.Unique
 
     columns.append(DatasetInferredColumnResource(
       name=column,

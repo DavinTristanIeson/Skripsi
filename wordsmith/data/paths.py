@@ -1,4 +1,3 @@
-import functools
 import os
 import shutil
 from types import SimpleNamespace
@@ -8,7 +7,7 @@ import pandas as pd
 import pydantic
 
 from common.logger import RegisteredLogger
-from server.controllers.exceptions import ApiError
+from common.models.api import ApiError
 
 if TYPE_CHECKING:
   import bertopic

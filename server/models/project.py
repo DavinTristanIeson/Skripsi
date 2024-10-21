@@ -5,7 +5,7 @@ from typing import Sequence
 import pydantic
 from common.models.api import ApiError
 from wordsmith.data.config import Config
-from wordsmith.data.schema import SchemaColumnType
+from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
 
 # Resource
@@ -19,7 +19,7 @@ class CheckProjectIdResource(pydantic.BaseModel):
 class DatasetInferredColumnResource(pydantic.BaseModel):
   # Configurations that FE can use to autofill schema.
   name: str
-  type: SchemaColumnType
+  type: SchemaColumnTypeEnum
 
 class CheckDatasetResource(pydantic.BaseModel):
   columns: Sequence[DatasetInferredColumnResource]

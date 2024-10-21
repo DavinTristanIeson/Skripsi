@@ -1,4 +1,4 @@
-from typing import Annotated, Callable, Literal, Optional
+from typing import Annotated, Callable, Optional
 import pydantic
 import json
 import os
@@ -38,7 +38,6 @@ class Config(pydantic.BaseModel):
     source = os.path.join(DATA_DIRECTORY, project_id, "config.json")
     with open(source, 'r', encoding='utf-8') as f:
       contents = json.load(f)
-      contents["paths"] = ProjectPathManager(project_id=project_id)
       return Config.model_validate(contents)
 
   def preprocess(self, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
