@@ -1,10 +1,11 @@
-from typing import Annotated, Callable, Optional
+from typing import Annotated, Any, Callable, Optional, cast
 import pydantic
 import json
 import os
 
 from common.logger import RegisteredLogger
 
+from common.models.api import ApiError
 from wordsmith.data.schema import SchemaColumn
 from wordsmith.data.schema_manager import SchemaManager
 from wordsmith.data.source import DataSource
@@ -30,12 +31,17 @@ class Config(pydantic.BaseModel):
   
   @pydantic.model_validator(mode="before")
   def __validate__paths(self):
-    if self.project_id is not None and isinstance(self.project_id, str):
-      self.paths = ProjectPathManager(project_id=self.project_id)
+    current: dict[str, Any] = cast(dict[str, Any], self)
+    if "project_id" in current and isinstance(current["project_id"], str):
+      current["paths"] = ProjectPathManager(project_id=current["project_id"])
+    return current
 
   @staticmethod
   def from_project(project_id: str)->"Config":
-    source = os.path.join(DATA_DIRECTORY, project_id, "config.json")
+    data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
+    source = os.path.join(data_directory, project_id, "config.json")
+    if not os.path.exists(source):
+      raise ApiError(f"Project with ID {project_id} doesn't exist in {data_directory}. That project may not have been created yet, please create a new project first; or if you directly entered the project ID in the URL, please make sure that it is correctly spelled.", 404)
     with open(source, 'r', encoding='utf-8') as f:
       contents = json.load(f)
       return Config.model_validate(contents)

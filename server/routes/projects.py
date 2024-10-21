@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 import numpy as np
 import pandas as pd
 from common.models.api import ApiResult
-from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource
+from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
 from wordsmith.data import paths
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.config import Config
@@ -62,26 +62,29 @@ async def check_dataset(body: CheckDatasetSchema):
 @router.get('/')
 async def get__projects():
   folder_name = paths.DATA_DIRECTORY
-  folders = []
+  projects: list[ProjectLiteResource] = []
 
   if os.path.isdir(folder_name):
-    folders = [name for name in os.listdir(folder_name) if os.path.isdir(os.path.join(folder_name, name))]
+    folders = [
+      name for name in os.listdir(folder_name)
+      if os.path.isdir(os.path.join(folder_name, name))
+      # don't include hidden folders
+      and not folder_name.startswith('.')
+    ]
+    projects = list(map(lambda folder: ProjectLiteResource(id=folder), folders))
 
   return ApiResult(
-    data=folders,
-    message="Success"
+    data=projects,
+    message=None
   )
 
 @router.get('/{project_id}')
 async def get__project(project_id: str):
-  try:
-    config = Config.from_project(project_id)
-
-    return ApiResult(
-      data=config,
-      message="Success"
-    )
-  except FileNotFoundError:
-    raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found.")
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  config = Config.from_project(project_id)
+  return ApiResult(
+    data=ProjectResource(
+      id=project_id,
+      config=config,
+    ),
+    message=None
+  )

@@ -9,6 +9,11 @@ from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
 
 # Resource
+class ProjectLiteResource(pydantic.BaseModel):
+  # This resource doesn't have any other fields for now, and probably for the foreseeable future.
+  # But we're making it a resource anyway in case a new feature introduces a new field to this resource.
+  id: str
+
 class ProjectResource(pydantic.BaseModel):
   id: str
   config: Config

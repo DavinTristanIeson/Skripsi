@@ -7,9 +7,13 @@ from common.models.api import ApiError, ApiErrorResult
 
 logger = RegisteredLogger().provision("FastAPI Error Handler")
 
-def default_exception_handler(request: Request, exc: ApiError):
+def api_error_exception_handler(request: Request, exc: ApiError):
   logger.error(f"Error while handling {request.url}. Error: {exc.message}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
+
+def default_exception_handler(request: Request, exc: Exception):
+  logger.error(f"Error while handling {request.url}. Error: {exc}")
+  return JSONResponse(content=ApiErrorResult(message="An unexpected error has occurred in the server.").model_dump(), status_code=500)
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
   raw_errors = list(exc.errors())
@@ -46,11 +50,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 def register_error_handlers(app: FastAPI):
   app.exception_handler(ApiError)(
-    default_exception_handler
+    api_error_exception_handler
   )
   app.exception_handler(RequestValidationError)(
     validation_exception_handler
   )
+  app.exception_handler(Exception)(
+    default_exception_handler
+  )
+
 
 __all__ = [
   "register_error_handlers"
