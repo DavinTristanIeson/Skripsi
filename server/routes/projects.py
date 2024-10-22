@@ -1,9 +1,10 @@
 import http
+import shutil
 import os
 from fastapi import APIRouter, HTTPException
 import numpy as np
 import pandas as pd
-from common.models.api import ApiResult
+from common.models.api import ApiResult, ApiError
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
 from wordsmith.data import paths
 from wordsmith.data.schema import SchemaColumnTypeEnum
@@ -87,4 +88,55 @@ async def get__project(project_id: str):
       config=config,
     ),
     message=None
+  )
+
+@router.post('/')
+async def create__project(config: Config):
+  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, config.project_id)
+  os.makedirs(paths.DATA_DIRECTORY, exist_ok=True)
+
+  if os.path.isdir(folder_path):
+    raise ApiError(f"Project '{config.project_id}' already exists!", 400)
+
+  os.makedirs(folder_path)
+  config.save_to_json(folder_path=folder_path)
+  return ApiResult(
+    data=ProjectResource(
+      id=config.project_id,
+      config=config
+    ),
+    message="Project Successfully Created!"
+  )
+
+@router.put('/{project_id}')
+async def update__project(project_id: str, config: Config):
+  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
+
+  if not os.path.isdir(folder_path):
+    raise ApiError(f"Project '{project_id}' not found!", 404)
+
+  if config.project_id != project_id:
+    raise ApiError(f"Project id not matched with the configuration!", 404)
+
+  config.save_to_json(folder_path=folder_path)
+
+  return ApiResult(
+    data=ProjectResource(
+      id=project_id,
+      config=config,
+    ),
+    message="Project Successfully Updated!"
+  )
+
+@router.delete('/{project_id}')
+async def delete__project(project_id: str):
+  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
+
+  if not os.path.isdir(folder_path):
+    raise ApiError(f"Project '{project_id}' not found!", 404)
+
+  shutil.rmtree(folder_path)
+  return ApiResult(
+    data=None,
+    message="Project Successfully Deleted!"
   )

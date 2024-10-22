@@ -55,6 +55,11 @@ class Config(pydantic.BaseModel):
     df.to_parquet(result_path)
     return df
 
+  def save_to_json(self, folder_path: str):
+    config_file = os.path.join(folder_path, "config.json")
+    with open(config_file, 'w', encoding='utf-8') as f:
+        json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+    return
 
 __all__ = [
   "Config",
