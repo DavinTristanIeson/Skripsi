@@ -62,7 +62,7 @@ async def check_dataset(body: CheckDatasetSchema):
     
 @router.get('/')
 async def get__projects():
-  folder_name = paths.DATA_DIRECTORY
+  folder_name = os.path.join(os.getcwd(), paths.DATA_DIRECTORY)
   projects: list[ProjectLiteResource] = []
 
   if os.path.isdir(folder_name):
@@ -72,7 +72,7 @@ async def get__projects():
       # don't include hidden folders
       and not folder_name.startswith('.')
     ]
-    projects = list(map(lambda folder: ProjectLiteResource(id=folder), folders))
+    projects = list(map(lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)), folders))
 
   return ApiResult(
     data=projects,
@@ -96,7 +96,7 @@ async def create__project(config: Config):
   os.makedirs(paths.DATA_DIRECTORY, exist_ok=True)
 
   if os.path.isdir(folder_path):
-    raise ApiError(f"Project '{config.project_id}' already exists!", 400)
+    raise ApiError(f"Project \"{config.project_id}\" already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
 
   os.makedirs(folder_path)
   config.save_to_json(folder_path=folder_path)
@@ -105,18 +105,19 @@ async def create__project(config: Config):
       id=config.project_id,
       config=config
     ),
-    message="Project Successfully Created!"
+    message=f"Your new project \"{config.project_id}\", has been successfully created."
   )
 
 @router.put('/{project_id}')
 async def update__project(project_id: str, config: Config):
-  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
+  folder_path = config.paths.project_path
 
   if not os.path.isdir(folder_path):
     raise ApiError(f"Project '{project_id}' not found!", 404)
 
   if config.project_id != project_id:
-    raise ApiError(f"Project id not matched with the configuration!", 404)
+    config_path = config.paths.full_path(paths.ProjectPaths.Config)
+    raise ApiError(f"Project ID doesn't match the project ID specified in {config_path}. This may be caused by a user manually editing the configuration file or moving files around. Please make sure that the project_id field in {config_path} matches the folder name.", 403)
 
   config.save_to_json(folder_path=folder_path)
 
@@ -125,7 +126,7 @@ async def update__project(project_id: str, config: Config):
       id=project_id,
       config=config,
     ),
-    message="Project Successfully Updated!"
+    message=f"Project \"{project_id}\" has been successfully updated."
   )
 
 @router.delete('/{project_id}')
@@ -133,10 +134,10 @@ async def delete__project(project_id: str):
   folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
 
   if not os.path.isdir(folder_path):
-    raise ApiError(f"Project '{project_id}' not found!", 404)
+    raise ApiError(f"We cannot find any projects with ID: \"{project_id}\", perhaps it had been manually deleted by a user?", 404)
 
   shutil.rmtree(folder_path)
   return ApiResult(
     data=None,
-    message="Project Successfully Deleted!"
+    message=f"Project \"{project_id}\" has been successfully deleted."
   )

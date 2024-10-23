@@ -79,7 +79,7 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   name: str
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
-  topic: TopicModelingConfig
+  topic_modeling: TopicModelingConfig
 
   TOPIC_OUTLIER: ClassVar[str] = '-1'
 

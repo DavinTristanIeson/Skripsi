@@ -45,14 +45,14 @@ class ProjectPathManager(pydantic.BaseModel):
 
   @property
   def project_path(self):
-    project_dir = os.path.join(DATA_DIRECTORY, self.project_id)
+    project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)
     if not os.path.exists(project_dir):
       raise ApiError(f"No project exists with ID {self.project_id}.", 404)
     return project_dir
   
   def full_path(self, path: str)->str:
     project_dir = self.project_path
-    fullpath:str = os.path.join(project_dir, path)
+    fullpath:str = os.path.join(os.getcwd(), project_dir, path)
     if not os.path.exists(fullpath):
       raise ApiError(f"{fullpath} does not exist. Perhaps the file has not been created yet.", 404)
     return fullpath

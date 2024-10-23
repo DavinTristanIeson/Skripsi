@@ -28,8 +28,9 @@ ExposedEnum().register(DataSourceTypeEnum, {
   ),
 })
 
+FilePath = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. \/\\]+$")]
 class BaseDataSource(abc.ABC):
-  path: str
+  path: FilePath
 
   @abc.abstractmethod
   def load(self)->pd.DataFrame:

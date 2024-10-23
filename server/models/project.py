@@ -4,7 +4,7 @@ from typing import Sequence
 
 import pydantic
 from common.models.api import ApiError
-from wordsmith.data.config import Config
+from wordsmith.data.config import Config, ProjectIdField
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
 
@@ -13,6 +13,7 @@ class ProjectLiteResource(pydantic.BaseModel):
   # This resource doesn't have any other fields for now, and probably for the foreseeable future.
   # But we're making it a resource anyway in case a new feature introduces a new field to this resource.
   id: str
+  path: str
 
 class ProjectResource(pydantic.BaseModel):
   id: str
@@ -32,7 +33,7 @@ class CheckDatasetResource(pydantic.BaseModel):
 
 # Schema
 class CheckProjectIdSchema(pydantic.BaseModel):
-  project_id: str
+  project_id: ProjectIdField
 
 class CheckDatasetSchema(pydantic.RootModel):
   root: DataSource

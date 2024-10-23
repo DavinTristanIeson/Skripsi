@@ -19,11 +19,12 @@ def __create_columns_field(cls, value):
   ))
 
 SchemaManagerField = Annotated[SchemaManager, __create_columns_field]
+ProjectIdField = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. ]+$", max_length=255)]
   
 logger = RegisteredLogger().provision("Config")
 class Config(pydantic.BaseModel):
   version: int = pydantic.Field(default=1)
-  project_id: str
+  project_id: ProjectIdField
   source: DataSource
   # schema is taken by pydantic
   dfschema: SchemaManagerField
@@ -58,7 +59,7 @@ class Config(pydantic.BaseModel):
   def save_to_json(self, folder_path: str):
     config_file = os.path.join(folder_path, "config.json")
     with open(config_file, 'w', encoding='utf-8') as f:
-        json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+      json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
     return
 
 __all__ = [

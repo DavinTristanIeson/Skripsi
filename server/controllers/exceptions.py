@@ -31,7 +31,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     error_mapper = errors
     error_path = error['loc']
     # Create error tree
-    for idx, loc in error_path[1:-1]:
+    for idx, loc in enumerate(error_path[1:-1]):
       if idx == 0:
         continue
       # Nest into the error tree
