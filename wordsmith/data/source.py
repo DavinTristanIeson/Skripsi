@@ -1,27 +1,36 @@
 import abc
 from enum import Enum
-import importlib
 import importlib.machinery
-from types import ModuleType
-from typing import Annotated, Literal, Optional, Union, cast
-import os
+from typing import Annotated, Literal, Optional, Union
 import importlib.util
 
 import pydantic
 import pandas as pd
 
 from common.logger import RegisteredLogger
+from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from common.utils.loader import hashfile
-from common.models.api import ApiError
 
 class DataSourceTypeEnum(str, Enum):
-  CSV = "csv",
+  CSV = "csv"
   Parquet = "parquet"
   Excel = "excel"
-  Python = "python"
 
+ExposedEnum().register(DataSourceTypeEnum, {
+  DataSourceTypeEnum.CSV: EnumMemberDescriptor(
+    label="CSV",
+  ),
+  DataSourceTypeEnum.Parquet: EnumMemberDescriptor(
+    label="Parquet",
+  ),
+  DataSourceTypeEnum.Excel: EnumMemberDescriptor(
+    label="XLSX / Excel",
+  ),
+})
+
+FilePath = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. \/\\]+$")]
 class BaseDataSource(abc.ABC):
-  path: str
+  path: FilePath
 
   @abc.abstractmethod
   def load(self)->pd.DataFrame:
@@ -65,41 +74,10 @@ class ExcelDataSource(pydantic.BaseModel, BaseDataSource):
     logger.info(f"Loaded data source from {self.path}")
     return df
 
-# Not recommended    
-class PythonDataSource(pydantic.BaseModel, BaseDataSource):
-  type: Literal[DataSourceTypeEnum.Python]
-  variable_name: str
-  def load(self)->pd.DataFrame:
-    file_path = os.path.normpath(self.path)
-    module_path = file_path.replace(os.path.sep, '.')
-    # module = importlib.import_module(module_path)
-
-    # https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-    # For 3.5 and above
-    spec: Optional[importlib.machinery.ModuleSpec] = importlib.util.spec_from_file_location(module_path, file_path)
-    if spec is None or spec.loader is None:
-      raise ApiError(f"Failed to find a valid python module in {file_path}", 404)
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    if self.variable_name is None:
-      raise ApiError("variable_name field is not provided for data source type Python", 422)
-    try:
-      df = cast(pd.DataFrame, module.__dict__[self.variable_name])
-      logger.info(f"Loaded data source from {self.path}")
-      return df
-    except ModuleNotFoundError:
-      raise ApiError(f"Failed to load {self.path} as a Python module", 404)
-    except KeyError:
-      raise ApiError(f"The python script at {self.path} does not seem to contain a global variable with name {self.variable_name}", 422)
-  
-
-DataSource = Annotated[Union[PythonDataSource, CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type")]
-
+DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type")]
 
 __all__ = [
   "DataSourceTypeEnum",
-  "PythonDataSource",
   "ExcelDataSource",
   "CSVDataSource",
   "DataSource"

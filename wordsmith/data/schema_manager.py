@@ -6,29 +6,29 @@ import pydantic
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.api import ApiError
 from common.utils.iterable import array_find
-from wordsmith.data.schema import CategoricalSchemaColumn, ContinuousSchemaColumn, SchemaColumn, SchemaColumnType, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
+from wordsmith.data.schema import CategoricalSchemaColumn, ContinuousSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
 class SchemaManager(pydantic.BaseModel):
   columns: Sequence[SchemaColumn]
 
-  def of_type(self, type: SchemaColumnType)->tuple[SchemaColumn, ...]:
+  def of_type(self, type: SchemaColumnTypeEnum)->tuple[SchemaColumn, ...]:
     return tuple(filter(lambda x: x.type == type, self.columns))
   
   def textual(self)->tuple[TextualSchemaColumn, ...]:
-    return cast(tuple[TextualSchemaColumn, ...], self.of_type(SchemaColumnType.Textual))
+    return cast(tuple[TextualSchemaColumn, ...], self.of_type(SchemaColumnTypeEnum.Textual))
   
   def unique(self)->tuple[UniqueSchemaColumn, ...]:
-    return cast(tuple[UniqueSchemaColumn, ...], self.of_type(SchemaColumnType.Unique))
+    return cast(tuple[UniqueSchemaColumn, ...], self.of_type(SchemaColumnTypeEnum.Unique))
   
   def continuous(self)->tuple[ContinuousSchemaColumn, ...]:
-    return cast(tuple[ContinuousSchemaColumn, ...], self.of_type(SchemaColumnType.Continuous))
+    return cast(tuple[ContinuousSchemaColumn, ...], self.of_type(SchemaColumnTypeEnum.Continuous))
   
   def categorical(self)->tuple[CategoricalSchemaColumn, ...]:
-    return cast(tuple[CategoricalSchemaColumn, ...], self.of_type(SchemaColumnType.Categorical))
+    return cast(tuple[CategoricalSchemaColumn, ...], self.of_type(SchemaColumnTypeEnum.Categorical))
   
   def temporal(self)->tuple[TemporalSchemaColumn, ...]:
-    return cast(tuple[TemporalSchemaColumn, ...], self.of_type(SchemaColumnType.Temporal))
+    return cast(tuple[TemporalSchemaColumn, ...], self.of_type(SchemaColumnTypeEnum.Temporal))
   
   def assert_exists(self, name:str)->SchemaColumn:
     column = array_find(self.columns, lambda x: x.name == name)
@@ -43,7 +43,7 @@ class SchemaManager(pydantic.BaseModel):
       if on_start is not None:
         on_start(col)
       df.loc[:, col.name] = col.fit(cast(pd.Series, df.loc[:, col.name]))
-      if col.type != SchemaColumnType.Textual:
+      if col.type != SchemaColumnTypeEnum.Textual:
         continue
 
       with TimeLogger(logger, f"Preprocessing {col.name}"):

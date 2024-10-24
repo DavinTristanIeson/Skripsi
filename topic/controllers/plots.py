@@ -1,5 +1,5 @@
 from typing import Sequence, cast
-from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethod
+from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethodEnum
 import plotly.express
 
 from common.ipc.responses import IPCResponseData
@@ -54,7 +54,7 @@ def topic_correlation_plot(task: IPCTask):
 
   task.progress(steps.advance(), f"Calculating topic correlation for {message.col}.")
 
-  if message.visualization == TopicSimilarityVisualizationMethod.Heatmap:
+  if message.visualization == TopicSimilarityVisualizationMethodEnum.Heatmap:
     title = f"{message.col.capitalize()} Topic Similarity Matrix"
     heatmap = model.visualize_heatmap(title=title)
     task.success(IPCResponseData.Plot(

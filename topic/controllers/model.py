@@ -60,17 +60,17 @@ def topic_modeling(task: IPCTask):
     embeddings = doc2vec.transform(documents)
 
     kwargs = dict()
-    if column.topic.max_topics is not None:
-      kwargs["nr_topics"] = column.topic.max_topics
-    if column.topic.seed_topics is not None:
-      kwargs["seed_topic_list"] = column.topic.seed_topics
+    if column.topic_modeling.max_topics is not None:
+      kwargs["nr_topics"] = column.topic_modeling.max_topics
+    if column.topic_modeling.seed_topics is not None:
+      kwargs["seed_topic_list"] = column.topic_modeling.seed_topics
 
-    max_topic_size = int(column.topic.max_topic_size * len(documents)) \
-      if isinstance(column.topic.max_topic_size, float) \
-      else column.topic.max_topic_size
+    max_topic_size = int(column.topic_modeling.max_topic_size * len(documents)) \
+      if isinstance(column.topic_modeling.max_topic_size, float) \
+      else column.topic_modeling.max_topic_size
     
     hdbscan_model = hdbscan.HDBSCAN(
-      min_cluster_size=column.topic.min_topic_size,
+      min_cluster_size=column.topic_modeling.min_topic_size,
       max_cluster_size=max_topic_size,
       metric="euclidean",
       cluster_selection_method="eom",
@@ -87,9 +87,9 @@ def topic_modeling(task: IPCTask):
       hdbscan_model=hdbscan_model,
       ctfidf_model=ctfidf_model,
       representation_model=bertopic.representation.MaximalMarginalRelevance(),
-      low_memory=column.topic.low_memory,
-      min_topic_size=column.topic.min_topic_size,
-      n_gram_range=column.topic.n_gram_range,
+      low_memory=column.topic_modeling.low_memory,
+      min_topic_size=column.topic_modeling.min_topic_size,
+      n_gram_range=column.topic_modeling.n_gram_range,
       calculate_probabilities=True,
       **kwargs,
     )
@@ -109,9 +109,9 @@ def topic_modeling(task: IPCTask):
       message=f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics."
     )
 
-    if column.topic.no_outliers:
+    if column.topic_modeling.no_outliers:
       topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=embeddings)
-      if column.topic.represent_outliers:
+      if column.topic_modeling.represent_outliers:
         model.update_topics(documents, topics=topics)
 
     topic_number_column = pd.Series(np.full((len(raw_documents,)), -1), dtype=np.int32)

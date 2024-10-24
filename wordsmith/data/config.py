@@ -1,10 +1,11 @@
-from typing import Annotated, Callable, Optional
+from typing import Annotated, Any, Callable, Optional, cast
 import pydantic
 import json
 import os
 
 from common.logger import RegisteredLogger
 
+from common.models.api import ApiError
 from wordsmith.data.schema import SchemaColumn
 from wordsmith.data.schema_manager import SchemaManager
 from wordsmith.data.source import DataSource
@@ -18,21 +19,32 @@ def __create_columns_field(cls, value):
   ))
 
 SchemaManagerField = Annotated[SchemaManager, __create_columns_field]
+ProjectIdField = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. ]+$", max_length=255)]
   
 logger = RegisteredLogger().provision("Config")
 class Config(pydantic.BaseModel):
-  project_id: str
+  version: int = pydantic.Field(default=1)
+  project_id: ProjectIdField
   source: DataSource
   # schema is taken by pydantic
   dfschema: SchemaManagerField
-  paths: ProjectPathManager
+  paths: ProjectPathManager = pydantic.Field(exclude=True)
+  
+  @pydantic.model_validator(mode="before")
+  def __validate__paths(self):
+    current: dict[str, Any] = cast(dict[str, Any], self)
+    if "project_id" in current and isinstance(current["project_id"], str):
+      current["paths"] = ProjectPathManager(project_id=current["project_id"])
+    return current
 
   @staticmethod
   def from_project(project_id: str)->"Config":
-    source = os.path.join(DATA_DIRECTORY, project_id, "config.json")
+    data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
+    source = os.path.join(data_directory, project_id, "config.json")
+    if not os.path.exists(source):
+      raise ApiError(f"Project with ID {project_id} doesn't exist in {data_directory}. That project may not have been created yet, please create a new project first; or if you directly entered the project ID in the URL, please make sure that it is correctly spelled.", 404)
     with open(source, 'r', encoding='utf-8') as f:
       contents = json.load(f)
-      contents["paths"] = ProjectPathManager(project_id=project_id)
       return Config.model_validate(contents)
 
   def preprocess(self, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
@@ -44,6 +56,11 @@ class Config(pydantic.BaseModel):
     df.to_parquet(result_path)
     return df
 
+  def save_to_json(self, folder_path: str):
+    config_file = os.path.join(folder_path, "config.json")
+    with open(config_file, 'w', encoding='utf-8') as f:
+      json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+    return
 
 __all__ = [
   "Config",

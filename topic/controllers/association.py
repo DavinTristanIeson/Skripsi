@@ -12,7 +12,7 @@ from topic.controllers.utils import assert_column_exists
 import wordsmith.stats
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
-from wordsmith.data.schema import SchemaColumnType
+from wordsmith.data.schema import SchemaColumnTypeEnum
 
 def categorical_association_plot(a: pd.Series, b: pd.Series):
   indexed_residual_table = wordsmith.stats.indexed_residual_table(a, b)
@@ -129,27 +129,27 @@ def association_plot(task: IPCTask):
   if message.col1 == message.col2:
     raise ApiError(f"Both columns are the same ({message.col2}). Please select a different column to compare.", 422)
 
-  if col1_schema.type != SchemaColumnType.Textual:
+  if col1_schema.type != SchemaColumnTypeEnum.Textual:
     raise ApiError("Only textual columns can be used as the left column. Please select a different column for the left side of the comparison.", 422)
   
-  if col2_schema.type == SchemaColumnType.Unique:
-    raise ApiError(f"Columns of type {SchemaColumnType.Unique.name} ({message.col2}) cannot be compared with any other columns due to their unique nature. Consider changing the type of {message.col2} to {SchemaColumnType.Categorical.name} if you need to analyze that column.", 422)
+  if col2_schema.type == SchemaColumnTypeEnum.Unique:
+    raise ApiError(f"Columns of type {SchemaColumnTypeEnum.Unique.name} ({message.col2}) cannot be compared with any other columns due to their unique nature. Consider changing the type of {message.col2} to {SchemaColumnTypeEnum.Categorical.name} if you need to analyze that column.", 422)
   
   col1_data = assert_column_exists(df, col1_schema.topic_column) \
-    if col1_schema.type == SchemaColumnType.Textual \
+    if col1_schema.type == SchemaColumnTypeEnum.Textual \
     else assert_column_exists(df, message.col1)
   
   col2_data = assert_column_exists(df, col2_schema.topic_column) \
-    if col2_schema.type == SchemaColumnType.Textual \
+    if col2_schema.type == SchemaColumnTypeEnum.Textual \
     else assert_column_exists(df, message.col1)
   
   task.progress(steps.advance(), f"Finding association between {message.col1} and {message.col2}")
 
-  if col2_schema.type == SchemaColumnType.Categorical or col2_schema.type == SchemaColumnType.Textual:
+  if col2_schema.type == SchemaColumnTypeEnum.Categorical or col2_schema.type == SchemaColumnTypeEnum.Textual:
     plot = categorical_association_plot(col1_data, col2_data)
-  elif col2_schema.type == SchemaColumnType.Continuous:
+  elif col2_schema.type == SchemaColumnTypeEnum.Continuous:
     plot = continuous_association_plot(col1_data, col2_data)
-  elif col2_schema.type == SchemaColumnType.Temporal:
+  elif col2_schema.type == SchemaColumnTypeEnum.Temporal:
     plot = temporal_association_plot(col1_data, col2_data, config)
   else:
     raise ApiError(f"The type of {message.col2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)

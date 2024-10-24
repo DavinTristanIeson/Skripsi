@@ -1,12 +1,24 @@
 from enum import Enum
 from types import SimpleNamespace
 from typing import Annotated, Literal, Union
-import uuid
 import pydantic
 
-class TopicSimilarityVisualizationMethod(str, Enum):
+from common.models.enum import EnumMemberDescriptor, ExposedEnum
+
+class TopicSimilarityVisualizationMethodEnum(str, Enum):
   Heatmap = "heatmap"
   Ldavis = "ldavis"
+
+ExposedEnum().register(TopicSimilarityVisualizationMethodEnum, {
+  TopicSimilarityVisualizationMethodEnum.Heatmap: EnumMemberDescriptor(
+    label="Heatmap",
+    description="The relationship between each topic is represented as a matrix; where the i-th row and the j-th column represents the relatedness of Topic i and Topic j. Brighter cell color means both topics are closely related.",
+  ),
+  TopicSimilarityVisualizationMethodEnum.Ldavis: EnumMemberDescriptor(
+    label="LDAVis-style",
+    description="Topics are represented as bubbles in a plot, where the size of the bubbles represent the number of documents assigned to that topic. Furthermore, bubbles that are closely related are placed near each other.",
+  ),
+})
 
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
@@ -37,7 +49,7 @@ class IPCRequestData(SimpleNamespace):
   class TopicCorrelationPlot(IPCRequestBase):
     type: Literal[IPCRequestType.TopicCorrelationPlot] = IPCRequestType.TopicCorrelationPlot
     col: str
-    visualization: TopicSimilarityVisualizationMethod
+    visualization: TopicSimilarityVisualizationMethodEnum
 
 
   class MergeTopics(IPCRequestBase):
