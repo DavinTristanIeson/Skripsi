@@ -149,6 +149,7 @@ class IPCTaskLocker(metaclass=Singleton):
   def request(self, msg: IPCRequest):
     client = IPCClient(self.channel)
     client.send(msg)
+    self.results[msg.id] = IPCResponse.Idle(msg.id)
 
   def initialize(self, *, channel: IPCChannel, backchannel: IPCChannel):
     self.results = dict()
@@ -157,6 +158,12 @@ class IPCTaskLocker(metaclass=Singleton):
 
   def result(self, id: str)->Optional[IPCResponse]:
     return self.results.get(id, None)
+  
+  def has_pending_task(self, id: str)->bool:
+    task = self.results.get(id, None)
+    if task is None:
+      return False
+    return task.status == IPCResponseStatus.Pending or task.status == IPCResponseStatus.Idle
 
   def listen(self, stop_event: threading.Event):
     thread = threading.Thread(target=self.listener.listen, args=(stop_event,), daemon=True)

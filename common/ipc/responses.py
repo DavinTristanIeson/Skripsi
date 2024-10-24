@@ -3,14 +3,14 @@ from enum import Enum
 from types import SimpleNamespace
 from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
-import pandas as pd
 import pydantic
-import numpy.typing as npt
+
 
 # ENUMS
 class IPCResponseDataType(str, Enum):
   Plot = "plot"
   Topics = "topics"
+  TopicSimilarity = "topic_similarity"
   Association = "association"
   Empty = "empty"
 
@@ -60,34 +60,26 @@ class AssociationData(SimpleNamespace):
 
 # IPC RESPONSE
 
-class IPCProgressReport(pydantic.BaseModel):
-  progress: float
-  message: Optional[str]
-  timestamp: datetime.datetime = pydantic.Field(
-    default_factory=lambda: datetime.datetime.now()
-  )
-  
-  @pydantic.field_serializer("timestamp", when_used="json")
-  def serialize__time(self, timestamp: datetime.datetime):
-    return timestamp.timestamp()
-  
-  @pydantic.field_validator("timestamp", mode="before")
-  def validate__time(cls, timestamp: int):
-    if timestamp is None or not isinstance(timestamp, int):
-      return datetime.datetime.now()
-    return datetime.datetime.fromtimestamp(timestamp)
-
-
-
 class IPCResponseData(SimpleNamespace):
   class Plot(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Plot] = IPCResponseDataType.Plot
     plot: str
 
+  class TopicSimilarity(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.TopicSimilarity] = IPCResponseDataType.TopicSimilarity
+    topics: Sequence[str]
+    heatmap: str
+    ldavis: str
+    similarity_matrix: Sequence[Sequence[float]]
+
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
     plot: str
-    topic_words: dict[str, Sequence[tuple[str, float]]]
+    topics: Sequence[str]
+    topic_words: Sequence[Sequence[tuple[str, float]]]
+    frequencies: Sequence[int]
+    total: int
+    outliers: int
 
   class Association(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
@@ -101,6 +93,7 @@ class IPCResponseData(SimpleNamespace):
     Empty,
     Topics,
     Association,
+    TopicSimilarity
   ]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
@@ -111,6 +104,9 @@ class IPCResponse(pydantic.BaseModel):
   message: Optional[str] = None
   progress: Optional[float] = None
   error: Optional[str] = None
+  timestamp: datetime.datetime = pydantic.Field(
+    default_factory=lambda: datetime.datetime.now()
+  )
 
   @staticmethod
   def Success(id: str, data: Any, message: Optional[str]):
@@ -142,6 +138,17 @@ class IPCResponse(pydantic.BaseModel):
       message=None,
       progress=1,
       status=IPCResponseStatus.Failed,
+      id=id,
+    )
+  
+  @staticmethod
+  def Idle(id: str):
+    return IPCResponse(
+      data=IPCResponseData.Empty(),
+      error=None,
+      message=None,
+      progress=0,
+      status=IPCResponseStatus.Idle,
       id=id,
     )
 

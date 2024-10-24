@@ -33,7 +33,7 @@ class SchemaManager(pydantic.BaseModel):
   def assert_exists(self, name:str)->SchemaColumn:
     column = array_find(self.columns, lambda x: x.name == name)
     if column is None:
-      raise ApiError(f"Column {name} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
+      raise KeyError(f"Column {name} doesn't exist in the schema")
     return column
   
   def preprocess(self, df: pd.DataFrame, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):

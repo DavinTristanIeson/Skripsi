@@ -52,8 +52,8 @@ class Config(pydantic.BaseModel):
     df = self.dfschema.preprocess(df, on_start=on_start)
 
     result_path = self.paths.full_path(ProjectPaths.Workspace)
-    logger.info(f"Saving intermediate results to {result_path}")
     df.to_parquet(result_path)
+    logger.info(f"Saved intermediate results to {result_path}")
     return df
 
   def save_to_json(self, folder_path: str):

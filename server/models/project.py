@@ -1,12 +1,46 @@
+from enum import Enum
 import http
 import os
-from typing import Sequence
+from typing import Generic, Optional, Sequence, TypeVar
 
 import pydantic
+from common.ipc.responses import IPCResponse
 from common.models.api import ApiError
+from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from wordsmith.data.config import Config, ProjectIdField
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
+
+# Common resources
+
+class ProjectTaskStatus(str, Enum):
+  Idle = "idle"
+  Pending = "pending"
+  Success = "success"
+  Failed = "failed"
+
+ExposedEnum().register(ProjectTaskStatus, {
+  ProjectTaskStatus.Idle: EnumMemberDescriptor("Idle"),
+  ProjectTaskStatus.Pending: EnumMemberDescriptor("Pending"),
+  ProjectTaskStatus.Success: EnumMemberDescriptor("Success"),
+  ProjectTaskStatus.Failed: EnumMemberDescriptor("Failed"),
+})
+
+T = TypeVar("T")
+class ProjectTaskResult(pydantic.BaseModel, Generic[T]):
+  model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+  data: T
+  status: ProjectTaskStatus
+  message: Optional[str]
+  progress: Optional[float]
+  error: Optional[str]
+
+  @staticmethod
+  def from_ipc(response: IPCResponse):
+    return ProjectTaskResult.model_validate(response.model_dump())
+
+
 
 # Resource
 class ProjectLiteResource(pydantic.BaseModel):

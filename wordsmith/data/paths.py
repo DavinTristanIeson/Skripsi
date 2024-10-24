@@ -47,32 +47,35 @@ class ProjectPathManager(pydantic.BaseModel):
   def project_path(self):
     project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)
     if not os.path.exists(project_dir):
-      raise ApiError(f"No project exists with ID {self.project_id}.", 404)
+      raise ApiError(f"No project exists with name: {self.project_id}.", 404)
     return project_dir
   
   def full_path(self, path: str)->str:
     project_dir = self.project_path
     fullpath:str = os.path.join(os.getcwd(), project_dir, path)
-    if not os.path.exists(fullpath):
-      raise ApiError(f"{fullpath} does not exist. Perhaps the file has not been created yet.", 404)
     return fullpath
+  
+  def assert_path(self, path: str)->str:
+    path = self.full_path(path)
+    if not os.path.exists(path):
+      raise ApiError(f"{path} does not exist. Perhaps the file has not been created yet.", 404)
+    return path
 
   @file_loading_error_handler("workspace table")
   def load_workspace(self)->pd.DataFrame:
     path = self.full_path(ProjectPaths.Workspace)
     return pd.read_parquet(path)
       
-      
   @file_loading_error_handler("document embeddings")
   def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
     import gensim
-    path = self.full_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.npy"))
+    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.npy"))
     return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
 
-  @file_loading_error_handler("topic information")  
+  @file_loading_error_handler("topic information")
   def load_bertopic(self, column: str)->"bertopic.BERTopic":
     import bertopic
-    path = self.full_path(os.path.join(ProjectPaths.BERTopic, column))
+    path = self.assert_path(os.path.join(ProjectPaths.BERTopic, column))
     return bertopic.BERTopic.load(path)
   
   def cleanup(self):

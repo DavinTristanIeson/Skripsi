@@ -121,29 +121,29 @@ def association_plot(task: IPCTask):
   config = Config.from_project(message.project_id)
   df = config.paths.load_workspace()
 
-  task.progress(steps.advance(), f"Checking to make sure that {message.col1} and {message.col2} actually exist in the table.")
+  task.progress(steps.advance(), f"Checking to make sure that {message.column1} and {message.column2} actually exist in the table.")
 
-  col1_schema = config.dfschema.assert_exists(message.col1)
-  col2_schema = config.dfschema.assert_exists(message.col2)
+  col1_schema = config.dfschema.assert_exists(message.column1)
+  col2_schema = config.dfschema.assert_exists(message.column2)
 
-  if message.col1 == message.col2:
-    raise ApiError(f"Both columns are the same ({message.col2}). Please select a different column to compare.", 422)
+  if message.column1 == message.column2:
+    raise ApiError(f"Both columns are the same ({message.column2}). Please select a different column to compare.", 422)
 
   if col1_schema.type != SchemaColumnTypeEnum.Textual:
     raise ApiError("Only textual columns can be used as the left column. Please select a different column for the left side of the comparison.", 422)
   
   if col2_schema.type == SchemaColumnTypeEnum.Unique:
-    raise ApiError(f"Columns of type {SchemaColumnTypeEnum.Unique.name} ({message.col2}) cannot be compared with any other columns due to their unique nature. Consider changing the type of {message.col2} to {SchemaColumnTypeEnum.Categorical.name} if you need to analyze that column.", 422)
+    raise ApiError(f"Columns of type {SchemaColumnTypeEnum.Unique.name} ({message.column2}) cannot be compared with any other columns due to their unique nature. Consider changing the type of {message.column2} to {SchemaColumnTypeEnum.Categorical.name} if you need to analyze that column.", 422)
   
   col1_data = assert_column_exists(df, col1_schema.topic_column) \
     if col1_schema.type == SchemaColumnTypeEnum.Textual \
-    else assert_column_exists(df, message.col1)
+    else assert_column_exists(df, message.column1)
   
   col2_data = assert_column_exists(df, col2_schema.topic_column) \
     if col2_schema.type == SchemaColumnTypeEnum.Textual \
-    else assert_column_exists(df, message.col1)
+    else assert_column_exists(df, message.column1)
   
-  task.progress(steps.advance(), f"Finding association between {message.col1} and {message.col2}")
+  task.progress(steps.advance(), f"Finding association between {message.column1} and {message.column2}")
 
   if col2_schema.type == SchemaColumnTypeEnum.Categorical or col2_schema.type == SchemaColumnTypeEnum.Textual:
     plot = categorical_association_plot(col1_data, col2_data)
@@ -152,7 +152,7 @@ def association_plot(task: IPCTask):
   elif col2_schema.type == SchemaColumnTypeEnum.Temporal:
     plot = temporal_association_plot(col1_data, col2_data, config)
   else:
-    raise ApiError(f"The type of {message.col2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
+    raise ApiError(f"The type of {message.column2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
   
   task.success(plot, None)
 
