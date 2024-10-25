@@ -1,13 +1,12 @@
 import abc
 from enum import Enum
-import importlib.machinery
 from typing import Annotated, Literal, Optional, Union
-import importlib.util
 
 import pydantic
 import pandas as pd
 
 from common.logger import RegisteredLogger
+from common.models.validators import DiscriminatedUnionValidator, CommonModelConfig
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from common.utils.loader import hashfile
 
@@ -28,7 +27,7 @@ ExposedEnum().register(DataSourceTypeEnum, {
   ),
 })
 
-FilePath = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. \/\\]+$")]
+FilePath = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. \/\\:]+$")]
 class BaseDataSource(abc.ABC):
   path: FilePath
 
@@ -41,6 +40,7 @@ class BaseDataSource(abc.ABC):
 
 logger = RegisteredLogger().provision("Config")
 class CSVDataSource(pydantic.BaseModel, BaseDataSource):
+  model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.CSV]
   delimiter: str = ','
   limit: Optional[int] = None
@@ -59,11 +59,13 @@ class CSVDataSource(pydantic.BaseModel, BaseDataSource):
     return df
   
 class ParquetDataSource(pydantic.BaseModel, BaseDataSource):
+  model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.Parquet]
   def load(self)->pd.DataFrame:
     return pd.read_parquet(self.path)
   
 class ExcelDataSource(pydantic.BaseModel, BaseDataSource):
+  model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.Excel]
   sheet_name: Optional[str]
   def load(self)->pd.DataFrame:
@@ -74,7 +76,7 @@ class ExcelDataSource(pydantic.BaseModel, BaseDataSource):
     logger.info(f"Loaded data source from {self.path}")
     return df
 
-DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type")]
+DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [
   "DataSourceTypeEnum",

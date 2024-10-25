@@ -23,6 +23,8 @@ ProjectIdField = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. ]+$", ma
   
 logger = RegisteredLogger().provision("Config")
 class Config(pydantic.BaseModel):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
+
   version: int = pydantic.Field(default=1)
   project_id: ProjectIdField
   source: DataSource

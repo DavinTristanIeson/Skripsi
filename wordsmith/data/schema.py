@@ -1,10 +1,11 @@
 import abc
 import datetime
 from enum import Enum
-from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, Union, cast
+from typing import Annotated, ClassVar, Literal, Optional, Union, cast
 import pydantic
 import pandas as pd
 
+from common.models.validators import DiscriminatedUnionValidator, CommonModelConfig
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from wordsmith.data.textual import TextPreprocessingConfig, TopicModelingConfig
 
@@ -40,6 +41,7 @@ class BaseSchemaColumn(abc.ABC):
     pass
 
 class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+  model_config = CommonModelConfig
   name: str
   type: Literal[SchemaColumnTypeEnum.Continuous]
   # Will never be None after fitting
@@ -55,6 +57,7 @@ class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
     return data
 
 class CategoricalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+  model_config = CommonModelConfig
   name: str
   type: Literal[SchemaColumnTypeEnum.Categorical]
   min_frequency: int = 1
@@ -76,6 +79,7 @@ class UniqueSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
     return data
 
 class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+  model_config = CommonModelConfig
   name: str
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
@@ -102,6 +106,7 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
     return f"__preprocess_{self.name}"
   
 class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
+  model_config = CommonModelConfig
   name: str
   type: Literal[SchemaColumnTypeEnum.Temporal]
   min_date: Optional[datetime.datetime]
@@ -120,7 +125,7 @@ class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
       datetime_column[datetime_column > self.max_date] = self.max_date
     return datetime_column
 
-SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn], pydantic.Field(discriminator="type")]
+SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [
   "BaseSchemaColumn",
