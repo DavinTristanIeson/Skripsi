@@ -30,7 +30,7 @@ def file_loading_error_handler(entity_type: str):
   def decorator(fn):
     def inner(*args, **kwargs):
       try:
-        return fn(**kwargs)
+        return fn(*args, **kwargs)
       except ApiError as e:
         # Ignore api errors
         raise e
