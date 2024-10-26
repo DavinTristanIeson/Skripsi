@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
 
   pool = concurrent.futures.ThreadPoolExecutor(16)
-  receiver = ipc.taskqueue.IPCTaskReceiver()
+  receiver = ipc.taskqueue.IPCTaskServer()
   receiver.initialize(
     channel=ipc.client.TOPIC2SERVER_IPC_CHANNEL,
     backchannel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,

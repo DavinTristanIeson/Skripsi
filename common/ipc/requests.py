@@ -7,7 +7,6 @@ from common.models.enum import EnumMemberDescriptor, ExposedEnum
 
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
-  CancelTask = "cancel_task"
   Topics = "topics"
   MergeTopics = "merge_topics"
   DeleteTopics = "delete_topic"
@@ -20,13 +19,6 @@ class IPCRequestBase(pydantic.BaseModel):
   id: str
 
 class IPCRequestData(SimpleNamespace):
-  class CancelTask(pydantic.BaseModel):
-    type: Literal[IPCRequestType.CancelTask] = IPCRequestType.CancelTask
-    id: str
-    @staticmethod
-    def task_id(project_id: str):
-      return f"cancel-task: {project_id}"
-    
   class TopicModeling(IPCRequestBase):
     type: Literal[IPCRequestType.TopicModeling] = IPCRequestType.TopicModeling
 

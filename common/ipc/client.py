@@ -34,23 +34,38 @@ class IPCClient:
 
   def send(self, message: pydantic.BaseModel):
     try:
-      client = Client(self.channel.channel, authkey=self.channel.authkey)
+      conn = Client(self.channel.channel, authkey=self.channel.authkey)
     except Exception as e:
       logger.error(f"Failed to initialize a connection with {self.channel.channel}. Error: {e}")
       raise e
     try:
-      client.send(message)
+      conn.send(message)
       logger.info(f"Sent message with payload: {message.model_dump_json()}")
     except Exception as e:
       logger.error(f"An error occurred while sending the message {message.model_dump_json()} through IPC. Error: {e}")
       raise e
+    
+    try:
+      if conn.poll(timeout=2000):
+        return conn.recv()
+      else:
+        raise Exception(f"Failed to receive any response from {self.channel.channel}. The IPC listener may have been shut down.")
+      
+    except Exception as e:
+      logger.error(f"An error occurred while waiting for a message from {self.channel.channel}. Error: {e}")
+      conn.close()
+      raise e
+    
+
+  
+    
 
 class IPCListener:
   channel: IPCChannel
   listener: Listener
-  handler: Callable[[Any], None]
+  handler: Callable[[Any], Any]
 
-  def __init__(self, channel: IPCChannel, handler: Callable[[Any], None]) -> None:
+  def __init__(self, channel: IPCChannel, handler: Callable[[Any], Any]) -> None:
     self.listener = Listener(channel.channel, authkey=channel.authkey)
     self.handler = handler
     self.channel = channel
@@ -76,8 +91,18 @@ class IPCListener:
         except Exception as e:
           logger.error(f"Failed to receive a message from the connection. The connection will be aborted. Error: {e}")
           break
+        try:
+          reply = self.handler(msg)
+        except Exception as e:
+          logger.error(f"An unexpected error occurred while handling {msg}. Error: {e}")
+          break
 
-        self.handler(msg)
+        try:
+          msg = conn.send(reply)
+          logger.debug(f"Replied to connection with message {reply}.")
+        except Exception as e:
+          logger.error(f"Failed to send a message to the connection. The connection will be aborted. Error: {e}")
+          break
       conn.close()
 
 __all__ = [

@@ -4,7 +4,7 @@ from fastapi import Depends
 import pandas as pd
 from common.ipc.requests import IPCRequestData
 from common.ipc.task import IPCTask
-from common.ipc.taskqueue import IPCTaskLocker
+from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiError
 import os
 
@@ -26,7 +26,7 @@ def get_data_column(config: ProjectExistsDependency, column: str):
 SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(get_data_column)]
 
 def check_topic_modeling_status(config: ProjectExistsDependency, project_id: str):
-  locker = IPCTaskLocker()
+  locker = IPCTaskClient()
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
   task = locker.result(task_id)
 
@@ -45,7 +45,7 @@ def check_topic_modeling_status(config: ProjectExistsDependency, project_id: str
 PerformedTopicModelingDependency = Annotated[Optional[IPCTask], Depends(check_topic_modeling_status)]
 
 def get_workspace_table(config: ProjectExistsDependency, project_id: str)->pd.DataFrame:
-  locker = IPCTaskLocker()
+  locker = IPCTaskClient()
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
 
   task = locker.result(task_id)

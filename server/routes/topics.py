@@ -1,9 +1,12 @@
+import os
 from fastapi import APIRouter
 
 from common.ipc.requests import IPCRequestData
-from common.ipc.taskqueue import IPCTaskLocker
+from common.ipc.responses import IPCResponse, IPCResponseData
+from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiError, ApiResult
 from server.controllers.project_checks import ProjectExistsDependency, PerformedTopicModelingDependency, SchemaColumnExistsDependency
+from wordsmith.data.paths import ProjectPaths
 
 router = APIRouter(
   tags=["Topics"]
@@ -11,13 +14,13 @@ router = APIRouter(
 
 @router.post('/{project_id}/topics/start')
 def post__topic_modeling_request(config: ProjectExistsDependency, project_id: str):
-  locker = IPCTaskLocker()
+  locker = IPCTaskClient()
 
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
   has_pending_task = locker.has_pending_task(task_id)
 
   # Always cancel old task
-  IPCTaskLocker().request(IPCRequestData.TopicModeling(
+  IPCTaskClient().request(IPCRequestData.TopicModeling(
     id=task_id,
     project_id=project_id
   ))
@@ -30,23 +33,26 @@ def post__topic_modeling_request(config: ProjectExistsDependency, project_id: st
 
 @router.get('/{project_id}/topics/status')
 def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str):
-  locker = IPCTaskLocker()
-
+  bertopic_path = config.paths.full_path(ProjectPaths.BERTopic)
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
+  locker = IPCTaskClient()
   if result:=locker.result(task_id):
-    return ApiResult(data=result, message=result.message)
+    return result
+  
+  if os.path.exists(bertopic_path):
+    return IPCResponse.Success(task_id, IPCResponseData.Empty(), message="The topic modeling has already been started before.")
   
   raise ApiError(f"No topic modeling task has been started for {project_id}.", 400)
 
 @router.post('/{project_id}/topics/{column}')
 def get_topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  locker = IPCTaskLocker()
+  locker = IPCTaskClient()
 
   task_id = IPCRequestData.Topics.task_id(project_id)
   if result:=locker.result(task_id):
     return ApiResult(data=result, message=result.message)
   
-  IPCTaskLocker().request(IPCRequestData.Topics(
+  IPCTaskClient().request(IPCRequestData.Topics(
     id=task_id,
     project_id=project_id,
     column=col.name,
@@ -56,13 +62,13 @@ def get_topics(task: PerformedTopicModelingDependency, project_id: str, col: Sch
 
 @router.post('/{project_id}/topics/{column}/similarity')
 def get_topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  locker = IPCTaskLocker()
+  locker = IPCTaskClient()
 
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
   if result:=locker.result(task_id):
     return ApiResult(data=result, message=result.message)
   
-  IPCTaskLocker().request(IPCRequestData.TopicSimilarityPlot(
+  IPCTaskClient().request(IPCRequestData.TopicSimilarityPlot(
     id=task_id,
     project_id=project_id,
     column=col.name,
