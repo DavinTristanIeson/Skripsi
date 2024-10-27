@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from typing import Sequence, cast
 import bertopic
 import bertopic.dimensionality
@@ -9,7 +10,6 @@ import hdbscan
 import numpy as np
 import pandas as pd
 
-import common
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
@@ -24,40 +24,40 @@ def topic_modeling(task: IPCTask):
   message = cast(IPCRequestData.TopicModeling, task.request)
   config = Config.from_project(message.project_id)
 
-  task.progress(0, "Preprocessing all of the available columns")
-  df = config.preprocess()
-
+  task.progress(0, f"Loading dataset from {config.source.path}")
+  df = config.source.load()
   steps = TaskStepTracker(
-    max_steps=1 + (len(config.dfschema.columns) * 5)
+    max_steps=1 + len(config.data_schema.columns) + (len(config.data_schema.columns) * 4)
   )
-  textcolumns = config.dfschema.textual()
+  for colidx, (df, column) in enumerate(config.data_schema.preprocess(df)):
+    df = df
+    task.progress(steps.advance(), f"Preprocessing column: {column.name} with type \"{column.type}\"." +
+      " Preprocessing text may take some time..." +
+      f" ({colidx + 1} / {len(config.data_schema.columns)})"
+    )
+
+  result_path = config.paths.full_path(ProjectPaths.Workspace)
+  df.to_parquet(result_path)
+  task.progress(steps.advance(), f"Saved workspace table to {config.source.path}. You should be able to access the Table page to explore your dataset, but the topics have not been processed yet.")
+  logger.info(f"Saved intermediate results to {result_path}")
+
+  textcolumns = config.data_schema.textual()
   for colidx, column in enumerate(textcolumns):
+    column_progress = f"({colidx + 1} / {len(textcolumns)})"
     column_data = df[column.preprocess_column]
     mask = column_data.str.len() != 0
-    raw_documents = cast(Sequence[str], column_data[mask])
+    documents = cast(list[str], column_data[mask])
 
     task.check_stop()
     task.progress(
       progress=steps.advance(),
-      message=f"Preprocessing documents of {column.name}"
+      message=f"Transforming documents of {column.name} into document embeddings {column_progress}"
     )
 
-    with TimeLogger(logger, "Preprocessing Documents", report_start=True):
-      tokens: Sequence[Sequence[str]]
-      tokens = tuple(column.preprocessing.preprocess(
-        cast(Sequence[str], raw_documents)
-      ))
-      documents = list(common.utils.loader.concatenate_generator(tokens))
-
-    task.check_stop()
-    task.progress(
-      progress=steps.advance(),
-      message=f"Transforming documents of {column.name} into document embeddings"
-    )
-
-    doc2vec = Doc2VecTransformer()
-    doc2vec.fit(documents)
-    embeddings = doc2vec.transform(documents)
+    with TimeLogger(logger, "Fitting doc2vec", report_start=True):
+      doc2vec = Doc2VecTransformer()
+      doc2vec.fit(documents)
+      embeddings = doc2vec.transform(documents)
 
     kwargs = dict()
     if column.topic_modeling.max_topics is not None:
@@ -90,14 +90,15 @@ def topic_modeling(task: IPCTask):
       low_memory=column.topic_modeling.low_memory,
       min_topic_size=column.topic_modeling.min_topic_size,
       n_gram_range=column.topic_modeling.n_gram_range,
-      calculate_probabilities=True,
+      calculate_probabilities=False,
+      verbose=True,
       **kwargs,
     )
 
     task.check_stop()
     task.progress(
       progress=steps.advance(),
-      message=f"Starting the topic modeling process for {column.name}"
+      message=f"Starting the topic modeling process for {column.name} {column_progress}"
     )
 
     with TimeLogger(logger, "Performing Topic Modeling", report_start=True):
@@ -106,7 +107,7 @@ def topic_modeling(task: IPCTask):
     task.check_stop()
     task.progress(
       progress=steps.advance(),
-      message=f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics."
+      message=f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics. {column_progress}"
     )
 
     if column.topic_modeling.no_outliers:
@@ -114,27 +115,36 @@ def topic_modeling(task: IPCTask):
       if column.topic_modeling.represent_outliers:
         model.update_topics(documents, topics=topics)
 
-    topic_number_column = pd.Series(np.full((len(raw_documents,)), -1), dtype=np.int32)
+    topic_number_column = pd.Series(np.full((len(df[column.name],)), -1), dtype=np.int32)
     topic_number_column[mask] = topics
 
     topic_column = pd.Categorical(topic_number_column)
     topic_column.rename_categories({**model.topic_labels_, -1: -1})
-    df[column.topic_column] = topic_column
+    df.loc[:, column.topic_column] = topic_column
 
     task.check_stop()
     task.progress(
       progress=steps.advance(),
-      message=f"Saving the topic information for {column.name}"
+      message=f"Saving the topic information for {column.name} {column_progress}"
     )
 
-    doc2vec_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, column.name))
-    doc2vec.model.save(doc2vec_path)
 
-    bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic, column.name))
-    model.save(bertopic_path, "safetensors")
+    doc2vec_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, column.name))
+    doc2vec_root_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, f"{column.name}.doc2vec"))
+    if not os.path.exists(doc2vec_root_path):
+      os.makedirs(doc2vec_root_path)
+      logger.info(f"Created {doc2vec_root_path} since it hasn't existed before.")
+    doc2vec.model.save(doc2vec_path)
     
+    bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic, column.name))
+    if not os.path.exists(bertopic_path):
+      os.makedirs(bertopic_path)
+      logger.info(f"Created {bertopic_path} since it hasn't existed before.")
+
+    model.save(bertopic_path, "safetensors")
+      
   task.check_stop()
-  df.to_parquet()
+  df.to_parquet(ProjectPaths.Workspace)
   task.success(IPCResponseData.Empty(), message=f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
 
 __all__ = [

@@ -1,13 +1,9 @@
 import http
 import shutil
 import os
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter
 import numpy as np
-import pandas as pd
 from common.models.api import ApiResult, ApiError
-from common.ipc.taskqueue import IPCTaskLocker
-from common.ipc.requests import IPCRequestData
-from common.ipc.client import SERVER2TOPIC_IPC_CHANNEL, TOPIC2SERVER_IPC_CHANNEL
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
 from wordsmith.data import paths
 from wordsmith.data.schema import SchemaColumnTypeEnum
@@ -75,7 +71,10 @@ async def get__projects():
       # don't include hidden folders
       and not folder_name.startswith('.')
     ]
-    projects = list(map(lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)), folders))
+    projects = list(map(
+      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(os.getcwd(), folder_name, folder)),
+      folders
+    ))
 
   return ApiResult(
     data=projects,
@@ -147,51 +146,4 @@ async def delete__project(project_id: str):
   return ApiResult(
     data=None,
     message=f"Project \"{project_id}\" has been successfully deleted."
-  )
-
-@router.get('/{project_id}/association')
-async def get__association(project_id: str, column1: str = Query(...), column2: str = Query(...)):
-  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
-
-  if not os.path.isdir(folder_path):
-    raise ApiError(f"We cannot find any projects with ID: \"{project_id}\"", 404)
-  
-  config = Config.from_project(project_id=project_id)
-
-  column1 = config.dfschema.assert_exists(column1)
-  column2 = config.dfschema.assert_exists(column2)
-  if (column1.type is not SchemaColumnTypeEnum.Textual):
-    raise ApiError("Please fill column1 with textual type of column", 400)
-  if (column2.type is SchemaColumnTypeEnum.Unique):
-    raise ApiError("Please fill column2 with non-unique type of column", 400)
-
-  workspace = config.paths.load_workspace()
-  if column1.name not in workspace.columns:
-    raise ApiError(f"Column {column1.name} could not be found in the current workspace. Please consider updating to a new workspace!", 404)
-  if column2.name not in workspace.columns:
-    raise ApiError(f"Column {column2.name} could not be found in the current workspace. Please consider updating to a new workspace!", 404)
-  
-  task_id = f"association-plot-{project_id}"
-
-  locker = IPCTaskLocker()
-
-  locker.initialize(
-    channel=SERVER2TOPIC_IPC_CHANNEL,
-    backchannel=TOPIC2SERVER_IPC_CHANNEL
-  )
-
-  # kurang paham ini perlu atau tidak
-  # if result:=locker.result(task_id):
-  #   return ApiResult(data=result, message=result.message)
-
-  locker.request(IPCRequestData.AssociationPlot(
-    id=task_id,
-    project_id=config.project_id,
-    col1=column1.name,
-    col2=column2.name,
-  ))
-
-  return ApiResult(
-    data=None,
-    message="..."
   )

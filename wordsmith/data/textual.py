@@ -12,7 +12,6 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   remove_url: bool = True
   remove_number: bool = True
 
-  @lru_cache(1)
   def load_nlp(self):
     nlp = spacy.load("en_core_web_sm")
     nlp.Defaults.stop_words |= set(self.stopwords)

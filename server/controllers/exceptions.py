@@ -1,3 +1,4 @@
+import traceback
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -8,11 +9,11 @@ from common.models.api import ApiError, ApiErrorResult
 logger = RegisteredLogger().provision("FastAPI Error Handler")
 
 def api_error_exception_handler(request: Request, exc: ApiError):
-  logger.error(f"Error while handling {request.url}. Error: {exc.message}")
+  logger.error(f"API Error while handling {request.url}. Error: {exc.message}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
 
 def default_exception_handler(request: Request, exc: Exception):
-  logger.error(f"Error while handling {request.url}. Error: {exc}")
+  logger.error(f"Error while handling {request.url}. Error: {exc} {traceback.print_exception(exc)}")
   return JSONResponse(content=ApiErrorResult(message="An unexpected error has occurred in the server.").model_dump(), status_code=500)
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

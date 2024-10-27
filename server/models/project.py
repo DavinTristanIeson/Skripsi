@@ -7,7 +7,8 @@ import pydantic
 from common.ipc.responses import IPCResponse
 from common.models.api import ApiError
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
-from wordsmith.data.config import Config, ProjectIdField
+from common.models.validators import FilenameField
+from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
 
@@ -67,7 +68,7 @@ class CheckDatasetResource(pydantic.BaseModel):
 
 # Schema
 class CheckProjectIdSchema(pydantic.BaseModel):
-  project_id: ProjectIdField
+  project_id: FilenameField
 
 class CheckDatasetSchema(pydantic.RootModel):
   root: DataSource

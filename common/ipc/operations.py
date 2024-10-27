@@ -35,6 +35,7 @@ class IPCOperationRequestData(SimpleNamespace):
 
 class IPCOperationResponseType(str, Enum):
   Result = "result"
+  Error = "error"
   Empty = "empty"
   TaskState = "task_state"
 
@@ -42,13 +43,16 @@ class IPCOperationResponseData(SimpleNamespace):
   class Result(pydantic.BaseModel):
     type: Literal[IPCOperationResponseType.Result] = IPCOperationResponseType.Result
     data: Optional[IPCResponse]
+  class Error(pydantic.BaseModel):
+    type: Literal[IPCOperationResponseType.Error] = IPCOperationResponseType.Error
+    error: str
   class Empty(pydantic.BaseModel):
     type: Literal[IPCOperationResponseType.Empty] = IPCOperationResponseType.Empty
   class TaskState(pydantic.BaseModel):
     type: Literal[IPCOperationResponseType.TaskState] = IPCOperationResponseType.TaskState
     results: dict[str, IPCResponse]
   
-  TypeUnion = Union[Result, Empty, TaskState]
+  TypeUnion = Union[Result, Empty, TaskState, Error]
 
 IPCOperationRequest = Annotated[IPCOperationRequestData.TypeUnion, pydantic.Field(discriminator="type")]
 IPCOperationResponse = Annotated[IPCOperationResponseData.TypeUnion, pydantic.Field(discriminator="type")]

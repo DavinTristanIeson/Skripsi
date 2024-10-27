@@ -12,6 +12,35 @@ logger = RegisteredLogger().provision("Config")
 class SchemaManager(pydantic.BaseModel):
   columns: Sequence[SchemaColumn]
 
+  @pydantic.field_validator("columns", mode="after")
+  def __validate_columns(cls, value: Sequence[SchemaColumn]):
+    unique_names: set[str] = set()
+    unique_dataset_names: set[str] = set()
+
+    non_unique_names: set[str] = set()
+    non_unique_dataset_names: set[str] = set()
+    for col in value:
+      if col.name in unique_names:
+        non_unique_names.add(col.name)
+      else:
+        unique_names.add(col.name)
+
+      if col.dataset_name is None:
+        continue
+
+      if col.name in unique_names:
+        unique_dataset_names.add(col.name)
+      else:
+        non_unique_dataset_names.add(col.dataset_name)
+
+
+    if len(non_unique_names) > 0:
+      raise ValueError(f"All column names must be unique. Make sure that that there's only one of the following names: {', '.join(non_unique_names)}")
+    if len(non_unique_dataset_names) > 0:
+      raise ValueError(f"All dataset column names must be unique. Make sure that that there's only one of the following names: {', '.join(non_unique_dataset_names)}")
+    
+    return value
+    
   def of_type(self, type: SchemaColumnTypeEnum)->tuple[SchemaColumn, ...]:
     return tuple(filter(lambda x: x.type == type, self.columns))
   
@@ -36,17 +65,27 @@ class SchemaManager(pydantic.BaseModel):
       raise KeyError(f"Column {name} doesn't exist in the schema")
     return column
   
-  def preprocess(self, df: pd.DataFrame, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
-    df = df.loc[:, [col.name for col in self.columns]]
+  def preprocess(self, df: pd.DataFrame):
+    try:
+      df = df.loc[:, [col.dataset_name or col.name for col in self.columns]]
+    except KeyError as e:
+      raise KeyError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {str(e)}")
+
+    renamer: dict[str, str] = dict()
+    for col in self.columns:
+      if col.dataset_name is None:
+        continue
+      if col.name == col.dataset_name:
+        continue
+      renamer[col.dataset_name] = col.name
+    df = df.rename(renamer, axis=1)
     
     for col in self.columns:
-      if on_start is not None:
-        on_start(col)
-      df.loc[:, col.name] = col.fit(cast(pd.Series, df.loc[:, col.name]))
-      if col.type != SchemaColumnTypeEnum.Textual:
-        continue
+      with TimeLogger(logger, f"Preprocessing {col.name} ({col.type})"):
+        coldata = col.fit(cast(pd.Series, df.loc[:, col.name]))
+        if col.type != SchemaColumnTypeEnum.Textual:
+          df.loc[:, col.name] = coldata
+        else:
+          df.loc[:, col.preprocess_column] = coldata
 
-      with TimeLogger(logger, f"Preprocessing {col.name}"):
-        df[col.preprocess_column] = pd.Series(col.preprocessing.apply(df[col.name], show_progress=show_progress)) # type: ignore
-
-    return df
+      yield df, col

@@ -1,6 +1,4 @@
-import atexit
 import logging
-import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,7 +20,7 @@ app.add_middleware(
 
 
 RegisteredLogger().configure(
-  level=logging.INFO,
+  level=logging.DEBUG,
   terminal=True
 )
 

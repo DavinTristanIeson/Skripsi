@@ -102,8 +102,7 @@ class IPCResponse(pydantic.BaseModel):
   data: IPCResponseData.DiscriminatedUnion
   status: IPCResponseStatus
   message: Optional[str] = None
-  progress: Optional[float] = None
-  error: Optional[str] = None
+  progress: float = 0
   timestamp: datetime.datetime = pydantic.Field(
     default_factory=lambda: datetime.datetime.now()
   )
@@ -112,7 +111,6 @@ class IPCResponse(pydantic.BaseModel):
   def Success(id: str, data: Any, message: Optional[str]):
     return IPCResponse(
       data=data,
-      error=None,
       message=message,
       progress=1,
       status=IPCResponseStatus.Success,
@@ -123,7 +121,6 @@ class IPCResponse(pydantic.BaseModel):
   def Pending(id: str, progress: float, message: str):
     return IPCResponse(
       data=IPCResponseData.Empty(),
-      error=None,
       message=message,
       progress=progress,
       status=IPCResponseStatus.Pending,
@@ -134,8 +131,7 @@ class IPCResponse(pydantic.BaseModel):
   def Error(id: str, error_message: str):
     return IPCResponse(
       data=IPCResponseData.Empty(),
-      error=error_message,
-      message=None,
+      message=error_message,
       progress=1,
       status=IPCResponseStatus.Failed,
       id=id,
@@ -145,7 +141,6 @@ class IPCResponse(pydantic.BaseModel):
   def Idle(id: str):
     return IPCResponse(
       data=IPCResponseData.Empty(),
-      error=None,
       message=None,
       progress=0,
       status=IPCResponseStatus.Idle,

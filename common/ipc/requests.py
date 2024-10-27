@@ -77,6 +77,7 @@ IPCRequest = Union[
   IPCRequestData.MergeTopics,
   IPCRequestData.CreateTopic,
   IPCRequestData.DeleteTopics,
+  IPCRequestData.AssociationPlot,
 ]
 
 class IPCRequestWrapper(pydantic.RootModel):

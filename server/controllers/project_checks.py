@@ -15,12 +15,14 @@ from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import SchemaColumn
 
 def get_project_config(project_id: str):
-  return ProjectCacheManager().configs.get(project_id)
+  config = ProjectCacheManager().configs.get(project_id)
+  config.project_id = project_id
+  return config
 ProjectExistsDependency = Annotated[Config, Depends(get_project_config)]
 
 def get_data_column(config: ProjectExistsDependency, column: str):
   try:
-    return config.dfschema.assert_exists(column)
+    return config.data_schema.assert_exists(column)
   except KeyError:
     raise ApiError(f"Column {column} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
 SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(get_data_column)]

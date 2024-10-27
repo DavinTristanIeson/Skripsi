@@ -40,14 +40,16 @@ class IPCClient:
       raise e
     try:
       conn.send(message)
-      logger.info(f"Sent message with payload: {message.model_dump_json()}")
+      logger.debug(f"Sent message with payload: {message.model_dump_json()}")
     except Exception as e:
       logger.error(f"An error occurred while sending the message {message.model_dump_json()} through IPC. Error: {e}")
       raise e
     
     try:
       if conn.poll(timeout=2000):
-        return conn.recv()
+        data = conn.recv()
+        logger.debug(f"Received message with payload: {message.model_dump_json()}")
+        return data
       else:
         raise Exception(f"Failed to receive any response from {self.channel.channel}. The IPC listener may have been shut down.")
       

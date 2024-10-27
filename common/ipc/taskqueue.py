@@ -1,16 +1,18 @@
 import concurrent.futures
 import queue
 import threading
+import traceback
 from typing import Any, Optional, cast
 
 from pydantic import ValidationError
 
 from common.ipc.client import IPCChannel, IPCClient, IPCListener
-from common.ipc.operations import IPCOperationRequest, IPCOperationRequestData, IPCOperationRequestType, IPCOperationRequestWrapper, IPCOperationResponse, IPCOperationResponseData, IPCOperationResponseWrapper
+from common.ipc.operations import IPCOperationRequest, IPCOperationRequestData, IPCOperationRequestType, IPCOperationRequestWrapper, IPCOperationResponse, IPCOperationResponseData, IPCOperationResponseType, IPCOperationResponseWrapper
 from common.ipc.requests import IPCRequest, IPCRequestType, IPCRequestWrapper
 from common.ipc.responses import IPCResponse, IPCResponseStatus
 from common.ipc.task import IPCTask, IPCTaskHandlerFn
 from common.logger import RegisteredLogger, TimeLogger
+from common.models.api import ApiError
 from common.models.metaclass import Singleton
 
 logger = RegisteredLogger().provision("IPC")
@@ -45,7 +47,7 @@ class IPCTaskServer(metaclass=Singleton):
           ),
         )
       except Exception as e:
-        logger.error(f"An error has occurred during the execution of task {message.id}. Error: {e}")
+        logger.error(f"An error has occurred during the execution of task {message.id}. Error: {traceback.print_exception(e)}")
         with self.lock:
           self.results[message.id] = IPCResponse.Error(message.id, str(e))
         return
@@ -68,7 +70,7 @@ class IPCTaskServer(metaclass=Singleton):
     handler = self.handlers.get(request.type, None)
     if handler is None:
       logger.error(f"No handler for message of type {request.type} has been registered!")
-      return
+      return IPCOperationResponseData.Error(error=f"No handler for message of type {request.type} has been registered!")
     
     with self.lock:
       has_task_id = request.id in self.ongoing_tasks
@@ -81,7 +83,7 @@ class IPCTaskServer(metaclass=Singleton):
       self.results[request.id] = response
 
     self.pool.submit(self.handle_task, handler, request)
-    return response
+    return IPCOperationResponseData.Result(data=response)
 
   def on_received_operation(self, request: IPCOperationRequest)->IPCOperationResponse:
     if request.type == IPCOperationRequestType.GetResult:
@@ -151,20 +153,27 @@ class IPCTaskServer(metaclass=Singleton):
 class IPCTaskClient(metaclass=Singleton):
   channel: IPCChannel
 
+  def __validate_response(self, data: Any)->IPCOperationResponse:
+    response = IPCOperationResponseWrapper.model_validate(data)
+    if response.root.type == IPCOperationResponseType.Error:
+      raise ApiError(response.root.error, 500)
+    return response.root
+
+
   def request(self, msg: IPCRequest):
     client = IPCClient(self.channel)
-    return client.send(msg)
+    return self.__validate_response(client.send(msg))
   
   def operation(self, msg: IPCOperationRequest):
     client = IPCClient(self.channel)
-    return client.send(msg)
+    return self.__validate_response(client.send(msg))
 
   def result(self, id: str)->Optional[IPCResponse]:
     client = IPCClient(self.channel)
     raw_response = client.send(IPCOperationRequestData.GetResult(id=id))
-    response = IPCOperationResponseWrapper.model_validate(raw_response)
+    response = self.__validate_response(raw_response)
 
-    return cast(IPCOperationResponseData.Result, response.root).data
+    return cast(IPCOperationResponseData.Result, response).data
     
   def has_pending_task(self, id: str)->bool:
     task = self.result(id)

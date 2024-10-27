@@ -46,6 +46,7 @@ class ProjectPathManager(pydantic.BaseModel):
   @property
   def project_path(self):
     project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)
+    print(self.project_id, project_dir)
     if not os.path.exists(project_dir):
       raise ApiError(f"No project exists with name: {self.project_id}.", 404)
     return project_dir
@@ -69,7 +70,7 @@ class ProjectPathManager(pydantic.BaseModel):
   @file_loading_error_handler("document embeddings")
   def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
     import gensim
-    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.npy"))
+    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.doc2vec"))
     return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
 
   @file_loading_error_handler("topic information")
@@ -79,11 +80,12 @@ class ProjectPathManager(pydantic.BaseModel):
     return bertopic.BERTopic.load(path)
   
   def cleanup(self):
-    EXCLUDED = set(ProjectPaths.Config)
-    for fnode in os.scandir(self.project_path):
-      if fnode.name in EXCLUDED:
-        continue
-      if fnode.is_dir():
-        shutil.rmtree(fnode.path)
-      else:
-        os.remove(fnode.path)
+    doc2vec_path = self.full_path(os.path.join(ProjectPaths.Doc2Vec))
+    bertopic_path = self.full_path(os.path.join(ProjectPaths.BERTopic))
+    workspace_path = self.full_path(os.path.join(ProjectPaths.Workspace))
+    if os.path.exists(doc2vec_path):
+      shutil.rmtree(doc2vec_path)
+    if os.path.exists(bertopic_path):
+      shutil.rmtree(bertopic_path)
+    if os.path.exists(workspace_path):
+      shutil.rmtree(workspace_path)

@@ -123,8 +123,8 @@ def association_plot(task: IPCTask):
 
   task.progress(steps.advance(), f"Checking to make sure that {message.column1} and {message.column2} actually exist in the table.")
 
-  col1_schema = config.dfschema.assert_exists(message.column1)
-  col2_schema = config.dfschema.assert_exists(message.column2)
+  col1_schema = config.data_schema.assert_exists(message.column1)
+  col2_schema = config.data_schema.assert_exists(message.column2)
 
   if message.column1 == message.column2:
     raise ApiError(f"Both columns are the same ({message.column2}). Please select a different column to compare.", 422)
