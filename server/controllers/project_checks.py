@@ -3,6 +3,7 @@ from typing import Annotated, Optional
 from fastapi import Depends
 import pandas as pd
 from common.ipc.requests import IPCRequestData
+from common.ipc.responses import IPCResponse
 from common.ipc.task import IPCTask
 from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiError
@@ -44,7 +45,7 @@ def check_topic_modeling_status(config: ProjectExistsDependency, project_id: str
   if task is None:
     return None
   return task.status
-PerformedTopicModelingDependency = Annotated[Optional[IPCTask], Depends(check_topic_modeling_status)]
+PerformedTopicModelingDependency = Annotated[Optional[IPCResponse], Depends(check_topic_modeling_status)]
 
 def get_workspace_table(config: ProjectExistsDependency, project_id: str)->pd.DataFrame:
   locker = IPCTaskClient()

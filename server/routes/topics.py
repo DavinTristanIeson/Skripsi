@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponse, IPCResponseData
@@ -40,33 +40,37 @@ def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str)
     return result
   
   if os.path.exists(bertopic_path):
-    return IPCResponse.Success(task_id, IPCResponseData.Empty(), message="The topic modeling has already been started before.")
+    return IPCResponse.Success(task_id, IPCResponseData.Empty(), message="The topic modeling procedure has already been executed before. Feel free to explore the discovered topics.")
   
   raise ApiError(f"No topic modeling task has been started for {project_id}.", 400)
 
-@router.post('/{project_id}/topics/{column}')
-def get_topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  locker = IPCTaskClient()
+@router.get('/{project_id}/topics/{column}')
+def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  client = IPCTaskClient()
 
   task_id = IPCRequestData.Topics.task_id(project_id)
-  if result:=locker.result(task_id):
-    return ApiResult(data=result, message=result.message)
-  
+  if result:=client.result(task_id):
+    return result
+
+  raise ApiError(f"No topic has been requested for {project_id} > {col.name}.", 400)
+
+@router.post('/{project_id}/topics/{column}')
+def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   IPCTaskClient().request(IPCRequestData.Topics(
-    id=task_id,
+    id=project_id,
     project_id=project_id,
     column=col.name,
   ))
-  
-  return ApiResult(data=None, message=f"Started topic modeling task for {project_id}")
+  return ApiResult(data=None, message=f"Please wait for a few seconds while we create the visualizations for the topics in {col.name} from {project_id}")
 
-@router.post('/{project_id}/topics/{column}/similarity')
-def get_topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+
+@router.get('/{project_id}/topics/{column}/similarity')
+def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   locker = IPCTaskClient()
 
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
   if result:=locker.result(task_id):
-    return ApiResult(data=result, message=result.message)
+    return result
   
   IPCTaskClient().request(IPCRequestData.TopicSimilarityPlot(
     id=task_id,
@@ -74,4 +78,4 @@ def get_topic_similarity(task: PerformedTopicModelingDependency, project_id: str
     column=col.name,
   ))
   
-  return ApiResult(data=None, message=f"Started topic modeling task for {project_id}")
+  return ApiResult(data=None, message=f"Please wait for a few seconds while we calculate the similarities for the topics in {col.name} from {project_id}")

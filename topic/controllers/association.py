@@ -65,7 +65,9 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
 
       topics=tuple(map(str, crosstab.columns)),
       outcomes=tuple(map(str, crosstab.index)),
-    )
+    ),
+    column1=str(a.name),
+    column2=str(b.name)
   )
 
 def continuous_association_plot(a: pd.Series, b: pd.Series):
@@ -92,8 +94,10 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
     data=AssociationData.Continuous(
       statistics_csv=pd.DataFrame(statistics).to_csv(),
       plot=cast(str, violinplot.to_json()),
-      topics=topics,
-    )
+      topics=topics
+    ),
+    column1=str(a.name),
+    column2=str(b.name)
   )
 
 def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
@@ -107,7 +111,9 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
       bins=tuple(map(str, topics_over_time["Bins"])),
       topics=pd.Categorical(col1_data).categories,
       plot=cast(str, topic_plot.to_json()),
-    )
+    ),
+    column1=str(a.name),
+    column2=str(b.name)
   )
 
 def association_plot(task: IPCTask):

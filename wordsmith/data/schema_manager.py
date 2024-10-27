@@ -19,7 +19,11 @@ class SchemaManager(pydantic.BaseModel):
 
     non_unique_names: set[str] = set()
     non_unique_dataset_names: set[str] = set()
+    has_text_column = False
     for col in value:
+      if col.type == SchemaColumnTypeEnum.Textual:
+        has_text_column = True
+
       if col.name in unique_names:
         non_unique_names.add(col.name)
       else:
@@ -38,7 +42,9 @@ class SchemaManager(pydantic.BaseModel):
       raise ValueError(f"All column names must be unique. Make sure that that there's only one of the following names: {', '.join(non_unique_names)}")
     if len(non_unique_dataset_names) > 0:
       raise ValueError(f"All dataset column names must be unique. Make sure that that there's only one of the following names: {', '.join(non_unique_dataset_names)}")
-    
+    if not has_text_column:
+      raise ValueError(f"There should be at least one textual column in the dataset.")
+
     return value
     
   def of_type(self, type: SchemaColumnTypeEnum)->tuple[SchemaColumn, ...]:
@@ -78,7 +84,9 @@ class SchemaManager(pydantic.BaseModel):
       if col.name == col.dataset_name:
         continue
       renamer[col.dataset_name] = col.name
+      
     df = df.rename(renamer, axis=1)
+
     
     for col in self.columns:
       with TimeLogger(logger, f"Preprocessing {col.name} ({col.type})"):

@@ -6,8 +6,10 @@ import plotly.express
 
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
+from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
+from wordsmith.data.schema import SchemaColumnTypeEnum
 
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
@@ -16,6 +18,9 @@ def hierarchical_topic_plot(task: IPCTask):
   message = cast(IPCRequestData.Topics, task.request)
 
   config = Config.from_project(message.project_id)
+  column = config.data_schema.assert_exists(message.column)
+  if column.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
 
   task.progress(0, f"Loading topic information for {message.column}.")
   model = config.paths.load_bertopic(message.column)
@@ -23,7 +28,9 @@ def hierarchical_topic_plot(task: IPCTask):
   task.progress(steps.advance(), f"Loading workspace table.")
   df = config.paths.load_workspace()
 
-  documents = cast(list[str], assert_column_exists(df, message.column))
+  column_data = assert_column_exists(df, column.preprocess_column)
+  mask = column_data.str.len() != 0
+  documents = cast(list[str], column_data[mask])
 
   task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
   hierarchical_topics = model.hierarchical_topics(documents)
@@ -57,7 +64,8 @@ def hierarchical_topic_plot(task: IPCTask):
     topic_words=topic_words,
     frequencies=frequencies,
     outliers=outliers,
-    total=total
+    total=total,
+    column=message.column
   ), None)
 
 def topic_similarity_plot(task: IPCTask):
@@ -99,7 +107,8 @@ def topic_similarity_plot(task: IPCTask):
     topics=topics,
     ldavis=cast(str, ldavis.to_json()),
     heatmap=cast(str, heatmap.to_json()),
-    similarity_matrix=similarity_matrix
+    similarity_matrix=similarity_matrix,
+    column=message.column
   ), None)
   
 __all__ = [

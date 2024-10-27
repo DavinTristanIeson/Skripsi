@@ -67,6 +67,7 @@ class IPCResponseData(SimpleNamespace):
 
   class TopicSimilarity(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.TopicSimilarity] = IPCResponseDataType.TopicSimilarity
+    column: str
     topics: Sequence[str]
     heatmap: str
     ldavis: str
@@ -74,6 +75,7 @@ class IPCResponseData(SimpleNamespace):
 
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
+    column: str
     plot: str
     topics: Sequence[str]
     topic_words: Sequence[Sequence[tuple[str, float]]]
@@ -83,6 +85,8 @@ class IPCResponseData(SimpleNamespace):
 
   class Association(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
+    column1: str
+    column2: str
     data: AssociationData.DiscriminatedUnion
 
   class Empty(pydantic.BaseModel):
