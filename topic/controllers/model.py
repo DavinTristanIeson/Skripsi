@@ -1,7 +1,5 @@
-import logging
 import os
-import shutil
-from typing import Sequence, cast
+from typing import cast
 import bertopic
 import bertopic.dimensionality
 import bertopic.representation
@@ -9,16 +7,17 @@ import bertopic.vectorizers
 import hdbscan
 import numpy as np
 import pandas as pd
+import sklearn.feature_extraction
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
-from common.logger import TimeLogger
+from common.logger import RegisteredLogger, TimeLogger
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.topic.doc2vec import Doc2VecTransformer
 
-logger = logging.getLogger("Topic Modeling Service")
+logger = RegisteredLogger().provision("Topic Modeling Service")
 
 def topic_modeling(task: IPCTask):
   message = cast(IPCRequestData.TopicModeling, task.request)
@@ -65,16 +64,17 @@ def topic_modeling(task: IPCTask):
     if column.topic_modeling.seed_topics is not None:
       kwargs["seed_topic_list"] = column.topic_modeling.seed_topics
 
-    max_topic_size = int(column.topic_modeling.max_topic_size * len(documents)) \
-      if isinstance(column.topic_modeling.max_topic_size, float) \
-      else column.topic_modeling.max_topic_size
+
+    hdbscan_kwargs = dict()
+    if column.topic_modeling.max_topic_size is not None:
+      hdbscan_kwargs["max_cluster_size"] = int(column.topic_modeling.max_topic_size * len(documents))
     
     hdbscan_model = hdbscan.HDBSCAN(
       min_cluster_size=column.topic_modeling.min_topic_size,
-      max_cluster_size=max_topic_size,
       metric="euclidean",
       cluster_selection_method="eom",
       prediction_data=True,
+      **hdbscan_kwargs
     )
 
     ctfidf_model = bertopic.vectorizers.ClassTfidfTransformer(
@@ -82,14 +82,15 @@ def topic_modeling(task: IPCTask):
       reduce_frequent_words=True,
     )
 
+    vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(min_df=5, max_df=0.5, ngram_range=column.topic_modeling.n_gram_range)
+
     model = bertopic.BERTopic(
       embedding_model=doc2vec,
       hdbscan_model=hdbscan_model,
       ctfidf_model=ctfidf_model,
+      vectorizer_model=vectorizer_model,
       representation_model=bertopic.representation.MaximalMarginalRelevance(),
       low_memory=column.topic_modeling.low_memory,
-      min_topic_size=column.topic_modeling.min_topic_size,
-      n_gram_range=column.topic_modeling.n_gram_range,
       calculate_probabilities=False,
       verbose=True,
       **kwargs,
@@ -128,23 +129,24 @@ def topic_modeling(task: IPCTask):
       message=f"Saving the topic information for {column.name} {column_progress}"
     )
 
+    logger.info(f"Topics of {column.name}: {model.topic_labels_}. ")
 
     doc2vec_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, column.name))
-    doc2vec_root_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, f"{column.name}.doc2vec"))
+    doc2vec_root_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec))
     if not os.path.exists(doc2vec_root_path):
       os.makedirs(doc2vec_root_path)
       logger.info(f"Created {doc2vec_root_path} since it hasn't existed before.")
     doc2vec.model.save(doc2vec_path)
     
     bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic, column.name))
-    if not os.path.exists(bertopic_path):
-      os.makedirs(bertopic_path)
-      logger.info(f"Created {bertopic_path} since it hasn't existed before.")
-
-    model.save(bertopic_path, "safetensors")
+    bertopic_root_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic))
+    if not os.path.exists(bertopic_root_path):
+      os.makedirs(bertopic_root_path)
+      logger.info(f"Created {bertopic_root_path} since it hasn't existed before.")
+    model.save(bertopic_path, "safetensors", save_ctfidf=True)
       
   task.check_stop()
-  df.to_parquet(ProjectPaths.Workspace)
+  df.to_parquet(config.paths.full_path(ProjectPaths.Workspace))
   task.success(IPCResponseData.Empty(), message=f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
 
 __all__ = [

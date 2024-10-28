@@ -48,7 +48,7 @@ class IPCClient:
     try:
       if conn.poll(timeout=2000):
         data = conn.recv()
-        logger.debug(f"Received message with payload: {message.model_dump_json()}")
+        logger.debug(f"Received message with payload: {data}")
         return data
       else:
         raise Exception(f"Failed to receive any response from {self.channel.channel}. The IPC listener may have been shut down.")

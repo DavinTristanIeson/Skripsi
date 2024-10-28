@@ -1,15 +1,21 @@
 from typing import Sequence, cast
 
 import sklearn.metrics
-from common.ipc.requests import IPCRequestData
-import plotly.express
+import pydantic
 
+from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
 from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
+
+class TemporaryTopicAssignment(pydantic.BaseModel):
+  topic: int
+  parent_id: int
+  name: str
+  amidst: int
 
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
@@ -33,15 +39,20 @@ def hierarchical_topic_plot(task: IPCTask):
   documents = cast(list[str], column_data[mask])
 
   task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
+  if model.c_tf_idf_.shape[0] <= 1: #type: ignore
+    task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an imprroper configuration."))
   hierarchical_topics = model.hierarchical_topics(documents)
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
-  sunburst = plotly.express.sunburst(
-    hierarchical_topics,
-    names="Topics",
-    parents="Parent ID",
-    values="Distance"
-  )
+  print(hierarchical_topics)
+  fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
+
+  # fig = plotly.express.sunburst(
+  #   hierarchical_topics,
+  #   names="Topics",
+  #   parents="Parent_ID",
+  #   values="Distance"
+  # )
 
   topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
   if -1 in topic_words_dict:
@@ -59,7 +70,7 @@ def hierarchical_topic_plot(task: IPCTask):
   total = outliers + sum(frequencies)
   
   task.success(IPCResponseData.Topics(
-    plot=cast(str, sunburst.to_json()),
+    plot=str(fig.to_json()),
     topics=topics,
     topic_words=topic_words,
     frequencies=frequencies,

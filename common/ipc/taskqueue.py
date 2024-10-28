@@ -99,16 +99,9 @@ class IPCTaskServer(metaclass=Singleton):
         self.results[request.id] = sanity
       return IPCOperationResponseData.Result(data=self.results[request.id])
     
-    if request.type == IPCOperationRequestType.SanityCheck:
-      with self.lock:
-        self.results[request.id] = IPCResponse.Idle(request.id)
-      return IPCOperationResponseData.Empty()
-    
     if request.type == IPCOperationRequestType.TaskState:
       return IPCOperationResponseData.TaskState(results=self.results)
-    
-    
-    
+  
     raise Exception(f"Invalid IPC operation request type: {request.type}")
 
   def on_received_message(self, data: Any):

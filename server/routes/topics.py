@@ -56,8 +56,9 @@ def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: Sc
 
 @router.post('/{project_id}/topics/{column}')
 def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  task_id = IPCRequestData.Topics.task_id(project_id)
   IPCTaskClient().request(IPCRequestData.Topics(
-    id=project_id,
+    id=task_id,
     project_id=project_id,
     column=col.name,
   ))

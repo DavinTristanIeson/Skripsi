@@ -46,7 +46,6 @@ class ProjectPathManager(pydantic.BaseModel):
   @property
   def project_path(self):
     project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)
-    print(self.project_id, project_dir)
     if not os.path.exists(project_dir):
       raise ApiError(f"No project exists with name: {self.project_id}.", 404)
     return project_dir
@@ -70,13 +69,13 @@ class ProjectPathManager(pydantic.BaseModel):
   @file_loading_error_handler("document embeddings")
   def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
     import gensim
-    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.doc2vec"))
+    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}"))
     return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
 
   @file_loading_error_handler("topic information")
   def load_bertopic(self, column: str)->"bertopic.BERTopic":
     import bertopic
-    path = self.assert_path(os.path.join(ProjectPaths.BERTopic, column))
+    path = self.assert_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
     return bertopic.BERTopic.load(path)
   
   def cleanup(self):
