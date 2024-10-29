@@ -67,12 +67,17 @@ def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: S
 
 @router.get('/{project_id}/topics/{column}/similarity')
 def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  locker = IPCTaskClient()
-
+  client = IPCTaskClient()
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
-  if result:=locker.result(task_id):
+  if result:=client.result(task_id):
     return result
-  
+
+  raise ApiError(f"No topic similarity task has been started for {project_id}.", 400)
+
+@router.post('/{project_id}/topics/{column}/similarity')
+def post__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
+
   IPCTaskClient().request(IPCRequestData.TopicSimilarityPlot(
     id=task_id,
     project_id=project_id,

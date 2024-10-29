@@ -10,13 +10,12 @@ from common.models.api import ApiError
 import os
 
 from server.models.project import ProjectTaskStatus
-from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import SchemaColumn
 
 def get_project_config(project_id: str):
-  config = ProjectCacheManager().configs.get(project_id)
+  config = Config.from_project(project_id)
   config.project_id = project_id
   return config
 ProjectExistsDependency = Annotated[Config, Depends(get_project_config)]
@@ -54,7 +53,7 @@ def get_workspace_table(config: ProjectExistsDependency, project_id: str)->pd.Da
   task = locker.result(task_id)
   
   try:
-    workspace = ProjectCacheManager().workspaces.get(project_id)
+    workspace = config.paths.load_workspace()
     return workspace
   except ApiError:
     if task is not None:
