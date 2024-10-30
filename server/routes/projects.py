@@ -195,3 +195,32 @@ async def get__association(project_id: str, column1: str = Query(...), column2: 
     data=None,
     message="..."
   )
+
+@router.get('/{project_id}/table')
+async def get__data(project_id: str, page: int = Query(1), limit: int = Query(10)):
+  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
+
+  if not os.path.isdir(folder_path):
+    raise ApiError(f"We cannot find any projects with ID: \"{project_id}\"", 404)
+  
+  config = Config.from_project(project_id=project_id)
+  workspace = config.paths.load_workspace()
+
+  total_records = len(workspace)
+  start = (page - 1) * limit
+  end = start + limit
+
+  if end > total_records:
+    end = total_records
+  if start >= total_records:
+    start = 0
+
+  data = (workspace.iloc[start:end]).to_dict(orient='records')
+
+  return ApiResult(
+    data={
+      "total_records": total_records,
+      "records": data
+    },
+    message="Success",
+  )

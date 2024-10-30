@@ -15,6 +15,7 @@ class ApiError(Exception):
 class ApiResult(pydantic.BaseModel, Generic[T]):
   data: T
   message: Optional[str]
+  # total_records: Optional[int] = None
   def as_json(self):
     return jsonable_encoder(self)
 
