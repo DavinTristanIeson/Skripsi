@@ -5,6 +5,8 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
 import pydantic
 
+from common.models.enum import EnumMemberDescriptor, ExposedEnum
+
 
 # ENUMS
 class IPCResponseDataType(str, Enum):
@@ -14,10 +16,25 @@ class IPCResponseDataType(str, Enum):
   Association = "association"
   Empty = "empty"
 
-class AssociationDataType(str, Enum):
+class AssociationDataTypeEnum(str, Enum):
   Categorical = "categorical"
   Continuous = "continuous"
   Temporal = "temporal"
+
+ExposedEnum().register(AssociationDataTypeEnum, {
+  AssociationDataTypeEnum.Categorical: EnumMemberDescriptor(
+    label="Categorical",
+    description="Discrete variables that only consist of a few unique outcomes or values."
+  ),
+  AssociationDataTypeEnum.Continuous: EnumMemberDescriptor(
+    label="Continuous",
+    description="Variables that do not have a defined level of precision."
+  ),
+  AssociationDataTypeEnum.Temporal: EnumMemberDescriptor(
+    label="Temporal",
+    description="Variables that concern time."
+  )
+})
 
 class IPCResponseStatus(str, Enum):
   Idle = "idle"
@@ -28,30 +45,30 @@ class IPCResponseStatus(str, Enum):
 # OTHER DATA
 class AssociationData(SimpleNamespace):
   class Categorical(pydantic.BaseModel):
-    type: Literal[AssociationDataType.Categorical] = AssociationDataType.Categorical
-    crosstab_heatmap: str
-    association_heatmap: str
-    biplot: str
+    type: Literal[AssociationDataTypeEnum.Categorical] = AssociationDataTypeEnum.Categorical
+    crosstab_heatmap: str = pydantic.Field(repr=False)
+    residual_heatmap: str = pydantic.Field(repr=False)
+    biplot: str = pydantic.Field(repr=False)
 
     topics: Sequence[str]
     # Column 2 outcomes
     outcomes: Sequence[str]
 
     # CSV
-    crosstab_csv: str
-    association_csv: str
+    crosstab_csv: str = pydantic.Field(repr=False)
+    association_csv: str = pydantic.Field(repr=False)
 
   class Continuous(pydantic.BaseModel):
-    type: Literal[AssociationDataType.Continuous] = AssociationDataType.Continuous
-    plot: str
+    type: Literal[AssociationDataTypeEnum.Continuous] = AssociationDataTypeEnum.Continuous
+    violin_plot: str = pydantic.Field(repr=False)
     topics: Sequence[str]
 
     # CSV
     statistics_csv: str
 
   class Temporal(pydantic.BaseModel):
-    type: Literal[AssociationDataType.Temporal] = AssociationDataType.Temporal
-    plot: str
+    type: Literal[AssociationDataTypeEnum.Temporal] = AssociationDataTypeEnum.Temporal
+    line_plot: str
     topics: Sequence[str]
     bins: Sequence[str]
 
@@ -69,14 +86,14 @@ class IPCResponseData(SimpleNamespace):
     type: Literal[IPCResponseDataType.TopicSimilarity] = IPCResponseDataType.TopicSimilarity
     column: str
     topics: Sequence[str]
-    heatmap: str
-    ldavis: str
-    similarity_matrix: Sequence[Sequence[float]]
+    heatmap: str = pydantic.Field(repr=False)
+    ldavis: str = pydantic.Field(repr=False)
+    similarity_matrix: Sequence[Sequence[float]] = pydantic.Field(repr=False)
 
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
     column: str
-    plot: str
+    plot: str = pydantic.Field(repr=False)
     topics: Sequence[str]
     topic_words: Sequence[Sequence[tuple[str, float]]]
     frequencies: Sequence[int]

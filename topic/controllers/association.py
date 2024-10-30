@@ -15,7 +15,7 @@ from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import SchemaColumnTypeEnum
 
 def categorical_association_plot(a: pd.Series, b: pd.Series):
-  indexed_residual_table = wordsmith.stats.indexed_residual_table(a, b)
+  indexed_residual_table = wordsmith.stats.pearson_residual_table(a, b)
   crosstab = pd.crosstab(a, b)
   normalized_crosstab = wordsmith.stats.normalize_frequency(crosstab, axis=0)
 
@@ -57,7 +57,7 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
   return IPCResponseData.Association(
     data=AssociationData.Categorical(
       crosstab_heatmap=cast(str, crosstab_heatmap.to_json()),
-      association_heatmap=cast(str, association_heatmap.to_json()),
+      residual_heatmap=cast(str, association_heatmap.to_json()),
       biplot='',
 
       association_csv=indexed_residual_table.to_csv(),
@@ -93,7 +93,7 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
   return IPCResponseData.Association(
     data=AssociationData.Continuous(
       statistics_csv=pd.DataFrame(statistics).to_csv(),
-      plot=cast(str, violinplot.to_json()),
+      violin_plot=cast(str, violinplot.to_json()),
       topics=topics
     ),
     column1=str(a.name),
@@ -110,7 +110,7 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config):
     data=AssociationData.Temporal(
       bins=tuple(map(str, topics_over_time["Bins"])),
       topics=pd.Categorical(col1_data).categories,
-      plot=cast(str, topic_plot.to_json()),
+      line_plot=cast(str, topic_plot.to_json()),
     ),
     column1=str(a.name),
     column2=str(b.name)

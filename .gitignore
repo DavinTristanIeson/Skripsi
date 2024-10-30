@@ -1,5 +1,4 @@
 Venv
 __pycache__
-data
+data/**
 .DS_Store
-debug.ipynb

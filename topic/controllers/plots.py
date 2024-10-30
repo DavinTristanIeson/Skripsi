@@ -10,6 +10,7 @@ from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
+from wordsmith.visual import bertopicvis
 
 class TemporaryTopicAssignment(pydantic.BaseModel):
   topic: int
@@ -44,15 +45,14 @@ def hierarchical_topic_plot(task: IPCTask):
   hierarchical_topics = model.hierarchical_topics(documents)
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
-  print(hierarchical_topics)
-  fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
+  print(hierarchical_topics, model.topic_labels_.keys())
+  # fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
 
-  # fig = plotly.express.sunburst(
-  #   hierarchical_topics,
-  #   names="Topics",
-  #   parents="Parent_ID",
-  #   values="Distance"
-  # )
+  fig = bertopicvis.hierarchical_topics_sunburst(
+    hierarchical_topics,
+    model.topic_labels_, # type: ignore
+    model.topic_sizes_ # type: ignore
+  ) 
 
   topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
   if -1 in topic_words_dict:
