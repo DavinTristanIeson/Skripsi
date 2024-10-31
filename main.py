@@ -24,6 +24,7 @@ RegisteredLogger().configure(
   terminal=True
 )
 
+app.include_router(server.routes.association.router, prefix="/api/projects")
 app.include_router(server.routes.topics.router, prefix="/api/projects")
 app.include_router(server.routes.projects.router, prefix="/api/projects")
 app.include_router(server.routes.general.router, prefix="/api")

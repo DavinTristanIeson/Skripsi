@@ -6,6 +6,7 @@ import numpy as np
 from common.models.api import ApiResult, ApiError
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
 from wordsmith.data import paths
+from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.config import Config
  
@@ -125,14 +126,17 @@ async def update__project(project_id: str, config: Config):
     
     os.rename(old_folder_path, folder_path)
 
+  config.paths.cleanup()
   config.save_to_json(folder_path=folder_path)
+  ProjectCacheManager().configs.invalidate(project_id)
+  ProjectCacheManager().workspaces.invalidate(project_id)
 
   return ApiResult(
     data=ProjectResource(
       id=project_id,
       config=config,
     ),
-    message=f"Project \"{project_id}\" has been successfully updated."
+    message=f"Project \"{project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )
 
 @router.delete('/{project_id}')

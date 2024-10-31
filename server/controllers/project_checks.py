@@ -1,6 +1,6 @@
 from typing import Annotated, Optional
 
-from fastapi import Depends
+from fastapi import Depends, Query
 import pandas as pd
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponse
@@ -10,17 +10,18 @@ from common.models.api import ApiError
 import os
 
 from server.models.project import ProjectTaskStatus
+from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import SchemaColumn
 
 def get_project_config(project_id: str):
-  config = Config.from_project(project_id)
+  config = ProjectCacheManager().configs.get(project_id)
   config.project_id = project_id
   return config
 ProjectExistsDependency = Annotated[Config, Depends(get_project_config)]
 
-def get_data_column(config: ProjectExistsDependency, column: str):
+def get_data_column(config: ProjectExistsDependency, column: str = Query()):
   try:
     return config.data_schema.assert_exists(column)
   except KeyError:

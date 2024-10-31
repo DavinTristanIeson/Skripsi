@@ -44,7 +44,7 @@ def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str)
   
   raise ApiError(f"No topic modeling task has been started for {project_id}.", 400)
 
-@router.get('/{project_id}/topics/{column}')
+@router.get('/{project_id}/topics')
 def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   client = IPCTaskClient()
 
@@ -54,7 +54,7 @@ def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: Sc
 
   raise ApiError(f"No topic has been requested for {project_id} > {col.name}.", 400)
 
-@router.post('/{project_id}/topics/{column}')
+@router.post('/{project_id}/topics')
 def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   task_id = IPCRequestData.Topics.task_id(project_id)
   IPCTaskClient().request(IPCRequestData.Topics(
@@ -65,7 +65,7 @@ def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: S
   return ApiResult(data=None, message=f"Please wait for a few seconds while we create the visualizations for the topics in {col.name} from {project_id}")
 
 
-@router.get('/{project_id}/topics/{column}/similarity')
+@router.get('/{project_id}/topics/similarity')
 def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   client = IPCTaskClient()
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
@@ -74,7 +74,7 @@ def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: st
 
   raise ApiError(f"No topic similarity task has been started for {project_id}.", 400)
 
-@router.post('/{project_id}/topics/{column}/similarity')
+@router.post('/{project_id}/topics/similarity')
 def post__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
 
