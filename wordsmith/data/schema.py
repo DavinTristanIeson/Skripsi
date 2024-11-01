@@ -83,7 +83,7 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig
 
-  TOPIC_OUTLIER: ClassVar[str] = '-1'
+  TOPIC_OUTLIER: ClassVar[str] = '__outlier'
 
   def fit(self, data: pd.Series)->pd.Series:
     isna_mask = data.isna()
@@ -122,7 +122,7 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       datetime_column[datetime_column > self.max_date] = self.max_date
     return datetime_column
 
-SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
+SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn, TemporalSchemaColumn], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [
   "BaseSchemaColumn",

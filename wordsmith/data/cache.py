@@ -1,5 +1,5 @@
 from dataclasses import field, dataclass
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 import pandas as pd
 from common.models.metaclass import Singleton
@@ -34,8 +34,10 @@ class ProjectDependencyCache(Generic[T]):
     
     return item
   
-  def invalidate(self, project_id: str)->T:
-    return self.items.pop(project_id)
+  def invalidate(self, project_id: str)->Optional[T]:
+    if project_id in self.items:
+      return self.items.pop(project_id)
+    return None
 
 
 

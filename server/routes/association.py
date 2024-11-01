@@ -1,6 +1,5 @@
-import os
 from typing import Annotated, cast
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Depends, Query
 
 from common.ipc.operations import IPCOperationResponseData
 from common.ipc.requests import IPCRequestData
@@ -19,10 +18,10 @@ router = APIRouter(
 def check_association_columns(config: ProjectExistsDependency, column1: str = Query(), column2: str = Query()):
   col1 = get_data_column(config, column1)
   col2 = get_data_column(config, column2)
-  if (col1.type is not SchemaColumnTypeEnum.Textual):
-    raise ApiError("Please fill column1 with textual type of column", 400)
-  if (col2.type is SchemaColumnTypeEnum.Unique):
-    raise ApiError("Please fill column2 with non-unique type of column", 400)
+  if (col1.type != SchemaColumnTypeEnum.Textual):
+    raise ApiError("The first column should be a column of type 'Textual'.", 400)
+  if (col2.type == SchemaColumnTypeEnum.Unique):
+    raise ApiError("The second column should not be a column of type 'Unique'.", 400)
   
   workspace = ProjectCacheManager().workspaces.get(config.project_id)
   if col1.name not in workspace.columns:
@@ -33,7 +32,7 @@ def check_association_columns(config: ProjectExistsDependency, column1: str = Qu
   return col1, col2
 
 
-AssociationColumnsExistsDependency = Annotated[tuple[SchemaColumn, SchemaColumn], check_association_columns]
+AssociationColumnsExistsDependency = Annotated[tuple[SchemaColumn, SchemaColumn], Depends(check_association_columns)]
 
 @router.get('/{project_id}/association')
 async def get__association(config: ProjectExistsDependency, columns: AssociationColumnsExistsDependency):

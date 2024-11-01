@@ -92,8 +92,8 @@ class SchemaManager(pydantic.BaseModel):
       with TimeLogger(logger, f"Preprocessing {col.name} ({col.type})"):
         coldata = col.fit(cast(pd.Series, df.loc[:, col.name]))
         if col.type != SchemaColumnTypeEnum.Textual:
-          df.loc[:, col.name] = coldata
+          df[col.name] = coldata
         else:
-          df.loc[:, col.preprocess_column] = coldata
+          df[col.preprocess_column] = coldata
 
       yield df, col

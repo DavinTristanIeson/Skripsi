@@ -15,6 +15,7 @@ from common.ipc.task import IPCTask, TaskStepTracker
 from common.logger import RegisteredLogger, TimeLogger
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
+from wordsmith.data.schema import TextualSchemaColumn
 from wordsmith.topic.doc2vec import Doc2VecTransformer
 
 logger = RegisteredLogger().provision("Topic Modeling Service")
@@ -120,7 +121,7 @@ def topic_modeling(task: IPCTask):
     topic_number_column[mask] = topics
 
     topic_column = pd.Categorical(topic_number_column)
-    topic_column.rename_categories({**model.topic_labels_, -1: -1})
+    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: TextualSchemaColumn.TOPIC_OUTLIER})
     df.loc[:, column.topic_column] = topic_column
 
     task.check_stop()
@@ -146,7 +147,7 @@ def topic_modeling(task: IPCTask):
     model.save(bertopic_path, "safetensors", save_ctfidf=True)
       
   task.check_stop()
-  df.to_parquet(config.paths.full_path(ProjectPaths.Workspace))
+  df.to_parquet(result_path)
   task.success(IPCResponseData.Empty(), message=f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
 
 __all__ = [

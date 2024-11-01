@@ -87,4 +87,4 @@ class ProjectPathManager(pydantic.BaseModel):
     if os.path.exists(bertopic_path):
       shutil.rmtree(bertopic_path)
     if os.path.exists(workspace_path):
-      shutil.rmtree(workspace_path)
+      os.remove(workspace_path)

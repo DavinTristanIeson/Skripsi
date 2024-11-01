@@ -45,14 +45,14 @@ def hierarchical_topic_plot(task: IPCTask):
   hierarchical_topics = model.hierarchical_topics(documents)
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
-  print(hierarchical_topics, model.topic_labels_.keys())
-  # fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
+  # print(hierarchical_topics, model.topic_labels_.keys())
+  fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
 
-  fig = bertopicvis.hierarchical_topics_sunburst(
-    hierarchical_topics,
-    model.topic_labels_, # type: ignore
-    model.topic_sizes_ # type: ignore
-  ) 
+  # fig = bertopicvis.hierarchical_topics_sunburst(
+  #   hierarchical_topics,
+  #   model.topic_labels_, # type: ignore
+  #   model.topic_sizes_ # type: ignore
+  # ) 
 
   topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
   if -1 in topic_words_dict:
