@@ -1,5 +1,4 @@
 import logging
-import multiprocessing
 import threading
 from common.logger import RegisteredLogger
 
@@ -33,6 +32,7 @@ if __name__ == "__main__":
       IPCRequestType.TopicSimilarity: topic.controllers.plots.topic_similarity_plot,
       IPCRequestType.Topics: topic.controllers.plots.hierarchical_topic_plot,
       IPCRequestType.Association: topic.controllers.association.association_plot,
+      IPCRequestType.Evaluation: topic.controllers.evaluation.evaluate_topics,
       IPCRequestType.CreateTopic: placeholder,
       IPCRequestType.DeleteTopics: placeholder,
       IPCRequestType.MergeTopics: placeholder,

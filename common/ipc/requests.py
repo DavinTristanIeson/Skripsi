@@ -13,6 +13,7 @@ class IPCRequestType(str, Enum):
   CreateTopic = "create_topic"
   TopicSimilarity = "topic_similarity"
   Association = "association"
+  Evaluation = "evaluation"
 
 class IPCRequestBase(pydantic.BaseModel):
   project_id: str
@@ -68,6 +69,13 @@ class IPCRequestData(SimpleNamespace):
     @staticmethod
     def task_id(project_id: str, column1: str, column2: str):
       return f"association: {project_id}, {column1} x {column2}"
+  
+  class Evaluation(IPCRequestBase):
+    type: Literal[IPCRequestType.Association] = IPCRequestType.Association
+    column: str
+    @staticmethod
+    def task_id(project_id: str, column: str):
+      return f"evaluation: {project_id}, {column}"
   
 
 IPCRequest = Union[

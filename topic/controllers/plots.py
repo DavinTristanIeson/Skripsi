@@ -10,13 +10,25 @@ from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
+from wordsmith.topic.interpret import bertopic_topic_labels
 from wordsmith.visual import bertopicvis
+import scipy.sparse
+import numpy as np
+
+# Metric used by BERTopic
+from sklearn.metrics.pairwise import cosine_similarity
 
 class TemporaryTopicAssignment(pydantic.BaseModel):
   topic: int
   parent_id: int
   name: str
   amidst: int
+
+def hierarchical_topics_distance_matrix(x: scipy.sparse.csr_matrix)->scipy.sparse.csr_matrix:
+  # The values end up as negative for some reason, so this fix is necessary
+  # https://github.com/MaartenGr/BERTopic/issues/1137
+  # Clamp all values to 0.
+  return np.max(0, 1 - cosine_similarity(x))
 
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
@@ -42,7 +54,7 @@ def hierarchical_topic_plot(task: IPCTask):
   task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
   if model.c_tf_idf_.shape[0] <= 1: #type: ignore
     task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an imprroper configuration."))
-  hierarchical_topics = model.hierarchical_topics(documents)
+  hierarchical_topics = model.hierarchical_topics(documents, distance_function=hierarchical_topics_distance_matrix)
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
   # print(hierarchical_topics, model.topic_labels_.keys())
@@ -60,10 +72,9 @@ def hierarchical_topic_plot(task: IPCTask):
     topic_words_dict.pop(-1) # type: ignore
   topic_words = list(topic_words_dict.values())
   
-  topics: list[str] = []
   frequencies: list[int] = []
-  for id, topic in enumerate(topic_words):
-    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
+  topics = bertopic_topic_labels(model, outliers=False)
+  for id in range(len(topics)):
     frequencies.append(cast(int, model.get_topic_freq(id)))
 
   outliers = cast(int, model.get_topic_freq(-1))
@@ -98,16 +109,7 @@ def topic_similarity_plot(task: IPCTask):
   ldavis = model.visualize_topics(title=f"{message.column.capitalize()} Topics Distribution")
 
 
-  topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
-  if -1 in topic_words_dict:
-    # Remove outliers
-    topic_words_dict.pop(-1) # type: ignore
-  topic_words = list(topic_words_dict.values())
-  
-  topics: list[str] = []
-  for id, topic in enumerate(topic_words):
-    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
-
+  topics = bertopic_topic_labels(model, outliers=False)
   similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.topic_embeddings_) # type: ignore
   
   similarity_matrix: list[list[float]] = []

@@ -121,7 +121,7 @@ def topic_modeling(task: IPCTask):
     topic_number_column[mask] = topics
 
     topic_column = pd.Categorical(topic_number_column)
-    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: TextualSchemaColumn.TOPIC_OUTLIER})
+    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: pd.NA})
     df.loc[:, column.topic_column] = topic_column
 
     task.check_stop()

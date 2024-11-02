@@ -73,7 +73,7 @@ async def get__projects():
       and not folder_name.startswith('.')
     ]
     projects = list(map(
-      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(os.getcwd(), folder_name, folder)),
+      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)),
       folders
     ))
 

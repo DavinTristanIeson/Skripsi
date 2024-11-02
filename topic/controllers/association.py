@@ -153,7 +153,7 @@ def association_plot(task: IPCTask):
   
   col1_data = assert_column_exists(df, col1_schema.topic_column)
   col1_data.name = col1_schema.name
-  mask = col1_data != TextualSchemaColumn.TOPIC_OUTLIER
+  mask = ~col1_data.isna()
   col1_data = col1_data[mask]
   
   col2_data = assert_column_exists(df, col2_schema.topic_column) \
@@ -169,6 +169,9 @@ def association_plot(task: IPCTask):
   elif col2_schema.type == SchemaColumnTypeEnum.Continuous:
     plot = continuous_association_plot(col1_data, col2_data)
   elif col2_schema.type == SchemaColumnTypeEnum.Temporal:
+    mask = col1_data == ''
+    col1_data = col1_data[mask]
+    col2_data = col2_data[mask]
     plot = temporal_association_plot(col1_data, col2_data, config, col2_schema)
   else:
     raise ApiError(f"The type of {message.column2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)

@@ -36,7 +36,8 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         remove_number = self.remove_number and token.like_num
         remove_url = self.remove_url and token.like_url
         invalid_token = token.is_stop or token.is_punct or token.is_space
-        if remove_number or remove_email or remove_url or invalid_token:
+        empty_token = len(token) == 0
+        if remove_number or remove_email or remove_url or invalid_token or empty_token:
           continue
 
         tokens.append(token.lemma_.lower())

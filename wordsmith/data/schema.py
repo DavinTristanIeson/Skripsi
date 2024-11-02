@@ -83,8 +83,6 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig
 
-  TOPIC_OUTLIER: ClassVar[str] = '__outlier'
-
   def fit(self, data: pd.Series)->pd.Series:
     isna_mask = data.isna()
     new_data = data.astype(str)

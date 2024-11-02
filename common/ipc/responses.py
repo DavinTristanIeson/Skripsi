@@ -15,6 +15,7 @@ class IPCResponseDataType(str, Enum):
   TopicSimilarity = "topic_similarity"
   Association = "association"
   Empty = "empty"
+  Evaluation = "evaluation"
 
 class AssociationDataTypeEnum(str, Enum):
   Categorical = "categorical"
@@ -109,12 +110,22 @@ class IPCResponseData(SimpleNamespace):
   class Empty(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty
 
+  class Evaluation(pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Evaluation] = IPCResponseDataType.Evaluation
+    column: str
+    topics: Sequence[str]
+    cv_score: float
+    topic_diversity_score: float
+    cv_topic_scores: Sequence[float]
+    cv_barchart: str
+
   TypeUnion = Union[
     Plot,
     Empty,
     Topics,
     Association,
-    TopicSimilarity
+    TopicSimilarity,
+    Evaluation
   ]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
