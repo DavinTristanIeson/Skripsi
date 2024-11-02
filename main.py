@@ -1,6 +1,4 @@
-import atexit
 import logging
-import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,6 +9,8 @@ from common.logger import RegisteredLogger
 import common.ipc as ipc
 
 app = FastAPI()
+server.controllers.exceptions.register_error_handlers(app)
+
 app.add_middleware(
   CORSMiddleware,
   allow_origins=["*"],
@@ -18,28 +18,19 @@ app.add_middleware(
   allow_headers=["*"]
 )
 
-server.controllers.exceptions.register_error_handlers(app)
 
 RegisteredLogger().configure(
-  level=logging.INFO,
+  level=logging.DEBUG,
   terminal=True
 )
 
-app.include_router(server.routes.topics.router, prefix="/api/topics")
+app.include_router(server.routes.association.router, prefix="/api/projects")
+app.include_router(server.routes.topics.router, prefix="/api/projects")
 app.include_router(server.routes.projects.router, prefix="/api/projects")
 app.include_router(server.routes.general.router, prefix="/api")
+app.include_router(server.routes.debug.router, prefix="/api/debug")
 
-if __name__ == "__main__":
-  locker = ipc.taskqueue.IPCTaskLocker()
-  locker.initialize(
-    channel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
-    backchannel=ipc.client.TOPIC2SERVER_IPC_CHANNEL
-  )
-
-  stop_event = threading.Event()
-  locker.listen(stop_event)
-
-  @atexit.register
-  def cleanup():
-    stop_event.set()
-                   
+locker = ipc.taskqueue.IPCTaskClient()
+locker.initialize(
+  channel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
+)

@@ -30,7 +30,7 @@ def file_loading_error_handler(entity_type: str):
   def decorator(fn):
     def inner(*args, **kwargs):
       try:
-        return fn(**kwargs)
+        return fn(*args, **kwargs)
       except ApiError as e:
         # Ignore api errors
         raise e
@@ -47,40 +47,44 @@ class ProjectPathManager(pydantic.BaseModel):
   def project_path(self):
     project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)
     if not os.path.exists(project_dir):
-      raise ApiError(f"No project exists with ID {self.project_id}.", 404)
+      raise ApiError(f"No project exists with name: {self.project_id}.", 404)
     return project_dir
   
   def full_path(self, path: str)->str:
     project_dir = self.project_path
     fullpath:str = os.path.join(os.getcwd(), project_dir, path)
-    if not os.path.exists(fullpath):
-      raise ApiError(f"{fullpath} does not exist. Perhaps the file has not been created yet.", 404)
     return fullpath
+  
+  def assert_path(self, path: str)->str:
+    path = self.full_path(path)
+    if not os.path.exists(path):
+      raise ApiError(f"{path} does not exist. Perhaps the file has not been created yet.", 404)
+    return path
 
   @file_loading_error_handler("workspace table")
   def load_workspace(self)->pd.DataFrame:
     path = self.full_path(ProjectPaths.Workspace)
     return pd.read_parquet(path)
       
-      
   @file_loading_error_handler("document embeddings")
   def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
     import gensim
-    path = self.full_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}.npy"))
+    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}"))
     return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
 
-  @file_loading_error_handler("topic information")  
+  @file_loading_error_handler("topic information")
   def load_bertopic(self, column: str)->"bertopic.BERTopic":
     import bertopic
-    path = self.full_path(os.path.join(ProjectPaths.BERTopic, column))
+    path = self.assert_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
     return bertopic.BERTopic.load(path)
   
   def cleanup(self):
-    EXCLUDED = set(ProjectPaths.Config)
-    for fnode in os.scandir(self.project_path):
-      if fnode.name in EXCLUDED:
-        continue
-      if fnode.is_dir():
-        shutil.rmtree(fnode.path)
-      else:
-        os.remove(fnode.path)
+    doc2vec_path = self.full_path(os.path.join(ProjectPaths.Doc2Vec))
+    bertopic_path = self.full_path(os.path.join(ProjectPaths.BERTopic))
+    workspace_path = self.full_path(os.path.join(ProjectPaths.Workspace))
+    if os.path.exists(doc2vec_path):
+      shutil.rmtree(doc2vec_path)
+    if os.path.exists(bertopic_path):
+      shutil.rmtree(bertopic_path)
+    if os.path.exists(workspace_path):
+      os.remove(workspace_path)

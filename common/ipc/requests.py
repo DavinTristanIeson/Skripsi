@@ -5,78 +5,79 @@ import pydantic
 
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
 
-class TopicSimilarityVisualizationMethodEnum(str, Enum):
-  Heatmap = "heatmap"
-  Ldavis = "ldavis"
-
-ExposedEnum().register(TopicSimilarityVisualizationMethodEnum, {
-  TopicSimilarityVisualizationMethodEnum.Heatmap: EnumMemberDescriptor(
-    label="Heatmap",
-    description="The relationship between each topic is represented as a matrix; where the i-th row and the j-th column represents the relatedness of Topic i and Topic j. Brighter cell color means both topics are closely related.",
-  ),
-  TopicSimilarityVisualizationMethodEnum.Ldavis: EnumMemberDescriptor(
-    label="LDAVis-style",
-    description="Topics are represented as bubbles in a plot, where the size of the bubbles represent the number of documents assigned to that topic. Furthermore, bubbles that are closely related are placed near each other.",
-  ),
-})
-
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
-  CancelTask = "cancel_task"
-  TopicPlot = "topic_sunburst_plot"
+  Topics = "topics"
   MergeTopics = "merge_topics"
   DeleteTopics = "delete_topic"
   CreateTopic = "create_topic"
-  TopicCorrelationPlot = "topic_correlation_plot"
-  AssociationPlot = "association_plot"
+  TopicSimilarity = "topic_similarity"
+  Association = "association"
 
 class IPCRequestBase(pydantic.BaseModel):
   project_id: str
   id: str
 
 class IPCRequestData(SimpleNamespace):
-  class CancelTask(pydantic.BaseModel):
-    type: Literal[IPCRequestType.CancelTask] = IPCRequestType.CancelTask
-    id: str
   class TopicModeling(IPCRequestBase):
     type: Literal[IPCRequestType.TopicModeling] = IPCRequestType.TopicModeling
 
-  class TopicPlot(IPCRequestBase):
-    type: Literal[IPCRequestType.TopicPlot] = IPCRequestType.TopicPlot
-    col: str
-    topic: int
+    @staticmethod
+    def task_id(project_id: str):
+      return f"topic-modeling: {project_id}"
 
-  class TopicCorrelationPlot(IPCRequestBase):
-    type: Literal[IPCRequestType.TopicCorrelationPlot] = IPCRequestType.TopicCorrelationPlot
-    col: str
-    visualization: TopicSimilarityVisualizationMethodEnum
+  class Topics(IPCRequestBase):
+    type: Literal[IPCRequestType.Topics] = IPCRequestType.Topics
+    column: str
+    @staticmethod
+    def task_id(project_id: str):
+      return f"topics: {project_id}"
 
+  class TopicSimilarityPlot(IPCRequestBase):
+    type: Literal[IPCRequestType.TopicSimilarity] = IPCRequestType.TopicSimilarity
+    column: str
+    @staticmethod
+    def task_id(project_id: str):
+      return f"topic-similarity: {project_id}"
 
   class MergeTopics(IPCRequestBase):
     type: Literal[IPCRequestType.MergeTopics] = IPCRequestType.MergeTopics
     topics: list[int]
+    @staticmethod
+    def task_id(project_id: str):
+      return f"merge-topics: {project_id}"
 
   class CreateTopic(IPCRequestBase):
     type: Literal[IPCRequestType.CreateTopic] = IPCRequestType.CreateTopic
     documents: list[int]
+    @staticmethod
+    def task_id(project_id: str):
+      return f"create-topic: {project_id}"
 
   class DeleteTopics(IPCRequestBase):
     type: Literal[IPCRequestType.DeleteTopics] = IPCRequestType.DeleteTopics
     topics: list[int]
+    @staticmethod
+    def task_id(project_id: str):
+      return f"delete-topics: {project_id}"
 
   class AssociationPlot(IPCRequestBase):
-    type: Literal[IPCRequestType.AssociationPlot] = IPCRequestType.AssociationPlot
-    col1: str
-    col2: str
+    type: Literal[IPCRequestType.Association] = IPCRequestType.Association
+    column1: str
+    column2: str
+    @staticmethod
+    def task_id(project_id: str, column1: str, column2: str):
+      return f"association: {project_id}, {column1} x {column2}"
   
 
 IPCRequest = Union[
   IPCRequestData.TopicModeling,
-  IPCRequestData.TopicPlot,
-  IPCRequestData.TopicCorrelationPlot,
+  IPCRequestData.Topics,
+  IPCRequestData.TopicSimilarityPlot,
   IPCRequestData.MergeTopics,
   IPCRequestData.CreateTopic,
   IPCRequestData.DeleteTopics,
+  IPCRequestData.AssociationPlot,
 ]
 
 class IPCRequestWrapper(pydantic.RootModel):

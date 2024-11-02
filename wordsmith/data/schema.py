@@ -1,10 +1,11 @@
 import abc
 import datetime
 from enum import Enum
-from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, Union, cast
+from typing import Annotated, Any, ClassVar, Literal, Optional, Union, cast
 import pydantic
 import pandas as pd
 
+from common.models.validators import DiscriminatedUnionValidator, CommonModelConfig, FilenameField
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
 from wordsmith.data.textual import TextPreprocessingConfig, TopicModelingConfig
 
@@ -33,14 +34,16 @@ ExposedEnum().register(SchemaColumnTypeEnum, {
   ),
 })
 
-class BaseSchemaColumn(abc.ABC):
-  name: str
+class BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
+  name: FilenameField
+  dataset_name: Optional[str] = None
+
   @abc.abstractmethod
   def fit(self, data: pd.Series)->pd.Series:
     pass
 
-class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
-  name: str
+class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Continuous]
   # Will never be None after fitting
   lower_bound: Optional[float] = None
@@ -54,8 +57,8 @@ class ContinuousSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
       data[data > self.upper_bound] = self.upper_bound
     return data
 
-class CategoricalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
-  name: str
+class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Categorical]
   min_frequency: int = 1
 
@@ -69,19 +72,18 @@ class CategoricalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
       categorical_column[categorical_column == category] = pd.NA
     return cast(pd.Series, categorical_column)
 
-class UniqueSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
-  name: str
+class UniqueSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Unique]
   def fit(self, data: pd.Series)->pd.Series:
     return data
 
-class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
-  name: str
+class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig
 
-  TOPIC_OUTLIER: ClassVar[str] = '-1'
+  TOPIC_OUTLIER: ClassVar[str] = '__outlier'
 
   def fit(self, data: pd.Series)->pd.Series:
     isna_mask = data.isna()
@@ -89,7 +91,7 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
     new_data[isna_mask] = ''
     documents = new_data[~isna_mask]
 
-    preprocessed_documents = tuple(self.preprocessing.preprocess(documents))
+    preprocessed_documents = tuple(map(lambda x: ' '.join(x), self.preprocessing.preprocess(documents)))
     new_data[~isna_mask] = preprocessed_documents
     return new_data
   
@@ -101,8 +103,8 @@ class TextualSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
   def preprocess_column(self):
     return f"__preprocess_{self.name}"
   
-class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
-  name: str
+class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Temporal]
   min_date: Optional[datetime.datetime]
   max_date: Optional[datetime.datetime]
@@ -120,7 +122,7 @@ class TemporalSchemaColumn(pydantic.BaseModel, BaseSchemaColumn):
       datetime_column[datetime_column > self.max_date] = self.max_date
     return datetime_column
 
-SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn], pydantic.Field(discriminator="type")]
+SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn, TemporalSchemaColumn], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [
   "BaseSchemaColumn",

@@ -24,7 +24,7 @@ def normalize_frequency(array: Union[npt.NDArray, pd.DataFrame], axis: Literal[0
     return array / grand_sum
   
 
-def indexed_residual_table(a: pd.Series, b: pd.Series)->pd.DataFrame:
+def pearson_residual_table(a: pd.Series, b: pd.Series)->pd.DataFrame:
   contingency_table = pd.crosstab(a, b)
   observed = normalize_frequency(contingency_table, None)
 
@@ -36,7 +36,7 @@ def indexed_residual_table(a: pd.Series, b: pd.Series)->pd.DataFrame:
 
   expected = marginal_total_y @ marginal_total_x
   residuals = observed - expected
-  indexed_residuals: npt.NDArray = residuals / expected
+  indexed_residuals: npt.NDArray = residuals / np.sqrt(expected)
 
   return pd.DataFrame(indexed_residuals, index=observed.index, columns=observed.columns)
 

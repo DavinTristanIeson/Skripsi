@@ -1,73 +1,128 @@
 from typing import Sequence, cast
-from common.ipc.requests import IPCRequestData, TopicSimilarityVisualizationMethodEnum
-import plotly.express
 
+import sklearn.metrics
+import pydantic
+
+from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
+from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
+from wordsmith.data.schema import SchemaColumnTypeEnum
+from wordsmith.visual import bertopicvis
+
+class TemporaryTopicAssignment(pydantic.BaseModel):
+  topic: int
+  parent_id: int
+  name: str
+  amidst: int
 
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 4,
   )
-  message = cast(IPCRequestData.TopicPlot, task.request)
+  message = cast(IPCRequestData.Topics, task.request)
 
   config = Config.from_project(message.project_id)
+  column = config.data_schema.assert_exists(message.column)
+  if column.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
 
-  task.progress(0, f"Loading topic information for {message.col}.")
-  model = config.paths.load_bertopic(message.col)
+  task.progress(0, f"Loading topic information for {message.column}.")
+  model = config.paths.load_bertopic(message.column)
   
   task.progress(steps.advance(), f"Loading workspace table.")
   df = config.paths.load_workspace()
 
-  documents = cast(list[str], assert_column_exists(df, message.col))
+  column_data = assert_column_exists(df, column.preprocess_column)
+  mask = column_data.str.len() != 0
+  documents = cast(list[str], column_data[mask])
 
-  task.progress(steps.advance(), f"Calculating topic hierarchy for {message.col}.")
+  task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
+  if model.c_tf_idf_.shape[0] <= 1: #type: ignore
+    task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an imprroper configuration."))
   hierarchical_topics = model.hierarchical_topics(documents)
 
-  task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.col}.")
-  sunburst = plotly.express.sunburst(
-    hierarchical_topics,
-    names="Topics",
-    parents="Parent ID",
-    values="Distance"
-  )
+  task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
+  # print(hierarchical_topics, model.topic_labels_.keys())
+  fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
 
-  topic_words = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
+  # fig = bertopicvis.hierarchical_topics_sunburst(
+  #   hierarchical_topics,
+  #   model.topic_labels_, # type: ignore
+  #   model.topic_sizes_ # type: ignore
+  # ) 
+
+  topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
+  if -1 in topic_words_dict:
+    # Remove outliers
+    topic_words_dict.pop(-1) # type: ignore
+  topic_words = list(topic_words_dict.values())
+  
+  topics: list[str] = []
+  frequencies: list[int] = []
+  for id, topic in enumerate(topic_words):
+    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
+    frequencies.append(cast(int, model.get_topic_freq(id)))
+
+  outliers = cast(int, model.get_topic_freq(-1))
+  total = outliers + sum(frequencies)
   
   task.success(IPCResponseData.Topics(
-    plot=cast(str, sunburst.to_json()),
-    topic_words=topic_words
+    plot=str(fig.to_json()),
+    topics=topics,
+    topic_words=topic_words,
+    frequencies=frequencies,
+    outliers=outliers,
+    total=total,
+    column=message.column
   ), None)
 
-def topic_correlation_plot(task: IPCTask):
+def topic_similarity_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 2,
   )
-  message = cast(IPCRequestData.TopicCorrelationPlot, task.request)
+  message = cast(IPCRequestData.TopicSimilarityPlot, task.request)
 
   config = Config.from_project(message.project_id)
 
-  task.progress(0, f"Loading topic information for {message.col}.")
-  model = config.paths.load_bertopic(message.col)
+  task.progress(0, f"Loading topic information for {message.column}.")
+  model = config.paths.load_bertopic(message.column)
 
-  task.progress(steps.advance(), f"Calculating topic correlation for {message.col}.")
+  task.progress(steps.advance(), f"Calculating topic correlation for {message.column}.")
 
-  if message.visualization == TopicSimilarityVisualizationMethodEnum.Heatmap:
-    title = f"{message.col.capitalize()} Topic Similarity Matrix"
-    heatmap = model.visualize_heatmap(title=title)
-    task.success(IPCResponseData.Plot(
-      plot=cast(str, heatmap.to_json()),
-    ), None)
-  else:
-    title = f"{message.col.capitalize()} Topics Distribution"
-    fig = model.visualize_topics(title=title)
-    task.success(IPCResponseData.Plot(
-      plot=cast(str, fig.to_json()),
-    ), None)
+  # Heatmap
+  heatmap = model.visualize_heatmap(title=f"{message.column.capitalize()} Topic Similarity Matrix")
+  # Topic Distribution
+  ldavis = model.visualize_topics(title=f"{message.column.capitalize()} Topics Distribution")
+
+
+  topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
+  if -1 in topic_words_dict:
+    # Remove outliers
+    topic_words_dict.pop(-1) # type: ignore
+  topic_words = list(topic_words_dict.values())
+  
+  topics: list[str] = []
+  for id, topic in enumerate(topic_words):
+    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
+
+  similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.topic_embeddings_) # type: ignore
+  
+  similarity_matrix: list[list[float]] = []
+  for row in similarity_matrix_raw:
+    similarity_matrix.append(list(row))
+  
+  task.success(IPCResponseData.TopicSimilarity(
+    topics=topics,
+    ldavis=cast(str, ldavis.to_json()),
+    heatmap=cast(str, heatmap.to_json()),
+    similarity_matrix=similarity_matrix,
+    column=message.column
+  ), None)
   
 __all__ = [
-  "topic_correlation_plot",
+  "topic_similarity_plot",
   "hierarchical_topic_plot",
 ]

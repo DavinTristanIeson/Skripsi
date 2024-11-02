@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Callable, Optional, cast
+from typing import Any, cast
 import pydantic
 import json
 import os
@@ -6,28 +6,21 @@ import os
 from common.logger import RegisteredLogger
 
 from common.models.api import ApiError
-from wordsmith.data.schema import SchemaColumn
+from common.models.validators import FilenameField
 from wordsmith.data.schema_manager import SchemaManager
 from wordsmith.data.source import DataSource
-from wordsmith.data.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
+from wordsmith.data.paths import DATA_DIRECTORY, ProjectPathManager
 
-    
-@pydantic.field_validator("columns", mode="before")
-def __create_columns_field(cls, value):
-  return SchemaManager.model_validate(dict(
-    columns=value
-  ))
-
-SchemaManagerField = Annotated[SchemaManager, __create_columns_field]
-ProjectIdField = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. ]+$", max_length=255)]
   
 logger = RegisteredLogger().provision("Config")
 class Config(pydantic.BaseModel):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
+
   version: int = pydantic.Field(default=1)
-  project_id: ProjectIdField
+  project_id: FilenameField
   source: DataSource
   # schema is taken by pydantic
-  dfschema: SchemaManagerField
+  data_schema: SchemaManager
   paths: ProjectPathManager = pydantic.Field(exclude=True)
   
   @pydantic.model_validator(mode="before")
@@ -46,15 +39,6 @@ class Config(pydantic.BaseModel):
     with open(source, 'r', encoding='utf-8') as f:
       contents = json.load(f)
       return Config.model_validate(contents)
-
-  def preprocess(self, *, on_start: Optional[Callable[[SchemaColumn], None]] = None):
-    df = self.source.load()
-    df = self.dfschema.preprocess(df, on_start=on_start)
-
-    result_path = self.paths.full_path(ProjectPaths.Workspace)
-    logger.info(f"Saving intermediate results to {result_path}")
-    df.to_parquet(result_path)
-    return df
 
   def save_to_json(self, folder_path: str):
     config_file = os.path.join(folder_path, "config.json")

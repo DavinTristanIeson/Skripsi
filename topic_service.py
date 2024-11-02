@@ -24,15 +24,15 @@ if __name__ == "__main__":
 
 
   pool = concurrent.futures.ThreadPoolExecutor(16)
-  receiver = ipc.taskqueue.IPCTaskReceiver()
+  receiver = ipc.taskqueue.IPCTaskServer()
   receiver.initialize(
     channel=ipc.client.TOPIC2SERVER_IPC_CHANNEL,
     backchannel=ipc.client.SERVER2TOPIC_IPC_CHANNEL,
     handlers={
       IPCRequestType.TopicModeling: topic.controllers.model.topic_modeling,
-      IPCRequestType.TopicCorrelationPlot: topic.controllers.plots.topic_correlation_plot,
-      IPCRequestType.TopicPlot: topic.controllers.plots.hierarchical_topic_plot,
-      IPCRequestType.AssociationPlot: topic.controllers.association.association_plot,
+      IPCRequestType.TopicSimilarity: topic.controllers.plots.topic_similarity_plot,
+      IPCRequestType.Topics: topic.controllers.plots.hierarchical_topic_plot,
+      IPCRequestType.Association: topic.controllers.association.association_plot,
       IPCRequestType.CreateTopic: placeholder,
       IPCRequestType.DeleteTopics: placeholder,
       IPCRequestType.MergeTopics: placeholder,

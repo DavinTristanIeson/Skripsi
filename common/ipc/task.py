@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-import functools
 import queue
 import threading
 from typing import Callable, Optional
 
 import pydantic
 from common.ipc.requests import IPCRequest
-from common.ipc.responses import IPCResponse, IPCResponseData, IPCResponseStatus
+from common.ipc.responses import IPCResponse, IPCResponseData
 from common.logger import RegisteredLogger
 
 class TaskStepTracker(pydantic.BaseModel):
@@ -28,27 +27,25 @@ class IPCTask:
   id: str
 
   lock: threading.Lock
-  pipe: queue.Queue
+  results: dict[str, IPCResponse]
   stop_event: threading.Event
 
   request: IPCRequest
 
   def progress(self, progress: float, message: str):
-    def send_progress():
-      response = IPCResponse.Pending(self.id, progress, message)
-      self.pipe.put(response)
-    thread = threading.Thread(target=send_progress)
-    thread.start()
-    return thread
+    with self.lock:
+      self.results[self.id] = IPCResponse.Pending(self.id, progress, message)
     
   def success(self, data: IPCResponseData.TypeUnion, message: Optional[str]):
-    self.pipe.put(IPCResponse.Success(self.id, data, message))
+    with self.lock:
+      self.results[self.id] = IPCResponse.Success(self.id, data, message)
   
   def error(self, error: Exception):
     if self.stop_event.is_set():
       # No need report. Parent process is already aware
       return
-    self.pipe.put(IPCResponse.Error(self.id, str(error)))
+    with self.lock:
+      self.results[self.id] = IPCResponse.Error(self.id, str(error))
     self.stop_event.set()
   
   def check_stop(self):

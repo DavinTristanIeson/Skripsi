@@ -1,12 +1,12 @@
 import http
 import shutil
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 import numpy as np
-import pandas as pd
 from common.models.api import ApiResult, ApiError
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
 from wordsmith.data import paths
+from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.config import Config
  
@@ -72,7 +72,10 @@ async def get__projects():
       # don't include hidden folders
       and not folder_name.startswith('.')
     ]
-    projects = list(map(lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)), folders))
+    projects = list(map(
+      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(os.getcwd(), folder_name, folder)),
+      folders
+    ))
 
   return ApiResult(
     data=projects,
@@ -110,23 +113,30 @@ async def create__project(config: Config):
 
 @router.put('/{project_id}')
 async def update__project(project_id: str, config: Config):
-  folder_path = config.paths.project_path
-
+  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
   if not os.path.isdir(folder_path):
     raise ApiError(f"Project '{project_id}' not found!", 404)
 
   if config.project_id != project_id:
-    config_path = config.paths.full_path(paths.ProjectPaths.Config)
-    raise ApiError(f"Project ID doesn't match the project ID specified in {config_path}. This may be caused by a user manually editing the configuration file or moving files around. Please make sure that the project_id field in {config_path} matches the folder name.", 403)
+    old_folder_path = folder_path
+    folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, config.project_id)
 
+    if os.path.isdir(folder_path):
+      raise ApiError(f"Project '{config.project_id}' already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+    
+    os.rename(old_folder_path, folder_path)
+
+  config.paths.cleanup()
   config.save_to_json(folder_path=folder_path)
+  ProjectCacheManager().configs.invalidate(project_id)
+  ProjectCacheManager().workspaces.invalidate(project_id)
 
   return ApiResult(
     data=ProjectResource(
       id=project_id,
       config=config,
     ),
-    message=f"Project \"{project_id}\" has been successfully updated."
+    message=f"Project \"{project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )
 
 @router.delete('/{project_id}')
