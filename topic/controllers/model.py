@@ -18,6 +18,7 @@ from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import TextualSchemaColumn
 from wordsmith.topic.doc2vec import Doc2VecTransformer
+from wordsmith.topic.interpret import bertopic_topic_labels
 
 logger = RegisteredLogger().provision("Topic Modeling Service")
 
@@ -127,9 +128,13 @@ def topic_modeling(task: IPCTask):
     topic_number_column = pd.Series(np.full((len(df[column.name],)), -1), dtype=np.int32)
     topic_number_column[mask] = topics
 
+    labels_sequence = bertopic_topic_labels(model)
+    labels_mapper = {k: v for k, v in enumerate(labels_sequence)}
+
     topic_column = pd.Categorical(topic_number_column)
-    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: ''})
-    df.loc[:, column.topic_column] = topic_column
+    topic_column = topic_column.rename_categories({**labels_mapper, -1: ''})
+    df[column.topic_column] = topic_column
+    df[column.topic_index_column] = topic_number_column
 
     task.check_stop()
     task.progress(

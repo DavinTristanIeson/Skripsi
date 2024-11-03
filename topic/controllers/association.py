@@ -1,5 +1,6 @@
 from typing import Sequence, cast
 
+import numpy as np
 import pandas as pd
 from common.ipc.requests import IPCRequestData
 import plotly.express
@@ -17,32 +18,37 @@ from wordsmith.data.schema import SchemaColumnTypeEnum, TemporalSchemaColumn, Te
 import wordsmith.visual
 
 def categorical_association_plot(a: pd.Series, b: pd.Series):
-  residual_table = wordsmith.stats.pearson_residual_table(a, b)
-  crosstab = pd.crosstab(a, b)
-  normalized_crosstab = wordsmith.stats.normalize_frequency(crosstab, axis=0)
+  residual_table, observed, expected = wordsmith.stats.residual_table(a, b)
+  pearson_residuals = residual_table / np.sqrt(expected)
+  association_table = pd.DataFrame(pearson_residuals, index=residual_table.index, columns=residual_table.columns)
 
-  association_clustergram = wordsmith.visual.chart.clustergram(residual_table)
-  crosstab_clustergram = wordsmith.visual.chart.clustergram(crosstab)
+  crosstab = pd.crosstab(a, b)
+  normalized_crosstab = wordsmith.stats.normalize_frequency(crosstab, axis=None)
+  heatmap_customdata = (normalized_crosstab * 100).map(lambda x: f"{x:.4f}")
+
+  crosstab_clustergram, crosstab_sorter = wordsmith.visual.chart.clustergram(crosstab)
+  association_clustergram, association_sorter = wordsmith.visual.chart.clustergram(association_table)
   shared_params = dict(
     xaxis=dict(
       title=b.name,
+      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab.columns))),
     ),
     yaxis=dict(
       title=a.name,
-      ticktext=tuple(truncate_strings(cast(Sequence[str], a))),
+      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab.index))),
     ),
   )
   crosstab_clustergram.update_layout(
     shared_params,
-    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Frequency)",
+    title=f"{a.name} x {b.name} (Frequency)",
   )
   association_clustergram.update_layout(
     shared_params,
-    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Association)",
+    title=f"{a.name} x {b.name} (Association)",
   )
 
   crosstab_clustergram.update_traces(
-    customdata=normalized_crosstab,
+    customdata=heatmap_customdata.loc[crosstab_sorter],
     hovertemplate="<br>".join([
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
@@ -51,7 +57,7 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
   )
 
   association_clustergram.update_traces(
-    customdata=residual_table,
+    customdata=residual_table.loc[association_sorter],
     hovertemplate="<br>".join([
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
@@ -59,20 +65,16 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
       "Residual: %{customdata}",
     ])
   )
-  return IPCResponseData.Association(
-    data=AssociationData.Categorical(
-      crosstab_heatmap=cast(str, crosstab_clustergram.to_json()),
-      residual_heatmap=cast(str, association_clustergram.to_json()),
-      biplot='',
+  return AssociationData.Categorical(
+    crosstab_heatmap=cast(str, crosstab_clustergram.to_json()),
+    residual_heatmap=cast(str, association_clustergram.to_json()),
+    biplot='',
 
-      association_csv=residual_table.to_csv(),
-      crosstab_csv=crosstab.to_csv(),
+    association_csv=association_table.to_csv(),
+    crosstab_csv=crosstab.to_csv(),
 
-      topics=tuple(map(str, crosstab.columns)),
-      outcomes=tuple(map(str, crosstab.index)),
-    ),
-    column1=str(a.name),
-    column2=str(b.name)
+    topics=tuple(map(str, crosstab.index)),
+    outcomes=tuple(map(str, crosstab.columns)),
   )
 
 def continuous_association_plot(a: pd.Series, b: pd.Series):
@@ -85,7 +87,7 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
     x=a.name,
     y=b.name,
     box=True,
-    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} Association"
+    title=f"{a.name} x {b.name} Association"
   )
   violinplot.update_layout(dict(
     xaxis=dict(
@@ -100,38 +102,34 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
     rawnumbers = df.loc[view, str(b.name)]
     statistics[topic] = rawnumbers.describe()
 
-  return IPCResponseData.Association(
-    data=AssociationData.Continuous(
-      statistics_csv=pd.DataFrame(statistics).to_csv(),
-      violin_plot=cast(str, violinplot.to_json()),
-      topics=topics
-    ),
-    column1=str(a.name),
-    column2=str(b.name)
+  return AssociationData.Continuous(
+    statistics_csv=pd.DataFrame(statistics).to_csv(),
+    violin_plot=cast(str, violinplot.to_json()),
+    topics=topics
   )
+    
 
-def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config, column: TemporalSchemaColumn):
+def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config, column_a: TextualSchemaColumn, column_b: TemporalSchemaColumn, mask: pd.Series):
   model = config.paths.load_bertopic(str(a.name))
-  col1_data = cast(list[str], a)
+  df = config.paths.load_workspace()
+
+  documents = cast(list[str], df.loc[~mask, column_a.preprocess_column])
+  topics: list[int] = list(df.loc[~mask, column_a.topic_index_column])
+
   col2_data = cast(list[str], b.astype(str))
 
   params = dict()
-  if column.bins is not None:
-    params["nr_bins"] = column.bins
-  if column.datetime_format is not None:
-    params["datetime_format"] = column.datetime_format
-  
+  if column_b.bins is not None:
+    params["nr_bins"] = column_b.bins
+  if column_b.datetime_format is not None:
+    params["datetime_format"] = column_b.datetime_format
 
-  topics_over_time = model.topics_over_time(col1_data, col2_data, **params)
-  topic_plot = model.visualize_topics_over_time(topics_over_time, title=f"{str(a.name).capitalize()} Topics Over Time {str(b.name).capitalize()}")
-  return IPCResponseData.Association(
-    data=AssociationData.Temporal(
-      bins=tuple(map(str, topics_over_time["Bins"])),
-      topics=pd.Categorical(col1_data).categories,
-      line_plot=cast(str, topic_plot.to_json()),
-    ),
-    column1=str(a.name),
-    column2=str(b.name)
+  topics_over_time = model.topics_over_time(documents, col2_data, topics, **params)
+  topic_plot = model.visualize_topics_over_time(topics_over_time, topics=topics, title=f"{a.name} Topics Over Time {b.name}")
+
+  return AssociationData.Temporal(
+    topics=tuple(pd.Categorical(a).categories),
+    line_plot=cast(str, topic_plot.to_json()),
   )
 
 def association_plot(task: IPCTask):
@@ -161,14 +159,21 @@ def association_plot(task: IPCTask):
   
   col1_data = assert_column_exists(df, col1_schema.topic_column)
   col1_data.name = col1_schema.name
-  mask = ~col1_data.isna()
-  col1_data = col1_data[mask]
-  
+
   col2_data = assert_column_exists(df, col2_schema.topic_column) \
     if col2_schema.type == SchemaColumnTypeEnum.Textual \
     else assert_column_exists(df, message.column2)
   col2_data.name = col2_schema.name
-  col2_data = col2_data[mask]
+  
+  mask1 = col1_data == ''
+  mask2 = col2_data.isna() | (col2_data == '')
+  mask = mask1 | mask2
+  col1_data = col1_data[~mask]
+  col2_data = col2_data[~mask]
+
+  excluded = np.count_nonzero(mask)
+  excluded_left = np.count_nonzero(mask1)
+  excluded_right = np.count_nonzero(mask2)
   
   task.progress(steps.advance(), f"Plotting association between {message.column1} and {message.column2}")
 
@@ -177,14 +182,19 @@ def association_plot(task: IPCTask):
   elif col2_schema.type == SchemaColumnTypeEnum.Continuous:
     plot = continuous_association_plot(col1_data, col2_data)
   elif col2_schema.type == SchemaColumnTypeEnum.Temporal:
-    mask = col1_data == ''
-    col1_data = col1_data[mask]
-    col2_data = col2_data[mask]
-    plot = temporal_association_plot(col1_data, col2_data, config, col2_schema)
+    plot = temporal_association_plot(col1_data, col2_data, config, col1_schema, col2_schema, mask)
   else:
     raise ApiError(f"The type of {message.column2} as registered in the configuration is invalid. Perhaps the configuration file was corrupted and had been modified in an incorrect manner. Please recreate this project or manually fix the fields in {config.paths.full_path(ProjectPaths.Config)}", 400)
   
-  task.success(plot, None)
+  task.success(IPCResponseData.Association(
+    data=plot,
+    column1=str(col1_schema.name),
+    column2=str(col2_schema.name),
+    excluded=excluded,
+    excluded_left=excluded_left,
+    excluded_right=excluded_right,
+    total=len(df.index),
+  ), None)
 
 __all__ = [
   "association_plot",

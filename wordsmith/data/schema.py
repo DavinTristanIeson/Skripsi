@@ -95,11 +95,15 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   
   @property
   def topic_column(self):
-    return f"__topic_{self.name}"
+    return f"__wordsmith_topic_{self.name}"
+  
+  @property
+  def topic_index_column(self):
+    return f"__wordsmith_topic_index_{self.name}"
   
   @property
   def preprocess_column(self):
-    return f"__preprocess_{self.name}"
+    return f"__wordsmith_preprocess_{self.name}"
   
 class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig

@@ -72,8 +72,7 @@ class AssociationData(SimpleNamespace):
     type: Literal[AssociationDataTypeEnum.Temporal] = AssociationDataTypeEnum.Temporal
     line_plot: str
     topics: Sequence[str]
-    bins: Sequence[str]
-
+    
   TypeUnion = Union[Categorical, Continuous, Temporal]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
@@ -110,6 +109,10 @@ class IPCResponseData(SimpleNamespace):
     type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
     column1: str
     column2: str
+    excluded: int
+    excluded_left: int
+    excluded_right: int
+    total: int
     data: AssociationData.DiscriminatedUnion
 
   class Empty(pydantic.BaseModel):

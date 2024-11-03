@@ -44,6 +44,11 @@ def clustergram(df: pd.DataFrame):
   for trace in side_dendrogram.data:
     upper_dendrogram.add_trace(trace)
 
+  upper_dendrogram.update_traces(dict(
+    hoverinfo="skip",
+    hovertemplate=None
+  ))
+
   side_dendro_leaves: list[str] = list(side_dendrogram.layout["yaxis"]["ticktext"]) # type: ignore
   upper_dendro_leaves: list[str] = list(upper_dendrogram.layout["xaxis"]["ticktext"]) # type: ignore
 
@@ -96,5 +101,5 @@ def clustergram(df: pd.DataFrame):
     ),
   ))
 
-  return upper_dendrogram
+  return upper_dendrogram, (side_dendro_leaves, upper_dendro_leaves)
   
