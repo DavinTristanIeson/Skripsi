@@ -44,8 +44,8 @@ def clustergram(df: pd.DataFrame):
   for trace in side_dendrogram.data:
     upper_dendrogram.add_trace(trace)
 
-  side_dendro_leaves: list[str] = list(side_dendrogram.layout["yaxis"]["ticktext"])
-  upper_dendro_leaves: list[str] = list(upper_dendrogram.layout["xaxis"]["ticktext"])
+  side_dendro_leaves: list[str] = list(side_dendrogram.layout["yaxis"]["ticktext"]) # type: ignore
+  upper_dendro_leaves: list[str] = list(upper_dendrogram.layout["xaxis"]["ticktext"]) # type: ignore
 
   # Reorder heatmap
   df = df.loc[side_dendro_leaves, upper_dendro_leaves] # type: ignore

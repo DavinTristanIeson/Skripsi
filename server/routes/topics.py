@@ -7,6 +7,7 @@ from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiError, ApiResult
 from server.controllers.project_checks import ProjectExistsDependency, PerformedTopicModelingDependency, SchemaColumnExistsDependency
 from wordsmith.data.paths import ProjectPaths
+from wordsmith.data.schema import SchemaColumnTypeEnum
 
 router = APIRouter(
   tags=["Topics"]
@@ -46,9 +47,12 @@ def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str)
 
 @router.get('/{project_id}/topics')
 def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
   client = IPCTaskClient()
 
-  task_id = IPCRequestData.Topics.task_id(project_id)
+  task_id = IPCRequestData.Topics.task_id(project_id, col.name)
   if result:=client.result(task_id):
     return result
 
@@ -56,7 +60,10 @@ def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: Sc
 
 @router.post('/{project_id}/topics/start')
 def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  task_id = IPCRequestData.Topics.task_id(project_id)
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
+  task_id = IPCRequestData.Topics.task_id(project_id, col.name)
   IPCTaskClient().request(IPCRequestData.Topics(
     id=task_id,
     project_id=project_id,
@@ -67,8 +74,11 @@ def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: S
 
 @router.get('/{project_id}/topics/similarity')
 def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
   client = IPCTaskClient()
-  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
+  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id, col.name)
   if result:=client.result(task_id):
     return result
 
@@ -76,7 +86,10 @@ def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: st
 
 @router.post('/{project_id}/topics/similarity/start')
 def post__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
+  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id, col.name)
 
   IPCTaskClient().request(IPCRequestData.TopicSimilarityPlot(
     id=task_id,

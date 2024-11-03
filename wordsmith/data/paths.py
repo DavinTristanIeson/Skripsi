@@ -114,14 +114,16 @@ class ProjectPathManager(pydantic.BaseModel):
 
     try:
       for dir in directories:
-        shutil.rmtree(dir)
+        if os.path.exists(dir):
+          shutil.rmtree(dir)
       for file in files:
-        os.remove(file)
+        if os.path.exists(file):
+          os.remove(file)
     except Exception as e:
       logger.error(f"An error has occurred while deleting directories and/or files from the project directory of {self.project_id}. Error => {e}")
       raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)
     
-    if all:
+    if all and os.path.exists(self.project_path):
       remaining_files = os.listdir(self.project_path)
       if len(remaining_files) == 0:
         try:

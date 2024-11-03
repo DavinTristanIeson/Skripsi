@@ -1,7 +1,7 @@
 import abc
 import datetime
 from enum import Enum
-from typing import Annotated, Any, ClassVar, Literal, Optional, Union, cast
+from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union, cast
 import pydantic
 import pandas as pd
 
@@ -87,7 +87,7 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     isna_mask = data.isna()
     new_data = data.astype(str)
     new_data[isna_mask] = ''
-    documents = new_data[~isna_mask]
+    documents = cast(Sequence[str], new_data[~isna_mask])
 
     preprocessed_documents = tuple(map(lambda x: ' '.join(x), self.preprocessing.preprocess(documents)))
     new_data[~isna_mask] = preprocessed_documents

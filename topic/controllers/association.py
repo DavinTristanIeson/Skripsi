@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Sequence, cast
 
 import pandas as pd
 from common.ipc.requests import IPCRequestData
@@ -7,6 +7,7 @@ import plotly.express
 from common.ipc.responses import AssociationData, IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
 from common.models.api import ApiError
+from common.utils.string import truncate_strings
 from topic.controllers.utils import assert_column_exists
 
 import wordsmith.stats
@@ -28,6 +29,7 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
     ),
     yaxis=dict(
       title=a.name,
+      ticktext=tuple(truncate_strings(cast(Sequence[str], a))),
     ),
   )
   crosstab_clustergram.update_layout(
@@ -44,8 +46,7 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
     hovertemplate="<br>".join([
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
-      "Frequency: %{z}",
-      "Percentage: %{customdata[x][y]}%",
+      "Frequency: %{z} (%{customdata}%)",
     ])
   )
 
@@ -55,7 +56,7 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
       "Strength: %{z}",
-      "Residual: %{customdata[x][y]}%",
+      "Residual: %{customdata}",
     ])
   )
   return IPCResponseData.Association(
@@ -86,6 +87,11 @@ def continuous_association_plot(a: pd.Series, b: pd.Series):
     box=True,
     title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} Association"
   )
+  violinplot.update_layout(dict(
+    xaxis=dict(
+      ticktext=tuple(truncate_strings(cast(Sequence[str], a)))
+    )
+  ))
 
   topics = tuple(map(str, df[a.name].cat.categories))
   statistics = {}

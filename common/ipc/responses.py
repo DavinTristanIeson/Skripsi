@@ -90,18 +90,20 @@ class IPCResponseData(SimpleNamespace):
     topics: Sequence[str]
     heatmap: str = pydantic.Field(repr=False)
     ldavis: str = pydantic.Field(repr=False)
-    topics_barchart: str = pydantic.Field(repr=False)
     similarity_matrix: Sequence[Sequence[float]] = pydantic.Field(repr=False)
+    dendrogram: str = pydantic.Field(repr=False)
 
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
     column: str
-    plot: str = pydantic.Field(repr=False)
     topics: Sequence[str]
     topic_words: Sequence[Sequence[tuple[str, float]]]
     frequencies: Sequence[int]
     total: int
     outliers: int
+    invalid: int
+    valid: int
+    topics_barchart: str = pydantic.Field(repr=False)
     frequency_barchart: str = pydantic.Field(repr=False)
 
   class Association(pydantic.BaseModel):
@@ -115,7 +117,6 @@ class IPCResponseData(SimpleNamespace):
 
   class Evaluation(ColumnTopicsEvaluationResult, pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Evaluation] = IPCResponseDataType.Evaluation
-    cv_barchart: str = pydantic.Field(repr=False)
 
   TypeUnion = Union[
     Plot,

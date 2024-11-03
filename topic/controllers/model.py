@@ -8,6 +8,7 @@ import hdbscan
 import numpy as np
 import pandas as pd
 import sklearn.feature_extraction
+from sklearn.pipeline import make_pipeline
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
@@ -46,7 +47,7 @@ def topic_modeling(task: IPCTask):
     column_progress = f"({colidx + 1} / {len(textcolumns)})"
     column_data = df[column.preprocess_column]
     mask = column_data.str.len() != 0
-    documents = cast(list[str], column_data[mask])
+    documents: list[str] = list(column_data[mask])
 
     task.check_stop()
     task.progress(
@@ -83,10 +84,16 @@ def topic_modeling(task: IPCTask):
       reduce_frequent_words=True,
     )
 
-    vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(min_df=5, max_df=0.5, ngram_range=column.topic_modeling.n_gram_range)
+    # We already have preprocessed min df and max df. There's no need to filter the words anymore.
+    vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(
+      min_df=1,
+      max_df=1,
+      stop_words=None,
+      ngram_range=column.topic_modeling.n_gram_range
+    )
 
     model = bertopic.BERTopic(
-      embedding_model=doc2vec,
+      embedding_model=make_pipeline(doc2vec),
       hdbscan_model=hdbscan_model,
       ctfidf_model=ctfidf_model,
       vectorizer_model=vectorizer_model,
@@ -121,7 +128,7 @@ def topic_modeling(task: IPCTask):
     topic_number_column[mask] = topics
 
     topic_column = pd.Categorical(topic_number_column)
-    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: pd.NA})
+    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: ''})
     df.loc[:, column.topic_column] = topic_column
 
     task.check_stop()

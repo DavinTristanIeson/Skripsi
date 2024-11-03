@@ -30,7 +30,7 @@ if __name__ == "__main__":
     handlers={
       IPCRequestType.TopicModeling: topic.controllers.model.topic_modeling,
       IPCRequestType.TopicSimilarity: topic.controllers.plots.topic_similarity_plot,
-      IPCRequestType.Topics: topic.controllers.plots.hierarchical_topic_plot,
+      IPCRequestType.Topics: topic.controllers.plots.topic_plot,
       IPCRequestType.Association: topic.controllers.association.association_plot,
       IPCRequestType.Evaluation: topic.controllers.evaluation.evaluate_topics,
       IPCRequestType.CreateTopic: placeholder,

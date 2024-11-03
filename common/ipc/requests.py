@@ -31,15 +31,15 @@ class IPCRequestData(SimpleNamespace):
     type: Literal[IPCRequestType.Topics] = IPCRequestType.Topics
     column: str
     @staticmethod
-    def task_id(project_id: str):
-      return f"topics: {project_id}"
+    def task_id(project_id: str, column: str):
+      return f"topics: {project_id}-{column}"
 
   class TopicSimilarityPlot(IPCRequestBase):
     type: Literal[IPCRequestType.TopicSimilarity] = IPCRequestType.TopicSimilarity
     column: str
     @staticmethod
-    def task_id(project_id: str):
-      return f"topic-similarity: {project_id}"
+    def task_id(project_id: str, column: str):
+      return f"topic-similarity: {project_id}-{column}"
 
   class MergeTopics(IPCRequestBase):
     type: Literal[IPCRequestType.MergeTopics] = IPCRequestType.MergeTopics
@@ -75,7 +75,7 @@ class IPCRequestData(SimpleNamespace):
     column: str
     @staticmethod
     def task_id(project_id: str, column: str):
-      return f"evaluation: {project_id}, {column}"
+      return f"evaluation: {project_id}-{column}"
   
 
 IPCRequest = Union[
