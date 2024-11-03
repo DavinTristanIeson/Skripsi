@@ -12,7 +12,7 @@ router = APIRouter(
   tags=["Topics"]
 )
 
-@router.post('/{project_id}/topics/start')
+@router.post('/{project_id}/topic-modeling/start')
 def post__topic_modeling_request(config: ProjectExistsDependency, project_id: str):
   locker = IPCTaskClient()
 
@@ -31,7 +31,7 @@ def post__topic_modeling_request(config: ProjectExistsDependency, project_id: st
     return ApiResult(data=None, message=f"The topic modeling algorithm will be applied again to Project \"{project_id}\"; meanwhile, the previous pending task will be canceled. Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
 
 
-@router.get('/{project_id}/topics/status')
+@router.get('/{project_id}/topic-modeling/status')
 def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str):
   bertopic_path = config.paths.full_path(ProjectPaths.BERTopic)
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
@@ -54,7 +54,7 @@ def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: Sc
 
   raise ApiError(f"No topic has been requested for {project_id} > {col.name}.", 400)
 
-@router.post('/{project_id}/topics')
+@router.post('/{project_id}/topics/start')
 def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   task_id = IPCRequestData.Topics.task_id(project_id)
   IPCTaskClient().request(IPCRequestData.Topics(
@@ -74,7 +74,7 @@ def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: st
 
   raise ApiError(f"No topic similarity task has been started for {project_id}.", 400)
 
-@router.post('/{project_id}/topics/similarity')
+@router.post('/{project_id}/topics/similarity/start')
 def post__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
   task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
 

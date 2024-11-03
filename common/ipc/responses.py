@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 import pydantic
 
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from wordsmith.topic.evaluation import ColumnTopicsEvaluationResult
 
 
 # ENUMS
@@ -89,6 +90,7 @@ class IPCResponseData(SimpleNamespace):
     topics: Sequence[str]
     heatmap: str = pydantic.Field(repr=False)
     ldavis: str = pydantic.Field(repr=False)
+    topics_barchart: str = pydantic.Field(repr=False)
     similarity_matrix: Sequence[Sequence[float]] = pydantic.Field(repr=False)
 
   class Topics(pydantic.BaseModel):
@@ -100,6 +102,7 @@ class IPCResponseData(SimpleNamespace):
     frequencies: Sequence[int]
     total: int
     outliers: int
+    frequency_barchart: str = pydantic.Field(repr=False)
 
   class Association(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
@@ -110,14 +113,9 @@ class IPCResponseData(SimpleNamespace):
   class Empty(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty
 
-  class Evaluation(pydantic.BaseModel):
+  class Evaluation(ColumnTopicsEvaluationResult, pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Evaluation] = IPCResponseDataType.Evaluation
-    column: str
-    topics: Sequence[str]
-    cv_score: float
-    topic_diversity_score: float
-    cv_topic_scores: Sequence[float]
-    cv_barchart: str
+    cv_barchart: str = pydantic.Field(repr=False)
 
   TypeUnion = Union[
     Plot,

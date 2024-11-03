@@ -2,6 +2,8 @@ from typing import Sequence, cast
 
 import sklearn.metrics
 import pydantic
+import pandas as pd
+import plotly.express
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
@@ -11,24 +13,15 @@ from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.topic.interpret import bertopic_topic_labels
-from wordsmith.visual import bertopicvis
-import scipy.sparse
-import numpy as np
 
 # Metric used by BERTopic
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_distances
 
 class TemporaryTopicAssignment(pydantic.BaseModel):
   topic: int
   parent_id: int
   name: str
   amidst: int
-
-def hierarchical_topics_distance_matrix(x: scipy.sparse.csr_matrix)->scipy.sparse.csr_matrix:
-  # The values end up as negative for some reason, so this fix is necessary
-  # https://github.com/MaartenGr/BERTopic/issues/1137
-  # Clamp all values to 0.
-  return np.max(0, 1 - cosine_similarity(x))
 
 def hierarchical_topic_plot(task: IPCTask):
   steps = TaskStepTracker(
@@ -54,7 +47,10 @@ def hierarchical_topic_plot(task: IPCTask):
   task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
   if model.c_tf_idf_.shape[0] <= 1: #type: ignore
     task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an imprroper configuration."))
-  hierarchical_topics = model.hierarchical_topics(documents, distance_function=hierarchical_topics_distance_matrix)
+  hierarchical_topics = model.hierarchical_topics(
+    documents,
+    distance_function=cosine_distances # type: ignore
+  )
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
   # print(hierarchical_topics, model.topic_labels_.keys())
@@ -73,12 +69,18 @@ def hierarchical_topic_plot(task: IPCTask):
   topic_words = list(topic_words_dict.values())
   
   frequencies: list[int] = []
-  topics = bertopic_topic_labels(model, outliers=False)
+  topics = bertopic_topic_labels(model)
   for id in range(len(topics)):
     frequencies.append(cast(int, model.get_topic_freq(id)))
 
   outliers = cast(int, model.get_topic_freq(-1))
   total = outliers + sum(frequencies)
+
+  frequencies_df = pd.DataFrame([
+    topics,
+    frequencies,
+  ], columns=["Topic", "Frequency"])
+  frequency_barchart = plotly.express.bar(frequencies_df)
   
   task.success(IPCResponseData.Topics(
     plot=str(fig.to_json()),
@@ -87,7 +89,8 @@ def hierarchical_topic_plot(task: IPCTask):
     frequencies=frequencies,
     outliers=outliers,
     total=total,
-    column=message.column
+    column=message.column,
+    frequency_barchart=cast(str, frequency_barchart.to_json()),
   ), None)
 
 def topic_similarity_plot(task: IPCTask):
@@ -101,25 +104,29 @@ def topic_similarity_plot(task: IPCTask):
   task.progress(0, f"Loading topic information for {message.column}.")
   model = config.paths.load_bertopic(message.column)
 
-  task.progress(steps.advance(), f"Calculating topic correlation for {message.column}.")
-
-  # Heatmap
-  heatmap = model.visualize_heatmap(title=f"{message.column.capitalize()} Topic Similarity Matrix")
-  # Topic Distribution
-  ldavis = model.visualize_topics(title=f"{message.column.capitalize()} Topics Distribution")
-
-
-  topics = bertopic_topic_labels(model, outliers=False)
-  similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.topic_embeddings_) # type: ignore
-  
+  task.progress(steps.advance(), f"Calculating topic similarity for {message.column}.")
+  similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.c_tf_idf_) # type: ignore
+  # Convert numpy array to python dtype
   similarity_matrix: list[list[float]] = []
   for row in similarity_matrix_raw:
     similarity_matrix.append(list(row))
+
+  task.progress(steps.advance(), f"Visualizing topic similarity for {message.column}.")
+  # Heatmap
+  heatmap = model.visualize_heatmap(title=f"{message.column.capitalize()} Topic Similarity Matrix", use_ctfidf=True)
+  # Topic Distribution
+  ldavis = model.visualize_topics(title=f"{message.column.capitalize()} Topics Distribution")
+
+  topics = bertopic_topic_labels(model)
   
+  task.progress(steps.advance(), f"Visualizing all of the keywords of the topics discovered in {message.column}.")
+  topics_barchart = model.visualize_barchart(top_n_topics=100000000, n_words=10, custom_labels=True, title=f"Topic Keywords of {message.column}")
+
   task.success(IPCResponseData.TopicSimilarity(
     topics=topics,
     ldavis=cast(str, ldavis.to_json()),
     heatmap=cast(str, heatmap.to_json()),
+    topics_barchart=cast(str, topics_barchart.to_json()),
     similarity_matrix=similarity_matrix,
     column=message.column
   ), None)

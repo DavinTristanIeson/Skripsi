@@ -8,6 +8,7 @@ import pydantic
 
 from common.logger import RegisteredLogger
 from common.models.api import ApiError
+from wordsmith.topic.evaluation import ProjectTopicsEvaluationResult
 
 if TYPE_CHECKING:
   import bertopic
@@ -23,6 +24,7 @@ class ProjectPaths(SimpleNamespace):
 
   Doc2Vec = "doc2vec"
   BERTopic = 'bertopic'
+  Evaluation = "evaluation.json"
 
 logger = RegisteredLogger().provision("Wordsmith Data Loader")
 
@@ -78,13 +80,55 @@ class ProjectPathManager(pydantic.BaseModel):
     path = self.assert_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
     return bertopic.BERTopic.load(path)
   
-  def cleanup(self):
-    doc2vec_path = self.full_path(os.path.join(ProjectPaths.Doc2Vec))
-    bertopic_path = self.full_path(os.path.join(ProjectPaths.BERTopic))
-    workspace_path = self.full_path(os.path.join(ProjectPaths.Workspace))
-    if os.path.exists(doc2vec_path):
-      shutil.rmtree(doc2vec_path)
-    if os.path.exists(bertopic_path):
-      shutil.rmtree(bertopic_path)
-    if os.path.exists(workspace_path):
-      os.remove(workspace_path)
+  def load_evaluation(self, column: str)->ProjectTopicsEvaluationResult:
+    import json
+
+    topics_path = self.full_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
+    if not os.path.exists(topics_path):
+      raise ApiError(f"The topic modeling procedure has not been run on {column} so we cannot determine the quality of the topics.", 400)
+    path = self.assert_path(os.path.join(ProjectPaths.Evaluation))
+    if not os.path.exists(path):
+      raise ApiError(f"The quality of the topics discovered in {column} has never been evaluated before. Please manually start the topic evaluation procedure.", 400)
+    
+    try:
+      with open(path) as f:
+        return ProjectTopicsEvaluationResult.model_validate(json.load(f))
+    except Exception as e:
+      logger.error(f"Failed to load evaluation data. Error => {e}")
+      raise ApiError(f"An unexpected error has occurred while loading evaluation data from {ProjectPaths.Evaluation}. The file may have been corrupted; try to delete the file and then execute the topic evaluation procedure again.", 500)
+  
+  def cleanup(self, all: bool = False):
+    directories = [
+      self.full_path(ProjectPaths.Doc2Vec),
+      self.full_path(ProjectPaths.BERTopic)
+    ]
+    files = [
+      self.full_path(ProjectPaths.Workspace),
+      self.full_path(ProjectPaths.Evaluation),
+    ]
+
+    if all:
+      files.extend([
+        self.full_path(ProjectPaths.Config),
+      ])
+
+    try:
+      for dir in directories:
+        shutil.rmtree(dir)
+      for file in files:
+        os.remove(file)
+    except Exception as e:
+      logger.error(f"An error has occurred while deleting directories and/or files from the project directory of {self.project_id}. Error => {e}")
+      raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)
+    
+    if all:
+      remaining_files = os.listdir(self.project_path)
+      if len(remaining_files) == 0:
+        try:
+          os.rmdir(self.project_path)
+        except ApiError as e:
+          logger.error(f"An error has occurred while deleting {self.project_path}. Error => {e}")
+          raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)
+      else:
+        logger.warn(f"Skipping the deletion of {self.project_path} as there are non-wordsmith-managed files in the folder: {remaining_files}")
+

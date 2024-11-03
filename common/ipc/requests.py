@@ -62,7 +62,7 @@ class IPCRequestData(SimpleNamespace):
     def task_id(project_id: str):
       return f"delete-topics: {project_id}"
 
-  class AssociationPlot(IPCRequestBase):
+  class Association(IPCRequestBase):
     type: Literal[IPCRequestType.Association] = IPCRequestType.Association
     column1: str
     column2: str
@@ -71,7 +71,7 @@ class IPCRequestData(SimpleNamespace):
       return f"association: {project_id}, {column1} x {column2}"
   
   class Evaluation(IPCRequestBase):
-    type: Literal[IPCRequestType.Association] = IPCRequestType.Association
+    type: Literal[IPCRequestType.Evaluation] = IPCRequestType.Evaluation
     column: str
     @staticmethod
     def task_id(project_id: str, column: str):
@@ -85,7 +85,8 @@ IPCRequest = Union[
   IPCRequestData.MergeTopics,
   IPCRequestData.CreateTopic,
   IPCRequestData.DeleteTopics,
-  IPCRequestData.AssociationPlot,
+  IPCRequestData.Association,
+  IPCRequestData.Evaluation,
 ]
 
 class IPCRequestWrapper(pydantic.RootModel):

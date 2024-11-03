@@ -1,25 +1,18 @@
-from typing import Sequence, cast
-from gensim.models.coherencemodel import CoherenceModel
+import json
+import os
+from typing import cast
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
+
+from wordsmith.data.paths import ProjectPaths
+import wordsmith.topic
 from wordsmith.data.config import Config
 from wordsmith.data.schema import TextualSchemaColumn
 import plotly.express
 import pandas as pd
 
-from wordsmith.topic.interpret import bertopic_topic_labels
-
-def topic_diversity(topics: Sequence[Sequence[str]]):
-  # based on OCTIS implementation and the equation in https://www.researchgate.net/publication/343173999_Topic_Modeling_in_Embedding_Spaces
-  # https://github.com/MIND-Lab/OCTIS/blob/master/octis/evaluation_metrics/diversity_metrics.py#L12
-  total_words = 0
-  unique_words: set[str] = set()
-  for topic in topics:
-    unique_words |= set(topic)
-    total_words += len(topic)
-  td = (1 - (len(unique_words) / total_words)) ** 2
-  return td
+from wordsmith.topic.evaluation import ColumnTopicsEvaluationResult, ProjectTopicsEvaluationResult
 
 def evaluate_topics(task: IPCTask):
   steps = TaskStepTracker(
@@ -39,44 +32,18 @@ def evaluate_topics(task: IPCTask):
 
   corpus = tuple(map(lambda doc: doc.split(), texts))
   # Error in BERTopic typing
-  topic_probabilities = cast(
-    Sequence[Sequence[tuple[str, float]]],
-    tuple(model.get_topics().values())
-    [model._outliers:]
-  )
-  topic_words = tuple(map(
-    lambda distribution: tuple(map(
-      lambda el: el[0],
-      distribution
-    )),
-    topic_probabilities
-  ))
-
-  print(topic_probabilities, topic_words)
+  
+  topic_words = wordsmith.topic.interpret.bertopic_topic_words(model)
   task.progress(steps.advance(), "Calculating C_V scores... this may take a while.")
 
-  cv_coherence = CoherenceModel(
-    topics=topic_words,
-    corpus=corpus,
-    coherence='c_v'
-  )
-  umass_coherence = CoherenceModel(
-    topics=topic_words,
-    corpus=corpus,
-    coherence='u_mass'
-  )
-  cv_score = cv_coherence.get_coherence()
-  cv_scores_per_topic = cv_coherence.get_coherence_per_topic(
-    with_std=True,
-    with_support=True,
-  )
+  cv_score, cv_scores_per_topic = wordsmith.topic.evaluation.cv_coherence(topic_words, corpus)
   print(cv_score, cv_scores_per_topic)
 
   task.progress(steps.advance(), "Calculating topic diversity score.")
-  diversity = topic_diversity(topic_words)
+  diversity = wordsmith.topic.evaluation.topic_diversity(topic_words)
 
   task.progress(steps.advance(), "Plotting C_V per topic scores.")
-  topics = bertopic_topic_labels(model, outliers=False)
+  topics = wordsmith.topic.interpret.bertopic_topic_labels(model)
 
   cv_df = pd.DataFrame([cv_scores_per_topic, topics], columns=["Score"])
 
@@ -89,11 +56,28 @@ def evaluate_topics(task: IPCTask):
     )
   )
 
-  task.success(IPCResponseData.Evaluation(
+  evaluation_data = ColumnTopicsEvaluationResult(
     column=message.column,
     topics=topics,
     cv_score=cv_score,
+    cv_topic_scores=cv_scores_per_topic,
+    topic_diversity_score=diversity,
+  )
+  evaluation_data_path = config.paths.full_path(os.path.join(ProjectPaths.Evaluation, message.column))
+  if os.path.exists(evaluation_data_path):
+    project_evaluation = config.paths.load_evaluation(message.column)
+  else:
+    project_evaluation = ProjectTopicsEvaluationResult.model_validate(dict())
+  project_evaluation.root[message.column] = evaluation_data
+
+  with open(evaluation_data_path, 'f') as f:
+    json.dump(project_evaluation.model_dump(), f, indent=4)
+
+  task.success(IPCResponseData.Evaluation(
     cv_barchart=cast(str, cv_barchart.to_json()),
+    column=message.column,
+    topics=topics,
+    cv_score=cv_score,
     cv_topic_scores=cv_scores_per_topic,
     topic_diversity_score=diversity,
   ), f"The topics of {message.column} has been successfully evaluated. Check out the quality of the topics discovered by the topic modeling algorithm with these scores; even though they may be harder to interpret than classification scores like accuracy or precision.")

@@ -13,53 +13,55 @@ import wordsmith.stats
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn
+import wordsmith.visual
 
 def categorical_association_plot(a: pd.Series, b: pd.Series):
   residual_table = wordsmith.stats.pearson_residual_table(a, b)
   crosstab = pd.crosstab(a, b)
   normalized_crosstab = wordsmith.stats.normalize_frequency(crosstab, axis=0)
 
-  association_heatmap = plotly.express.imshow(residual_table, aspect="auto")
-  crosstab_heatmap = plotly.express.imshow(crosstab, aspect="auto")
+  association_clustergram = wordsmith.visual.chart.clustergram(residual_table)
+  crosstab_clustergram = wordsmith.visual.chart.clustergram(crosstab)
   shared_params = dict(
     xaxis=dict(
       title=b.name,
-      tickangle=30,
     ),
     yaxis=dict(
       title=a.name,
     ),
   )
-  crosstab_heatmap.update_layout(
+  crosstab_clustergram.update_layout(
     shared_params,
     title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Frequency)",
   )
-  crosstab_heatmap.update_traces(
+  association_clustergram.update_layout(
+    shared_params,
+    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Association)",
+  )
+
+  crosstab_clustergram.update_traces(
     customdata=normalized_crosstab,
     hovertemplate="<br>".join([
-      str(b.name).capitalize() + ": %{x}",
-      str(a.name).capitalize() + ": %{y}",
+      str(b.name) + ": %{x}",
+      str(a.name) + ": %{y}",
       "Frequency: %{z}",
       "Percentage: %{customdata[x][y]}%",
     ])
   )
-  association_heatmap.update_layout(
-    shared_params,
-    title=f"{str(a.name).capitalize()} x {str(b.name).capitalize()} (Association)",
-  )
-  association_heatmap.update_traces(
+
+  association_clustergram.update_traces(
     customdata=residual_table,
     hovertemplate="<br>".join([
-      str(b.name).capitalize() + ": %{x}",
-      str(a.name).capitalize() + ": %{y}",
+      str(b.name) + ": %{x}",
+      str(a.name) + ": %{y}",
       "Strength: %{z}",
-      "Frequency: %{customdata[x][y]}%",
+      "Residual: %{customdata[x][y]}%",
     ])
   )
   return IPCResponseData.Association(
     data=AssociationData.Categorical(
-      crosstab_heatmap=cast(str, crosstab_heatmap.to_json()),
-      residual_heatmap=cast(str, association_heatmap.to_json()),
+      crosstab_heatmap=cast(str, crosstab_clustergram.to_json()),
+      residual_heatmap=cast(str, association_clustergram.to_json()),
       biplot='',
 
       association_csv=residual_table.to_csv(),
@@ -133,7 +135,7 @@ def association_plot(task: IPCTask):
 
   task.progress(0, "Loading workspace table.")
 
-  message = cast(IPCRequestData.AssociationPlot, task.request)
+  message = cast(IPCRequestData.Association, task.request)
   config = Config.from_project(message.project_id)
   df = config.paths.load_workspace()
 
@@ -162,7 +164,7 @@ def association_plot(task: IPCTask):
   col2_data.name = col2_schema.name
   col2_data = col2_data[mask]
   
-  task.progress(steps.advance(), f"Finding association between {message.column1} and {message.column2}")
+  task.progress(steps.advance(), f"Plotting association between {message.column1} and {message.column2}")
 
   if col2_schema.type == SchemaColumnTypeEnum.Categorical or col2_schema.type == SchemaColumnTypeEnum.Textual:
     plot = categorical_association_plot(col1_data, col2_data)

@@ -1,7 +1,6 @@
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
-import numpy.typing as npt
 
 def butterfly_chart(a: pd.DataFrame, b: pd.DataFrame, *, x: str, y: str):
   fig = go.Figure(
@@ -30,32 +29,72 @@ def butterfly_chart(a: pd.DataFrame, b: pd.DataFrame, *, x: str, y: str):
 
 
 def clustergram(df: pd.DataFrame):
-  # https://plotly.com/python/dendrogram/
+  # Modified from https://plotly.com/python/dendrogram/
 
   # Upper dendrogram
-  upper_dendrogram = ff.create_dendrogram(df, orientation="bottom", labels=df.columns)
+  upper_dendrogram = ff.create_dendrogram(df.T, orientation="bottom", labels=df.columns)
   for i in range(len(upper_dendrogram['data'])): # type: ignore
     # Plotly internals is just a dictionary as config object
     upper_dendrogram['data'][i]['yaxis'] = 'y2'  # type: ignore
   
   # Side dendrogram
-  side_dendrogram = ff.create_dendrogram(df, orientation="right", labels=df.columns)
+  side_dendrogram = ff.create_dendrogram(df, orientation="left", labels=df.index)
   for i in range(len(side_dendrogram['data'])): # type: ignore
-    side_dendrogram['data'][i]['yaxis'] = 'x2' # type: ignore
+    side_dendrogram['data'][i]['xaxis'] = 'x2' # type: ignore
+  for trace in side_dendrogram.data:
+    upper_dendrogram.add_trace(trace)
 
   side_dendro_leaves: list[str] = list(side_dendrogram.layout["yaxis"]["ticktext"])
-  upper_dendro_leaves: list[str] = list(side_dendrogram.layout["yaxis"]["ticktext"])
+  upper_dendro_leaves: list[str] = list(upper_dendrogram.layout["xaxis"]["ticktext"])
+
   # Reorder heatmap
-  df = df[side_dendro_leaves, :] # type: ignore
-  df = df[:, upper_dendro_leaves] # type: ignore
+  df = df.loc[side_dendro_leaves, upper_dendro_leaves] # type: ignore
 
   # heatmap
   heatmap = go.Heatmap(
-    x = upper_dendro_leaves,
-    y = side_dendro_leaves,
+    x = upper_dendrogram['layout']['xaxis']['tickvals'], # type: ignore
+    y = side_dendrogram['layout']['yaxis']['tickvals'], # type: ignore
     z = df.to_numpy(),
+    name='',
   )
 
-  # Under construction
-  return heatmap
+  upper_dendrogram.add_trace(heatmap)
+
+  shared_params = dict(
+    mirror=False,
+    showgrid=False,
+    showline=False,
+    zeroline=False,
+  )
+
+  upper_dendrogram.update_layout(dict(
+    width=800,
+    height=800,
+    xaxis=dict(
+      **shared_params,
+      ticktext=df.columns,
+      domain=[0, 0.85],
+    ),
+    xaxis2=dict(
+      **shared_params,
+      domain=[0.85, 1],
+      ticks='',
+      showticklabels=False
+    ),
+    yaxis=dict(
+      **shared_params,
+      domain=[0, 0.85],
+      ticktext=df.index,
+      # For some reason, this is not automatically filled in by plotly
+      tickvals=side_dendrogram['layout']['yaxis']['tickvals'] # type: ignore
+    ),
+    yaxis2=dict(
+      **shared_params,
+      domain=[0.85, 1],
+      ticks='',
+      showticklabels=False
+    ),
+  ))
+
+  return upper_dendrogram
   
