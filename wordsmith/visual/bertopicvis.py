@@ -39,7 +39,6 @@ def hierarchical_topics_sunburst(hierarchical_topics: pd.DataFrame, topic_labels
     ])
 
   df = pd.DataFrame(df_rows, columns=["ID", "Parent", "Label", "Frequency"])
-  print(df)
   total_documents = sum(topic_freq.values())
   df["Percentage"] = ((df["Frequency"] / total_documents) * 100).map(lambda x: f"{x:.3f}")
 

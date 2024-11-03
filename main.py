@@ -7,6 +7,7 @@ import server.routes
 
 from common.logger import RegisteredLogger
 import common.ipc as ipc
+import server.routes.evaluation
 
 app = FastAPI()
 server.controllers.exceptions.register_error_handlers(app)
@@ -27,6 +28,7 @@ RegisteredLogger().configure(
 app.include_router(server.routes.association.router, prefix="/api/projects")
 app.include_router(server.routes.topics.router, prefix="/api/projects")
 app.include_router(server.routes.projects.router, prefix="/api/projects")
+app.include_router(server.routes.evaluation.router, prefix="/api/projects")
 app.include_router(server.routes.general.router, prefix="/api")
 app.include_router(server.routes.debug.router, prefix="/api/debug")
 

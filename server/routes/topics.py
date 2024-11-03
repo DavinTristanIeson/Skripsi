@@ -7,12 +7,13 @@ from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiError, ApiResult
 from server.controllers.project_checks import ProjectExistsDependency, PerformedTopicModelingDependency, SchemaColumnExistsDependency
 from wordsmith.data.paths import ProjectPaths
+from wordsmith.data.schema import SchemaColumnTypeEnum
 
 router = APIRouter(
   tags=["Topics"]
 )
 
-@router.post('/{project_id}/topics/start')
+@router.post('/{project_id}/topic-modeling/start')
 def post__topic_modeling_request(config: ProjectExistsDependency, project_id: str):
   locker = IPCTaskClient()
 
@@ -31,7 +32,7 @@ def post__topic_modeling_request(config: ProjectExistsDependency, project_id: st
     return ApiResult(data=None, message=f"The topic modeling algorithm will be applied again to Project \"{project_id}\"; meanwhile, the previous pending task will be canceled. Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
 
 
-@router.get('/{project_id}/topics/status')
+@router.get('/{project_id}/topic-modeling/status')
 def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str):
   bertopic_path = config.paths.full_path(ProjectPaths.BERTopic)
   task_id = IPCRequestData.TopicModeling.task_id(project_id)
@@ -46,17 +47,23 @@ def get__topic_modeling_status(config: ProjectExistsDependency, project_id: str)
 
 @router.get('/{project_id}/topics')
 def get__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
   client = IPCTaskClient()
 
-  task_id = IPCRequestData.Topics.task_id(project_id)
+  task_id = IPCRequestData.Topics.task_id(project_id, col.name)
   if result:=client.result(task_id):
     return result
 
   raise ApiError(f"No topic has been requested for {project_id} > {col.name}.", 400)
 
-@router.post('/{project_id}/topics')
+@router.post('/{project_id}/topics/start')
 def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  task_id = IPCRequestData.Topics.task_id(project_id)
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
+  task_id = IPCRequestData.Topics.task_id(project_id, col.name)
   IPCTaskClient().request(IPCRequestData.Topics(
     id=task_id,
     project_id=project_id,
@@ -67,16 +74,22 @@ def post__topics(task: PerformedTopicModelingDependency, project_id: str, col: S
 
 @router.get('/{project_id}/topics/similarity')
 def get__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
   client = IPCTaskClient()
-  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
+  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id, col.name)
   if result:=client.result(task_id):
     return result
 
   raise ApiError(f"No topic similarity task has been started for {project_id}.", 400)
 
-@router.post('/{project_id}/topics/similarity')
+@router.post('/{project_id}/topics/similarity/start')
 def post__topic_similarity(task: PerformedTopicModelingDependency, project_id: str, col: SchemaColumnExistsDependency):
-  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id)
+  if col.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
+  
+  task_id = IPCRequestData.TopicSimilarityPlot.task_id(project_id, col.name)
 
   IPCTaskClient().request(IPCRequestData.TopicSimilarityPlot(
     id=task_id,

@@ -1,16 +1,24 @@
 from typing import Sequence, cast
 
+import numpy as np
 import sklearn.metrics
 import pydantic
+import pandas as pd
+import plotly.express
 
 from common.ipc.requests import IPCRequestData
-from common.ipc.responses import IPCResponseData
+from common.ipc.responses import IPCResponse, IPCResponseData, IPCResponseStatus
 from common.ipc.task import IPCTask, TaskStepTracker
+from common.logger import RegisteredLogger
+from common.utils.string import truncate_strings
 from common.models.api import ApiError
 from topic.controllers.utils import assert_column_exists
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
-from wordsmith.visual import bertopicvis
+from wordsmith.topic.interpret import bertopic_topic_labels
+
+# Metric used by BERTopic
+from sklearn.metrics.pairwise import cosine_distances
 
 class TemporaryTopicAssignment(pydantic.BaseModel):
   topic: int
@@ -18,7 +26,8 @@ class TemporaryTopicAssignment(pydantic.BaseModel):
   name: str
   amidst: int
 
-def hierarchical_topic_plot(task: IPCTask):
+logger = RegisteredLogger().provision("Topic Modeling Service")
+def topic_plot(task: IPCTask):
   steps = TaskStepTracker(
     max_steps = 4,
   )
@@ -31,28 +40,11 @@ def hierarchical_topic_plot(task: IPCTask):
 
   task.progress(0, f"Loading topic information for {message.column}.")
   model = config.paths.load_bertopic(message.column)
-  
+
   task.progress(steps.advance(), f"Loading workspace table.")
   df = config.paths.load_workspace()
-
   column_data = assert_column_exists(df, column.preprocess_column)
   mask = column_data.str.len() != 0
-  documents = cast(list[str], column_data[mask])
-
-  task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
-  if model.c_tf_idf_.shape[0] <= 1: #type: ignore
-    task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an imprroper configuration."))
-  hierarchical_topics = model.hierarchical_topics(documents)
-
-  task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
-  # print(hierarchical_topics, model.topic_labels_.keys())
-  fig = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
-
-  # fig = bertopicvis.hierarchical_topics_sunburst(
-  #   hierarchical_topics,
-  #   model.topic_labels_, # type: ignore
-  #   model.topic_sizes_ # type: ignore
-  # ) 
 
   topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
   if -1 in topic_words_dict:
@@ -60,69 +52,124 @@ def hierarchical_topic_plot(task: IPCTask):
     topic_words_dict.pop(-1) # type: ignore
   topic_words = list(topic_words_dict.values())
   
-  topics: list[str] = []
-  frequencies: list[int] = []
-  for id, topic in enumerate(topic_words):
-    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
-    frequencies.append(cast(int, model.get_topic_freq(id)))
+  topic_frequencies: list[int] = []
+  topics = bertopic_topic_labels(model)
+  for id in range(len(topics)):
+    topic_frequencies.append(cast(int, model.get_topic_freq(id)))
 
-  outliers = cast(int, model.get_topic_freq(-1))
-  total = outliers + sum(frequencies)
+  try:
+    outliers = cast(int, model.get_topic_freq(-1))
+  except KeyError:
+    outliers = 0
+
+  task.progress(steps.advance(), f"Visualizing all of the keywords of the topics discovered in {message.column}.")
+  topics_barchart = model.visualize_barchart(top_n_topics=100000000, n_words=10, custom_labels=True, title=f"Topic Keywords of {message.column}", autoscale=True)
+
+  task.progress(steps.advance(), f"Visualizing the topic frequencies of {message.column} as a barchart.")
+  frequencies_df = pd.DataFrame({
+    "Topic": tuple(truncate_strings(topics)),
+    "Frequency": topic_frequencies,
+  })
+  normalized_frequency: pd.Series = (frequencies_df["Frequency"] / frequencies_df["Frequency"].sum()) * 100
+  percentages = normalized_frequency.map(lambda x: f"{x:.2f}")
+  frequency_barchart = plotly.express.bar(frequencies_df, orientation="h", x="Frequency", y="Topic")
+  frequency_barchart.update_traces(
+    customdata=tuple(zip(topics, percentages)),
+    hovertemplate="<br>".join([
+      "Topic: %{customdata[0]}",
+      "Frequency: %{x} (%{customdata[1]}%)",
+    ])
+  )
   
   task.success(IPCResponseData.Topics(
-    plot=str(fig.to_json()),
     topics=topics,
     topic_words=topic_words,
-    frequencies=frequencies,
+    frequencies=topic_frequencies,
     outliers=outliers,
-    total=total,
-    column=message.column
+    total=len(column_data),
+    valid=sum(topic_frequencies),
+    invalid=int(np.size(mask) - np.count_nonzero(mask)),
+    column=message.column,
+    frequency_barchart=cast(str, frequency_barchart.to_json()),
+    topics_barchart=cast(str, topics_barchart.to_json())
   ), None)
 
 def topic_similarity_plot(task: IPCTask):
   steps = TaskStepTracker(
-    max_steps = 2,
+    max_steps = 7,
   )
   message = cast(IPCRequestData.TopicSimilarityPlot, task.request)
 
   config = Config.from_project(message.project_id)
+  column = config.data_schema.assert_exists(message.column)
+  if column.type != SchemaColumnTypeEnum.Textual:
+    raise ApiError("We can only extract topics from textual columns.", 400)
 
   task.progress(0, f"Loading topic information for {message.column}.")
   model = config.paths.load_bertopic(message.column)
 
-  task.progress(steps.advance(), f"Calculating topic correlation for {message.column}.")
+  task.progress(steps.advance(), f"Loading workspace table.")
+  df = config.paths.load_workspace()
+  column_data = assert_column_exists(df, column.preprocess_column)
+  mask = column_data.str.len() != 0
+  documents = cast(list[str], column_data[mask])
 
-  # Heatmap
-  heatmap = model.visualize_heatmap(title=f"{message.column.capitalize()} Topic Similarity Matrix")
-  # Topic Distribution
-  ldavis = model.visualize_topics(title=f"{message.column.capitalize()} Topics Distribution")
+  if model.c_tf_idf_ is not None and model.c_tf_idf_.shape[0] <= 1: #type: ignore
+    task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an improper preprocessing configuration."))
+    return
 
-
-  topic_words_dict = cast(dict[str, Sequence[tuple[str, float]]], model.get_topics())
-  if -1 in topic_words_dict:
-    # Remove outliers
-    topic_words_dict.pop(-1) # type: ignore
-  topic_words = list(topic_words_dict.values())
-  
-  topics: list[str] = []
-  for id, topic in enumerate(topic_words):
-    topics.append(' | '.join(map(lambda x: x[0], topic[:3])))
-
-  similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.topic_embeddings_) # type: ignore
-  
+  task.progress(steps.advance(), f"Calculating topic similarity for {message.column}.")
+  similarity_matrix_raw = sklearn.metrics.pairwise.cosine_similarity(model.c_tf_idf_) # type: ignore
+  # Convert numpy array to python dtype
   similarity_matrix: list[list[float]] = []
   for row in similarity_matrix_raw:
     similarity_matrix.append(list(row))
+
+  task.progress(steps.advance(), f"Creating topic similarity heatmap for {message.column}.")
+  # Heatmap
+  heatmap = model.visualize_heatmap(title=f"{message.column} Topic Similarity Matrix")
+
+  task.progress(steps.advance(), f"Creating LDAvis-style visualization for {message.column}.")
+  try:
+    # LDAvis
+    ldavis = model.visualize_topics(title=f"{message.column} Topics Distribution")
+  except Exception as e:
+    # This may happen if there's too few documents. https://github.com/MaartenGr/BERTopic/issues/97
+    logger.error(f"An error has occurred while creating the LDAvis visualization of {message.column}. Error => {e}")
+    ldavis = None
+
+  # Dendrogram
+  task.progress(steps.advance(), f"Calculating topic hierarchy for {message.column}.")
+  hierarchical_topics = model.hierarchical_topics(
+    documents,
+    distance_function=cosine_distances # type: ignore
+  )
+
+  task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
+  dendrogram = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
+
+  topics = bertopic_topic_labels(model)
   
-  task.success(IPCResponseData.TopicSimilarity(
-    topics=topics,
-    ldavis=cast(str, ldavis.to_json()),
-    heatmap=cast(str, heatmap.to_json()),
-    similarity_matrix=similarity_matrix,
-    column=message.column
-  ), None)
+
+  with task.lock:
+    task.results[task.id] = IPCResponse(
+      id=task.id,
+      data=IPCResponseData.TopicSimilarity(
+        topics=topics,
+        ldavis=cast(str, ldavis.to_json()) if ldavis is not None else '',
+        heatmap=cast(str, heatmap.to_json()),
+        similarity_matrix=similarity_matrix,
+        dendrogram=cast(str, dendrogram.to_json()),
+        column=message.column
+      ),
+      message="We are unable to create the LDAvis-style visualization because of there are too few documents/topics."
+        if ldavis is None
+        else "The relationship between topics as well as the key terms that make up each topic has been successfully visualized.",
+      progress=1,
+      status=IPCResponseStatus.Success,
+    )
   
 __all__ = [
   "topic_similarity_plot",
-  "hierarchical_topic_plot",
+  "topic_plot",
 ]

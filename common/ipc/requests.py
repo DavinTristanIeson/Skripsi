@@ -13,6 +13,7 @@ class IPCRequestType(str, Enum):
   CreateTopic = "create_topic"
   TopicSimilarity = "topic_similarity"
   Association = "association"
+  Evaluation = "evaluation"
 
 class IPCRequestBase(pydantic.BaseModel):
   project_id: str
@@ -30,15 +31,15 @@ class IPCRequestData(SimpleNamespace):
     type: Literal[IPCRequestType.Topics] = IPCRequestType.Topics
     column: str
     @staticmethod
-    def task_id(project_id: str):
-      return f"topics: {project_id}"
+    def task_id(project_id: str, column: str):
+      return f"topics: {project_id}-{column}"
 
   class TopicSimilarityPlot(IPCRequestBase):
     type: Literal[IPCRequestType.TopicSimilarity] = IPCRequestType.TopicSimilarity
     column: str
     @staticmethod
-    def task_id(project_id: str):
-      return f"topic-similarity: {project_id}"
+    def task_id(project_id: str, column: str):
+      return f"topic-similarity: {project_id}-{column}"
 
   class MergeTopics(IPCRequestBase):
     type: Literal[IPCRequestType.MergeTopics] = IPCRequestType.MergeTopics
@@ -61,13 +62,20 @@ class IPCRequestData(SimpleNamespace):
     def task_id(project_id: str):
       return f"delete-topics: {project_id}"
 
-  class AssociationPlot(IPCRequestBase):
+  class Association(IPCRequestBase):
     type: Literal[IPCRequestType.Association] = IPCRequestType.Association
     column1: str
     column2: str
     @staticmethod
     def task_id(project_id: str, column1: str, column2: str):
       return f"association: {project_id}, {column1} x {column2}"
+  
+  class Evaluation(IPCRequestBase):
+    type: Literal[IPCRequestType.Evaluation] = IPCRequestType.Evaluation
+    column: str
+    @staticmethod
+    def task_id(project_id: str, column: str):
+      return f"evaluation: {project_id}-{column}"
   
 
 IPCRequest = Union[
@@ -77,7 +85,8 @@ IPCRequest = Union[
   IPCRequestData.MergeTopics,
   IPCRequestData.CreateTopic,
   IPCRequestData.DeleteTopics,
-  IPCRequestData.AssociationPlot,
+  IPCRequestData.Association,
+  IPCRequestData.Evaluation,
 ]
 
 class IPCRequestWrapper(pydantic.RootModel):

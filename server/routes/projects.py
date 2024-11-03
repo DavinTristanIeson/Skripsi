@@ -4,8 +4,9 @@ import os
 from fastapi import APIRouter
 import numpy as np
 from common.models.api import ApiResult, ApiError
+from server.controllers.project_checks import ProjectExistsDependency
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
-from wordsmith.data import paths
+from wordsmith.data.paths import ProjectPathManager, DATA_DIRECTORY
 from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.config import Config
@@ -19,7 +20,7 @@ router = APIRouter(
   status_code=http.HTTPStatus.OK, 
 )
 async def check_project(body: CheckProjectIdSchema):
-  folder_name = paths.DATA_DIRECTORY
+  folder_name = DATA_DIRECTORY
   folder_path = os.path.join(os.getcwd(), folder_name, body.project_id)
   if os.path.isdir(folder_path):
     available = False
@@ -62,7 +63,7 @@ async def check_dataset(body: CheckDatasetSchema):
     
 @router.get('/')
 async def get__projects():
-  folder_name = os.path.join(os.getcwd(), paths.DATA_DIRECTORY)
+  folder_name = os.path.join(os.getcwd(), DATA_DIRECTORY)
   projects: list[ProjectLiteResource] = []
 
   if os.path.isdir(folder_name):
@@ -73,7 +74,7 @@ async def get__projects():
       and not folder_name.startswith('.')
     ]
     projects = list(map(
-      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(os.getcwd(), folder_name, folder)),
+      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)),
       folders
     ))
 
@@ -95,8 +96,8 @@ async def get__project(project_id: str):
 
 @router.post('/')
 async def create__project(config: Config):
-  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, config.project_id)
-  os.makedirs(paths.DATA_DIRECTORY, exist_ok=True)
+  folder_path = os.path.join(os.getcwd(), DATA_DIRECTORY, config.project_id)
+  os.makedirs(DATA_DIRECTORY, exist_ok=True)
 
   if os.path.isdir(folder_path):
     raise ApiError(f"Project \"{config.project_id}\" already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -112,41 +113,34 @@ async def create__project(config: Config):
   )
 
 @router.put('/{project_id}')
-async def update__project(project_id: str, config: Config):
-  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
-  if not os.path.isdir(folder_path):
-    raise ApiError(f"Project '{project_id}' not found!", 404)
-
-  if config.project_id != project_id:
-    old_folder_path = folder_path
-    folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, config.project_id)
-
-    if os.path.isdir(folder_path):
+async def update__project(old_config: ProjectExistsDependency, config: Config):
+  if config.project_id != old_config.project_id:
+    if os.path.isdir(config.paths.project_path):
       raise ApiError(f"Project '{config.project_id}' already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     
-    os.rename(old_folder_path, folder_path)
+    os.rename(old_config.paths.project_path, config.paths.project_path)
 
   config.paths.cleanup()
-  config.save_to_json(folder_path=folder_path)
-  ProjectCacheManager().configs.invalidate(project_id)
-  ProjectCacheManager().workspaces.invalidate(project_id)
+  config.save_to_json(folder_path=config.paths.project_path)
+  ProjectCacheManager().configs.invalidate(old_config.project_id)
+  ProjectCacheManager().workspaces.invalidate(old_config.project_id)
 
   return ApiResult(
     data=ProjectResource(
-      id=project_id,
+      id=config.project_id,
       config=config,
     ),
-    message=f"Project \"{project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
+    message=f"Project \"{config.project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )
 
 @router.delete('/{project_id}')
 async def delete__project(project_id: str):
-  folder_path = os.path.join(os.getcwd(), paths.DATA_DIRECTORY, project_id)
+  manager = ProjectPathManager(project_id=project_id)
 
-  if not os.path.isdir(folder_path):
+  if not os.path.exists(manager.project_path):
     raise ApiError(f"We cannot find any projects with ID: \"{project_id}\", perhaps it had been manually deleted by a user?", 404)
 
-  shutil.rmtree(folder_path)
+  manager.cleanup(all=True)
   return ApiResult(
     data=None,
     message=f"Project \"{project_id}\" has been successfully deleted."

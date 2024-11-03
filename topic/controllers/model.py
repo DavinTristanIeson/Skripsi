@@ -8,6 +8,7 @@ import hdbscan
 import numpy as np
 import pandas as pd
 import sklearn.feature_extraction
+from sklearn.pipeline import make_pipeline
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
@@ -17,6 +18,7 @@ from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
 from wordsmith.data.schema import TextualSchemaColumn
 from wordsmith.topic.doc2vec import Doc2VecTransformer
+from wordsmith.topic.interpret import bertopic_topic_labels
 
 logger = RegisteredLogger().provision("Topic Modeling Service")
 
@@ -46,7 +48,7 @@ def topic_modeling(task: IPCTask):
     column_progress = f"({colidx + 1} / {len(textcolumns)})"
     column_data = df[column.preprocess_column]
     mask = column_data.str.len() != 0
-    documents = cast(list[str], column_data[mask])
+    documents: list[str] = list(column_data[mask])
 
     task.check_stop()
     task.progress(
@@ -83,10 +85,16 @@ def topic_modeling(task: IPCTask):
       reduce_frequent_words=True,
     )
 
-    vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(min_df=5, max_df=0.5, ngram_range=column.topic_modeling.n_gram_range)
+    # We already have preprocessed min df and max df. There's no need to filter the words anymore.
+    vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(
+      min_df=1,
+      max_df=1,
+      stop_words=None,
+      ngram_range=column.topic_modeling.n_gram_range
+    )
 
     model = bertopic.BERTopic(
-      embedding_model=doc2vec,
+      embedding_model=make_pipeline(doc2vec),
       hdbscan_model=hdbscan_model,
       ctfidf_model=ctfidf_model,
       vectorizer_model=vectorizer_model,
@@ -120,9 +128,13 @@ def topic_modeling(task: IPCTask):
     topic_number_column = pd.Series(np.full((len(df[column.name],)), -1), dtype=np.int32)
     topic_number_column[mask] = topics
 
+    labels_sequence = bertopic_topic_labels(model)
+    labels_mapper = {k: v for k, v in enumerate(labels_sequence)}
+
     topic_column = pd.Categorical(topic_number_column)
-    topic_column = topic_column.rename_categories({**model.topic_labels_, -1: TextualSchemaColumn.TOPIC_OUTLIER})
-    df.loc[:, column.topic_column] = topic_column
+    topic_column = topic_column.rename_categories({**labels_mapper, -1: ''})
+    df[column.topic_column] = topic_column
+    df[column.topic_index_column] = topic_number_column
 
     task.check_stop()
     task.progress(

@@ -1,7 +1,7 @@
 import abc
 import datetime
 from enum import Enum
-from typing import Annotated, Any, ClassVar, Literal, Optional, Union, cast
+from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union, cast
 import pydantic
 import pandas as pd
 
@@ -83,13 +83,11 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig
 
-  TOPIC_OUTLIER: ClassVar[str] = '__outlier'
-
   def fit(self, data: pd.Series)->pd.Series:
     isna_mask = data.isna()
     new_data = data.astype(str)
     new_data[isna_mask] = ''
-    documents = new_data[~isna_mask]
+    documents = cast(Sequence[str], new_data[~isna_mask])
 
     preprocessed_documents = tuple(map(lambda x: ' '.join(x), self.preprocessing.preprocess(documents)))
     new_data[~isna_mask] = preprocessed_documents
@@ -97,11 +95,15 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   
   @property
   def topic_column(self):
-    return f"__topic_{self.name}"
+    return f"__wordsmith_topic_{self.name}"
+  
+  @property
+  def topic_index_column(self):
+    return f"__wordsmith_topic_index_{self.name}"
   
   @property
   def preprocess_column(self):
-    return f"__preprocess_{self.name}"
+    return f"__wordsmith_preprocess_{self.name}"
   
 class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig

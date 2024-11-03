@@ -24,21 +24,20 @@ def normalize_frequency(array: Union[npt.NDArray, pd.DataFrame], axis: Literal[0
     return array / grand_sum
   
 
-def pearson_residual_table(a: pd.Series, b: pd.Series)->pd.DataFrame:
-  contingency_table = pd.crosstab(a, b)
-  observed = normalize_frequency(contingency_table, None)
-
+def residual_table(a: pd.Series, b: pd.Series)->tuple[pd.DataFrame, pd.DataFrame, npt.NDArray]:
+  observed = pd.crosstab(a, b)
   marginal_total_x = observed.sum(axis=0).to_numpy()
   marginal_total_x = marginal_total_x.reshape((1, len(marginal_total_x)))
   
   marginal_total_y = observed.sum(axis=1).to_numpy()
   marginal_total_y = marginal_total_y.reshape((len(marginal_total_y), 1))
 
-  expected = marginal_total_y @ marginal_total_x
-  residuals = observed - expected
-  indexed_residuals: npt.NDArray = residuals / np.sqrt(expected)
+  grand_total = observed.sum(axis=1).sum()
 
-  return pd.DataFrame(indexed_residuals, index=observed.index, columns=observed.columns)
+  expected = (marginal_total_y @ marginal_total_x) / grand_total
+  residuals = observed - expected
+
+  return residuals, observed, expected
 
 def binary_category(series: pd.Series, checked_value: Any, if_true: Any, if_false: Any):
   true_mask = series == checked_value

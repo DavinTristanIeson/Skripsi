@@ -38,7 +38,7 @@ AssociationColumnsExistsDependency = Annotated[tuple[SchemaColumn, SchemaColumn]
 async def get__association(config: ProjectExistsDependency, columns: AssociationColumnsExistsDependency):
   column1, column2 = columns
   
-  task_id = IPCRequestData.AssociationPlot.task_id(config.project_id, column1.name, column2.name)
+  task_id = IPCRequestData.Association.task_id(config.project_id, column1.name, column2.name)
   locker = IPCTaskClient()
 
   if result:=locker.result(task_id):
@@ -46,16 +46,16 @@ async def get__association(config: ProjectExistsDependency, columns: Association
 
   raise ApiError(f"No topic association task has been started for {config.project_id}.", 400)
 
-@router.post('/{project_id}/association')
+@router.post('/{project_id}/association/start')
 async def post__request_association(task: PerformedTopicModelingDependency, config: ProjectExistsDependency, columns: AssociationColumnsExistsDependency):
   column1, column2 = columns
-  task_id = IPCRequestData.AssociationPlot.task_id(config.project_id, column1.name, column2.name)
+  task_id = IPCRequestData.Association.task_id(config.project_id, column1.name, column2.name)
   locker = IPCTaskClient()
 
   if result:=locker.result(task_id):
     return result
 
-  result = locker.request(IPCRequestData.AssociationPlot(
+  result = locker.request(IPCRequestData.Association(
     id=task_id,
     project_id=config.project_id,
     column1=column1.name,

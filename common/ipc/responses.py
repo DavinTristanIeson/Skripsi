@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 import pydantic
 
 from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from wordsmith.topic.evaluation import ColumnTopicsEvaluationResult
 
 
 # ENUMS
@@ -15,6 +16,7 @@ class IPCResponseDataType(str, Enum):
   TopicSimilarity = "topic_similarity"
   Association = "association"
   Empty = "empty"
+  Evaluation = "evaluation"
 
 class AssociationDataTypeEnum(str, Enum):
   Categorical = "categorical"
@@ -70,8 +72,7 @@ class AssociationData(SimpleNamespace):
     type: Literal[AssociationDataTypeEnum.Temporal] = AssociationDataTypeEnum.Temporal
     line_plot: str
     topics: Sequence[str]
-    bins: Sequence[str]
-
+    
   TypeUnion = Union[Categorical, Continuous, Temporal]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
@@ -89,32 +90,44 @@ class IPCResponseData(SimpleNamespace):
     heatmap: str = pydantic.Field(repr=False)
     ldavis: str = pydantic.Field(repr=False)
     similarity_matrix: Sequence[Sequence[float]] = pydantic.Field(repr=False)
+    dendrogram: str = pydantic.Field(repr=False)
 
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics
     column: str
-    plot: str = pydantic.Field(repr=False)
     topics: Sequence[str]
     topic_words: Sequence[Sequence[tuple[str, float]]]
     frequencies: Sequence[int]
     total: int
     outliers: int
+    invalid: int
+    valid: int
+    topics_barchart: str = pydantic.Field(repr=False)
+    frequency_barchart: str = pydantic.Field(repr=False)
 
   class Association(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Association] = IPCResponseDataType.Association
     column1: str
     column2: str
+    excluded: int
+    excluded_left: int
+    excluded_right: int
+    total: int
     data: AssociationData.DiscriminatedUnion
 
   class Empty(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Empty] = IPCResponseDataType.Empty
+
+  class Evaluation(ColumnTopicsEvaluationResult, pydantic.BaseModel):
+    type: Literal[IPCResponseDataType.Evaluation] = IPCResponseDataType.Evaluation
 
   TypeUnion = Union[
     Plot,
     Empty,
     Topics,
     Association,
-    TopicSimilarity
+    TopicSimilarity,
+    Evaluation
   ]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
