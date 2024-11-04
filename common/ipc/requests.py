@@ -3,8 +3,6 @@ from types import SimpleNamespace
 from typing import Annotated, Literal, Union
 import pydantic
 
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
-
 class IPCRequestType(str, Enum):
   TopicModeling = "topic_modeling"
   Topics = "topics"

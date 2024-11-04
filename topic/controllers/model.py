@@ -1,22 +1,26 @@
 import os
-from typing import cast
+from typing import Optional, cast
 import bertopic
 import bertopic.dimensionality
 import bertopic.representation
 import bertopic.vectorizers
 import hdbscan
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
+import sklearn.decomposition
 import sklearn.feature_extraction
+import sklearn.feature_extraction.text
 from sklearn.pipeline import make_pipeline
 
 from common.ipc.requests import IPCRequestData
 from common.ipc.responses import IPCResponseData
 from common.ipc.task import IPCTask, TaskStepTracker
 from common.logger import RegisteredLogger, TimeLogger
+from common.models.api import ApiError
 from wordsmith.data.config import Config
 from wordsmith.data.paths import ProjectPaths
-from wordsmith.data.schema import TextualSchemaColumn
+from wordsmith.data.textual import DocumentEmbeddingMethodEnum
 from wordsmith.topic.doc2vec import Doc2VecTransformer
 from wordsmith.topic.interpret import bertopic_topic_labels
 
@@ -56,10 +60,43 @@ def topic_modeling(task: IPCTask):
       message=f"Transforming documents of {column.name} into document embeddings {column_progress}"
     )
 
-    with TimeLogger(logger, "Fitting doc2vec", report_start=True):
-      doc2vec = Doc2VecTransformer()
-      doc2vec.fit(documents)
-      embeddings = doc2vec.transform(documents)
+    if column.topic_modeling.embedding_method == DocumentEmbeddingMethodEnum.Doc2Vec:
+      doc2vec: Optional[Doc2VecTransformer]
+      with TimeLogger(logger, "Fitting doc2vec", report_start=True):
+        doc2vec = Doc2VecTransformer()
+        doc2vec.fit(documents)
+        embeddings = doc2vec.transform(documents)
+      embedding_model = doc2vec
+    elif column.topic_modeling.embedding_method == DocumentEmbeddingMethodEnum.SBERT:
+      with TimeLogger(logger, "Creating embeddings from SBERT", report_start=True):
+        try:
+          from sentence_transformers import SentenceTransformer
+        except ImportError:
+          raise ApiError("The sentence_transformers library must be installed before SBERT document embedding can be performed.", 400)
+        sbert = SentenceTransformer("all-MiniLM-L6-v2")
+        original_documents: list[str] = list(df.loc[mask, column.name])
+        # Use the original documents since SBERT performs better with full data
+        embeddings = sbert.encode(original_documents, show_progress_bar=True)
+      embedding_model = sbert
+    elif column.topic_modeling.embedding_method == DocumentEmbeddingMethodEnum.TFIDF:
+      with TimeLogger(logger, "Fitting TF-IDF Vectorizer", report_start=True):
+        vectorizer = sklearn.feature_extraction.text.TfidfVectorizer(
+          min_df=1,
+          max_df=1,
+          ngram_range=(1,1),
+          stop_words=None,
+        )
+        pipeline: list[sklearn.base.BaseEstimator] = [vectorizer]
+        sparse_embeddings = vectorizer.fit_transform(documents)
+        if sparse_embeddings.shape[1] > 100:
+          svd = sklearn.decomposition.TruncatedSVD(100)
+          embeddings = svd.fit_transform(sparse_embeddings)
+          pipeline.append(svd)
+        else:
+          embeddings: npt.NDArray = sparse_embeddings.todense() # type: ignore
+      embedding_model = make_pipeline(*pipeline)
+    else:
+      raise ApiError(f"Invalid document embedding method: {column.topic_modeling.embedding_method}", 422)
 
     kwargs = dict()
     if column.topic_modeling.max_topics is not None:
@@ -88,13 +125,13 @@ def topic_modeling(task: IPCTask):
     # We already have preprocessed min df and max df. There's no need to filter the words anymore.
     vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(
       min_df=1,
-      max_df=1,
+      max_df=1.0,
       stop_words=None,
       ngram_range=column.topic_modeling.n_gram_range
     )
 
     model = bertopic.BERTopic(
-      embedding_model=make_pipeline(doc2vec),
+      embedding_model=embedding_model,
       hdbscan_model=hdbscan_model,
       ctfidf_model=ctfidf_model,
       vectorizer_model=vectorizer_model,
@@ -125,14 +162,19 @@ def topic_modeling(task: IPCTask):
       if column.topic_modeling.represent_outliers:
         model.update_topics(documents, topics=topics)
 
+    topic_labels = bertopic_topic_labels(model)
+    if model._outliers:
+      topic_labels.insert(0, '')
+    model.set_topic_labels(topic_labels)
+
     topic_number_column = pd.Series(np.full((len(df[column.name],)), -1), dtype=np.int32)
     topic_number_column[mask] = topics
 
-    labels_sequence = bertopic_topic_labels(model)
-    labels_mapper = {k: v for k, v in enumerate(labels_sequence)}
+    labels_mapper = {k: v for k, v in enumerate(topic_labels)}
 
-    topic_column = pd.Categorical(topic_number_column)
-    topic_column = topic_column.rename_categories({**labels_mapper, -1: ''})
+    topic_column = topic_number_column.replace({**labels_mapper, -1: ''})
+    topic_column = pd.Categorical(topic_column)
+
     df[column.topic_column] = topic_column
     df[column.topic_index_column] = topic_number_column
 
@@ -144,12 +186,12 @@ def topic_modeling(task: IPCTask):
 
     logger.info(f"Topics of {column.name}: {model.topic_labels_}. ")
 
-    doc2vec_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec, column.name))
-    doc2vec_root_path = config.paths.full_path(os.path.join(ProjectPaths.Doc2Vec))
-    if not os.path.exists(doc2vec_root_path):
-      os.makedirs(doc2vec_root_path)
-      logger.info(f"Created {doc2vec_root_path} since it hasn't existed before.")
-    doc2vec.model.save(doc2vec_path)
+    embeddings_path = config.paths.full_path(os.path.join(ProjectPaths.Embeddings, f"{column.name}.npy"))
+    embeddings_root_path = config.paths.full_path(os.path.join(ProjectPaths.Embeddings))
+    if not os.path.exists(embeddings_root_path):
+      os.makedirs(embeddings_root_path)
+      logger.info(f"Created {embeddings_root_path} since it hasn't existed before.")
+    np.save(embeddings_path, embeddings)
     
     bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic, column.name))
     bertopic_root_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic))

@@ -7,7 +7,7 @@ import pandas as pd
 
 from common.logger import RegisteredLogger
 from common.models.validators import DiscriminatedUnionValidator, CommonModelConfig
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from common.models.enum import ExposedEnum
 from common.utils.loader import hashfile
 
 class DataSourceTypeEnum(str, Enum):
@@ -15,17 +15,7 @@ class DataSourceTypeEnum(str, Enum):
   Parquet = "parquet"
   Excel = "excel"
 
-ExposedEnum().register(DataSourceTypeEnum, {
-  DataSourceTypeEnum.CSV: EnumMemberDescriptor(
-    label="CSV",
-  ),
-  DataSourceTypeEnum.Parquet: EnumMemberDescriptor(
-    label="Parquet",
-  ),
-  DataSourceTypeEnum.Excel: EnumMemberDescriptor(
-    label="XLSX / Excel",
-  ),
-})
+ExposedEnum().register(DataSourceTypeEnum)
 
 FilePath = Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9-_. \/\\:]+$")]
 class BaseDataSource(abc.ABC):

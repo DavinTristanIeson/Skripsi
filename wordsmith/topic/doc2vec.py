@@ -13,7 +13,7 @@ class Doc2VecTransformer(sklearn.base.BaseEstimator, sklearn.base.TransformerMix
   __built_vocab = False
   def __init__(self):
     # The documents will have been preprocessed so min_count=1 is fine.
-    self.model = gensim.models.Doc2Vec(dm=0, dbow_words=1, min_count=1, vector_size=300)
+    self.model = gensim.models.Doc2Vec(dm=0, dbow_words=1, min_count=1, vector_size=100)
 
   def save(self, path: str):
     self.model = cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))

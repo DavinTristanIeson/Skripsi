@@ -1,12 +1,13 @@
 import abc
 import datetime
 from enum import Enum
-from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union, cast
+from typing import Annotated, Any, Literal, Optional, Sequence, Union, cast
+import numpy as np
 import pydantic
 import pandas as pd
 
 from common.models.validators import DiscriminatedUnionValidator, CommonModelConfig, FilenameField
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from common.models.enum import ExposedEnum
 from wordsmith.data.textual import TextPreprocessingConfig, TopicModelingConfig
 
 class SchemaColumnTypeEnum(str, Enum):
@@ -16,23 +17,26 @@ class SchemaColumnTypeEnum(str, Enum):
   Textual = "textual"
   Unique = "unique"
 
-ExposedEnum().register(SchemaColumnTypeEnum, {
-  SchemaColumnTypeEnum.Continuous: EnumMemberDescriptor(
-    label="Continuous",
-  ),
-  SchemaColumnTypeEnum.Categorical: EnumMemberDescriptor(
-    label="Categorical"
-  ),
-  SchemaColumnTypeEnum.Temporal: EnumMemberDescriptor(
-    label="Temporal",
-  ),
-  SchemaColumnTypeEnum.Textual: EnumMemberDescriptor(
-    label="Textual",
-  ),
-  SchemaColumnTypeEnum.Unique: EnumMemberDescriptor(
-    label="Unique",
-  ),
-})
+ExposedEnum().register(SchemaColumnTypeEnum)
+
+class FillNaModeEnum(str, Enum):
+  ForwardFill = "ffill",
+  BackwardFill = "bfill",
+  Value = "value"
+  Exclude = "exclude"
+
+  @staticmethod
+  def fillna(df: pd.Series, mode: Optional["FillNaModeEnum"], value: Optional[Any]):
+    if mode == FillNaModeEnum.ForwardFill:
+      return df.ffill()
+    elif mode == FillNaModeEnum.BackwardFill:
+      return df.bfill()
+    elif value is not None:
+      return df.fillna(value)
+    else:
+      return df
+
+ExposedEnum().register(FillNaModeEnum)
 
 class BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
   name: FilenameField
@@ -41,7 +45,6 @@ class BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
   @abc.abstractmethod
   def fit(self, data: pd.Series)->pd.Series:
     pass
-
 class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Continuous]
@@ -49,12 +52,17 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   lower_bound: Optional[float] = None
   upper_bound: Optional[float] = None
 
+  fill_na: FillNaModeEnum = FillNaModeEnum.Exclude
+  fill_na_value: Optional[float] = None
+
   def fit(self, data: pd.Series)->pd.Series:
-    data = data.astype(float)
+    data = data.astype(np.float64)
     if self.lower_bound is not None:
       data[data < self.lower_bound] = self.lower_bound
     if self.upper_bound is not None:
       data[data > self.upper_bound] = self.upper_bound
+
+    data = FillNaModeEnum.fillna(data, self.fill_na, self.fill_na_value)
     return data
 
 class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
@@ -62,15 +70,19 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Categorical]
   min_frequency: int = 1
 
-  def fit(self, data: pd.Series)->pd.Series:
-    categorical_column: pd.Categorical = pd.Categorical(data)
+  fill_na: FillNaModeEnum = FillNaModeEnum.Exclude
+  fill_na_value: Optional[str] = None
 
+  def fit(self, data: pd.Series)->pd.Series:
     # Remove min_frequency
-    category_frequencies: pd.Series = categorical_column.value_counts()
+    data = data.copy()
+    category_frequencies: pd.Series = data.value_counts()
     filtered_category_frequencies: pd.Series = (category_frequencies[category_frequencies < self.min_frequency])
     for category in filtered_category_frequencies.index:
-      categorical_column[categorical_column == category] = pd.NA
-    return cast(pd.Series, categorical_column)
+      data[data == category] = pd.NA
+
+    data = FillNaModeEnum.fillna(data, FillNaModeEnum.Value, self.fill_na_value)
+    return cast(pd.Series, pd.Categorical(data))
 
 class UniqueSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Unique]
@@ -113,6 +125,9 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   bins: int = 15
   datetime_format: Optional[str]
 
+  fill_na: Optional[FillNaModeEnum] = None
+  fill_na_value: Optional[datetime.datetime] = None
+
   def fit(self, data: pd.Series)->pd.Series:
     kwargs = dict()
     if self.datetime_format is not None:
@@ -122,6 +137,8 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       datetime_column[datetime_column < self.min_date] = self.min_date
     if self.max_date is not None:
       datetime_column[datetime_column > self.max_date] = self.max_date
+
+    data = FillNaModeEnum.fillna(data, self.fill_na, self.fill_na_value)
     return datetime_column
 
 SchemaColumn = Annotated[Union[UniqueSchemaColumn, CategoricalSchemaColumn, TextualSchemaColumn, ContinuousSchemaColumn, TemporalSchemaColumn], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]

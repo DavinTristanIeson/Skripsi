@@ -6,7 +6,7 @@ from typing import Generic, Optional, Sequence, TypeVar
 import pydantic
 from common.ipc.responses import IPCResponse
 from common.models.api import ApiError
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from common.models.enum import ExposedEnum
 from common.models.validators import FilenameField
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
@@ -20,12 +20,7 @@ class ProjectTaskStatus(str, Enum):
   Success = "success"
   Failed = "failed"
 
-ExposedEnum().register(ProjectTaskStatus, {
-  ProjectTaskStatus.Idle: EnumMemberDescriptor("Idle"),
-  ProjectTaskStatus.Pending: EnumMemberDescriptor("Pending"),
-  ProjectTaskStatus.Success: EnumMemberDescriptor("Success"),
-  ProjectTaskStatus.Failed: EnumMemberDescriptor("Failed"),
-})
+ExposedEnum().register(ProjectTaskStatus)
 
 T = TypeVar("T")
 class ProjectTaskResult(pydantic.BaseModel, Generic[T]):

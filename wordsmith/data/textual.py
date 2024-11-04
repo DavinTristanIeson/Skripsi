@@ -1,8 +1,10 @@
+from enum import Enum
 from typing import Any, Optional, Sequence
 import gensim
 import pydantic
 import spacy
-import spacy.symbols
+
+from common.models.enum import ExposedEnum
 
 class TextPreprocessingConfig(pydantic.BaseModel):
   ignore_tokens: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
@@ -66,6 +68,13 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     return corpus
 
 
+class DocumentEmbeddingMethodEnum(str, Enum):
+  Doc2Vec = "doc2vec"
+  SBERT = "sbert"
+  TFIDF = "tfidf"
+
+ExposedEnum().register(DocumentEmbeddingMethodEnum)
+
 class TopicModelingConfig(pydantic.BaseModel):
   low_memory: bool = False
   min_topic_size: int = 15
@@ -73,6 +82,7 @@ class TopicModelingConfig(pydantic.BaseModel):
   max_topics: Optional[int] = None
   n_gram_range: tuple[int, int] = (1, 2)
   seed_topics: Optional[Sequence[Sequence[str]]] = None
+  embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.Doc2Vec
 
   no_outliers: bool = False
   represent_outliers: bool = False
