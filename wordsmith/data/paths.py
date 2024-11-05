@@ -1,8 +1,10 @@
 import os
 import shutil
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pydantic
 
@@ -12,7 +14,6 @@ from wordsmith.topic.evaluation import ProjectTopicsEvaluationResult
 
 if TYPE_CHECKING:
   import bertopic
-  import gensim
 
 INTERMEDIATE_DIRECTORY = "intermediate"
 RESULTS_DIRECTORY = "results"
@@ -22,7 +23,7 @@ class ProjectPaths(SimpleNamespace):
   Workspace = "workspace.parquet"
   Config = "config.json"
 
-  Doc2Vec = "doc2vec"
+  Embeddings = "embeddings"
   BERTopic = 'bertopic'
   Evaluation = "evaluation.json"
 
@@ -69,10 +70,9 @@ class ProjectPathManager(pydantic.BaseModel):
     return pd.read_parquet(path)
       
   @file_loading_error_handler("document embeddings")
-  def load_doc2vec(self, column: str)->"gensim.models.Doc2Vec":
-    import gensim
-    path = self.assert_path(os.path.join(ProjectPaths.Doc2Vec, f"{column}"))
-    return cast(gensim.models.Doc2Vec, gensim.models.Doc2Vec.load(path))
+  def load_embeddings(self, column: str)->npt.NDArray:
+    path = self.assert_path(os.path.join(ProjectPaths.Embeddings, f"{column}.npy"))
+    return np.load(path)
 
   @file_loading_error_handler("topic information")
   def load_bertopic(self, column: str)->"bertopic.BERTopic":
@@ -99,7 +99,7 @@ class ProjectPathManager(pydantic.BaseModel):
   
   def cleanup(self, all: bool = False):
     directories = [
-      self.full_path(ProjectPaths.Doc2Vec),
+      self.full_path(ProjectPaths.Embeddings),
       self.full_path(ProjectPaths.BERTopic)
     ]
     files = [

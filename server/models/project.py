@@ -6,11 +6,12 @@ from typing import Generic, Optional, Sequence, TypeVar
 import pydantic
 from common.ipc.responses import IPCResponse
 from common.models.api import ApiError
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from common.models.enum import ExposedEnum
 from common.models.validators import FilenameField
 from wordsmith.data.config import Config
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.source import DataSource
+from wordsmith.data.textual import DocumentEmbeddingMethodEnum
 
 # Common resources
 
@@ -20,12 +21,7 @@ class ProjectTaskStatus(str, Enum):
   Success = "success"
   Failed = "failed"
 
-ExposedEnum().register(ProjectTaskStatus, {
-  ProjectTaskStatus.Idle: EnumMemberDescriptor("Idle"),
-  ProjectTaskStatus.Pending: EnumMemberDescriptor("Pending"),
-  ProjectTaskStatus.Success: EnumMemberDescriptor("Success"),
-  ProjectTaskStatus.Failed: EnumMemberDescriptor("Failed"),
-})
+ExposedEnum().register(ProjectTaskStatus)
 
 T = TypeVar("T")
 class ProjectTaskResult(pydantic.BaseModel, Generic[T]):
@@ -61,6 +57,13 @@ class DatasetInferredColumnResource(pydantic.BaseModel):
   # Configurations that FE can use to autofill schema.
   name: str
   type: SchemaColumnTypeEnum
+
+  # Optional defaults
+  embedding_method: Optional[DocumentEmbeddingMethodEnum] = None
+  min_topic_size: Optional[int] = None
+  min_document_length: Optional[int] = None
+  min_word_frequency: Optional[int] = None
+  
 
 class CheckDatasetResource(pydantic.BaseModel):
   columns: Sequence[DatasetInferredColumnResource]

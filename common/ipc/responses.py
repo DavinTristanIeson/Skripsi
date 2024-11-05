@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
 import pydantic
 
-from common.models.enum import EnumMemberDescriptor, ExposedEnum
+from common.models.enum import ExposedEnum
 from wordsmith.topic.evaluation import ColumnTopicsEvaluationResult
 
 
@@ -23,20 +23,7 @@ class AssociationDataTypeEnum(str, Enum):
   Continuous = "continuous"
   Temporal = "temporal"
 
-ExposedEnum().register(AssociationDataTypeEnum, {
-  AssociationDataTypeEnum.Categorical: EnumMemberDescriptor(
-    label="Categorical",
-    description="Discrete variables that only consist of a few unique outcomes or values."
-  ),
-  AssociationDataTypeEnum.Continuous: EnumMemberDescriptor(
-    label="Continuous",
-    description="Variables that do not have a defined level of precision."
-  ),
-  AssociationDataTypeEnum.Temporal: EnumMemberDescriptor(
-    label="Temporal",
-    description="Variables that concern time."
-  )
-})
+ExposedEnum().register(AssociationDataTypeEnum)
 
 class IPCResponseStatus(str, Enum):
   Idle = "idle"
@@ -91,6 +78,7 @@ class IPCResponseData(SimpleNamespace):
     ldavis: str = pydantic.Field(repr=False)
     similarity_matrix: Sequence[Sequence[float]] = pydantic.Field(repr=False)
     dendrogram: str = pydantic.Field(repr=False)
+    scatterplot: str = pydantic.Field(repr=False)
 
   class Topics(pydantic.BaseModel):
     type: Literal[IPCResponseDataType.Topics] = IPCResponseDataType.Topics

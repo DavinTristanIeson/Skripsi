@@ -63,7 +63,7 @@ def topic_plot(task: IPCTask):
     outliers = 0
 
   task.progress(steps.advance(), f"Visualizing all of the keywords of the topics discovered in {message.column}.")
-  topics_barchart = model.visualize_barchart(top_n_topics=100000000, n_words=10, custom_labels=True, title=f"Topic Keywords of {message.column}", autoscale=True)
+  topics_barchart = model.visualize_barchart(top_n_topics=100000000, n_words=10, title=f"Topic Keywords of {message.column}", autoscale=True)
 
   task.progress(steps.advance(), f"Visualizing the topic frequencies of {message.column} as a barchart.")
   frequencies_df = pd.DataFrame({
@@ -96,7 +96,7 @@ def topic_plot(task: IPCTask):
 
 def topic_similarity_plot(task: IPCTask):
   steps = TaskStepTracker(
-    max_steps = 7,
+    max_steps = 9,
   )
   message = cast(IPCRequestData.TopicSimilarityPlot, task.request)
 
@@ -111,8 +111,16 @@ def topic_similarity_plot(task: IPCTask):
   task.progress(steps.advance(), f"Loading workspace table.")
   df = config.paths.load_workspace()
   column_data = assert_column_exists(df, column.preprocess_column)
-  mask = column_data.str.len() != 0
+  mask = column_data != ''
   documents = cast(list[str], column_data[mask])
+
+  task.progress(steps.advance(), f"Loading document embeddings.")
+  embeddings = config.paths.load_embeddings(message.column)
+
+  topic_labels = list(truncate_strings(bertopic_topic_labels(model)))
+  if model._outliers:
+    topic_labels.insert(0, "Outlier")
+  model.set_topic_labels(topic_labels)
 
   if model.c_tf_idf_ is not None and model.c_tf_idf_.shape[0] <= 1: #type: ignore
     task.error(ValueError(f"It looks like the topic modeling procedure failed to find any topics for {message.column}. It might be because there's too few documents to train the model or an improper preprocessing configuration."))
@@ -127,12 +135,12 @@ def topic_similarity_plot(task: IPCTask):
 
   task.progress(steps.advance(), f"Creating topic similarity heatmap for {message.column}.")
   # Heatmap
-  heatmap = model.visualize_heatmap(title=f"{message.column} Topic Similarity Matrix")
+  heatmap = model.visualize_heatmap(title=f"{message.column} Topic Similarity Matrix", custom_labels=True)
 
   task.progress(steps.advance(), f"Creating LDAvis-style visualization for {message.column}.")
   try:
     # LDAvis
-    ldavis = model.visualize_topics(title=f"{message.column} Topics Distribution")
+    ldavis = model.visualize_topics(title=f"{message.column} Topics Distribution", custom_labels=True)
   except Exception as e:
     # This may happen if there's too few documents. https://github.com/MaartenGr/BERTopic/issues/97
     logger.error(f"An error has occurred while creating the LDAvis visualization of {message.column}. Error => {e}")
@@ -146,10 +154,14 @@ def topic_similarity_plot(task: IPCTask):
   )
 
   task.progress(steps.advance(), f"Visualizing topic hierarchy for {message.column}.")
-  dendrogram = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}")
+  dendrogram = model.visualize_hierarchy(hierarchical_topics=hierarchical_topics, title=f"Topics of {message.column}", custom_labels=True)
 
   topics = bertopic_topic_labels(model)
-  
+
+  task.progress(steps.advance(), f"Visualizing the documents of {message.column} and their assigned topics as a scatterplot.")
+  original_documents: list[str] = list(df.loc[mask, message.column])
+  topic_indices: list[int] = list(df.loc[mask, column.topic_index_column])
+  scatterplot = model.visualize_documents(original_documents, topic_indices, embeddings=embeddings, title=f"Documents of {message.column}", custom_labels=True)
 
   with task.lock:
     task.results[task.id] = IPCResponse(
@@ -160,7 +172,8 @@ def topic_similarity_plot(task: IPCTask):
         heatmap=cast(str, heatmap.to_json()),
         similarity_matrix=similarity_matrix,
         dendrogram=cast(str, dendrogram.to_json()),
-        column=message.column
+        scatterplot=cast(str, scatterplot.to_json()),
+        column=message.column,
       ),
       message="We are unable to create the LDAvis-style visualization because of there are too few documents/topics."
         if ldavis is None

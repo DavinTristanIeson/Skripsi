@@ -13,12 +13,16 @@ class IPCOperationRequestType(str, Enum):
   GetResult = "get_task"
   TaskState = "task_state"
   SanityCheck = "sanity_check"
+  ClearTasks = "clear_tasks"
 
 
 
 class IPCOperationRequestData(SimpleNamespace):
   class CancelTask(pydantic.BaseModel):
     type: Literal[IPCOperationRequestType.CancelTask] = IPCOperationRequestType.CancelTask
+    id: str
+  class ClearTasks(pydantic.BaseModel):
+    type: Literal[IPCOperationRequestType.ClearTasks] = IPCOperationRequestType.ClearTasks
     id: str
   class GetResult(pydantic.BaseModel):
     type: Literal[IPCOperationRequestType.GetResult] = IPCOperationRequestType.GetResult
@@ -29,7 +33,7 @@ class IPCOperationRequestData(SimpleNamespace):
   class TaskState(pydantic.BaseModel):
     type: Literal[IPCOperationRequestType.TaskState] = IPCOperationRequestType.TaskState
 
-  TypeUnion = Union[CancelTask, GetResult, SanityCheck, TaskState]
+  TypeUnion = Union[CancelTask, GetResult, SanityCheck, TaskState, ClearTasks]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
     
 

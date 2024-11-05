@@ -1,8 +1,11 @@
 import http
-import shutil
 import os
+from typing import Optional
 from fastapi import APIRouter
 import numpy as np
+import pandas as pd
+from common.ipc.operations import IPCOperationRequestData
+from common.ipc.taskqueue import IPCTaskClient
 from common.models.api import ApiResult, ApiError
 from server.controllers.project_checks import ProjectExistsDependency
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
@@ -10,6 +13,7 @@ from wordsmith.data.paths import ProjectPathManager, DATA_DIRECTORY
 from wordsmith.data.cache import ProjectCacheManager
 from wordsmith.data.schema import SchemaColumnTypeEnum
 from wordsmith.data.config import Config
+from wordsmith.data.textual import DocumentEmbeddingMethodEnum
  
 router = APIRouter(
   tags=['Projects']
@@ -38,22 +42,45 @@ async def check_dataset(body: CheckDatasetSchema):
   for column in df.columns:
     dtype = df[column].dtype
     coltype: SchemaColumnTypeEnum
-    if dtype == np.float_ or dtype == np.int_:
+    embedding_method: Optional[DocumentEmbeddingMethodEnum] = None
+    min_topic_size: Optional[int] = None
+    min_document_length: Optional[int] = None
+    min_word_frequency: Optional[int] = None
+    if pd.api.types.is_numeric_dtype(dtype):
       coltype = SchemaColumnTypeEnum.Continuous
     else:
       uniquescnt = len(df[column].unique())
       if uniquescnt < 0.2 * len(df[column]):
         coltype = SchemaColumnTypeEnum.Categorical
       else:
-        has_long_text = df[column].str.len().mean() >= 20
+        is_string = pd.api.types.is_string_dtype(dtype)
+        has_long_text = is_string and df[column].str.len().mean()
+
         if has_long_text:
+          median_doclen = df[column].str.len().median()
           coltype = SchemaColumnTypeEnum.Textual
+          valid_documents_mask = ~((df[column] == '') | df[column].isna())
+          valid_documents_count = np.count_nonzero(valid_documents_mask)
+          has_few_documents = valid_documents_count < 5000
+
+          if has_few_documents:
+            embedding_method = DocumentEmbeddingMethodEnum.SBERT
+          else:
+            embedding_method = DocumentEmbeddingMethodEnum.Doc2Vec
+
+          min_topic_size = min(15, max(5, valid_documents_count // 1000))
+          min_document_length = min(10, max(3, int(median_doclen / 10)))
+          min_word_frequency = min(5, max(1, valid_documents_count // 1000))
         else:
           coltype = SchemaColumnTypeEnum.Unique
 
     columns.append(DatasetInferredColumnResource(
       name=column,
       type=coltype,
+      embedding_method=embedding_method,
+      min_topic_size=min_topic_size,
+      min_document_length=min_document_length,
+      min_word_frequency=min_word_frequency,
     ))
 
   return ApiResult(
@@ -124,6 +151,8 @@ async def update__project(old_config: ProjectExistsDependency, config: Config):
   config.save_to_json(folder_path=config.paths.project_path)
   ProjectCacheManager().configs.invalidate(old_config.project_id)
   ProjectCacheManager().workspaces.invalidate(old_config.project_id)
+  client = IPCTaskClient()
+  client.operation(IPCOperationRequestData.ClearTasks(id=old_config.project_id))
 
   return ApiResult(
     data=ProjectResource(
@@ -141,6 +170,11 @@ async def delete__project(project_id: str):
     raise ApiError(f"We cannot find any projects with ID: \"{project_id}\", perhaps it had been manually deleted by a user?", 404)
 
   manager.cleanup(all=True)
+  ProjectCacheManager().configs.invalidate(project_id)
+  ProjectCacheManager().workspaces.invalidate(project_id)
+  client = IPCTaskClient()
+  client.operation(IPCOperationRequestData.ClearTasks(id=project_id))
+
   return ApiResult(
     data=None,
     message=f"Project \"{project_id}\" has been successfully deleted."

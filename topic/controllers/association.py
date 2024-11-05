@@ -29,21 +29,28 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
   crosstab_clustergram, crosstab_sorter = wordsmith.visual.chart.clustergram(crosstab)
   association_clustergram, association_sorter = wordsmith.visual.chart.clustergram(association_table)
   shared_params = dict(
+    
+  )
+  crosstab_clustergram.update_layout(
     xaxis=dict(
       title=b.name,
-      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab.columns))),
+      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab_sorter[1]))),
     ),
     yaxis=dict(
       title=a.name,
-      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab.index))),
+      ticktext=tuple(truncate_strings(cast(Sequence[str], crosstab_sorter[0]))),
     ),
-  )
-  crosstab_clustergram.update_layout(
-    shared_params,
     title=f"{a.name} x {b.name} (Frequency)",
   )
   association_clustergram.update_layout(
-    shared_params,
+    xaxis=dict(
+      title=b.name,
+      ticktext=tuple(truncate_strings(cast(Sequence[str], association_sorter[1]))),
+    ),
+    yaxis=dict(
+      title=a.name,
+      ticktext=tuple(truncate_strings(cast(Sequence[str], association_sorter[0]))),
+    ),
     title=f"{a.name} x {b.name} (Association)",
   )
 
@@ -56,13 +63,19 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
     ])
   )
 
+  association_customdata = np.dstack([
+    residual_table.loc[association_sorter].to_numpy(),
+    crosstab.loc[association_sorter].to_numpy(),
+    heatmap_customdata.loc[association_sorter].to_numpy(),
+  ])
   association_clustergram.update_traces(
-    customdata=residual_table.loc[association_sorter],
+    customdata=association_customdata,
     hovertemplate="<br>".join([
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
       "Strength: %{z}",
-      "Residual: %{customdata}",
+      "Residual: %{customdata[0]}",
+      "Frequency: %{customdata[1]} (%{customdata[2]}%)",
     ])
   )
   return AssociationData.Categorical(

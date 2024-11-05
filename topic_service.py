@@ -1,9 +1,12 @@
 import logging
+import os
 import threading
 from common.logger import RegisteredLogger
 
+is_app = os.getenv("APP")
+
 RegisteredLogger().configure(
-  level=logging.DEBUG,
+  level=logging.WARNING if is_app else logging.DEBUG,
   terminal=True
 )
 if __name__ == "__main__":
