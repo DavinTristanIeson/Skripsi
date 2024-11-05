@@ -55,10 +55,9 @@ def evaluate_topics(task: IPCTask):
   cv_df = pd.DataFrame({
     "Topic": tuple(truncate_strings(topics)),
     "Score": cv_scores_per_topic[:, 0],
-    "Standard Deviation": cv_scores_per_topic[:, 1],
   })
   
-  cv_barchart = plotly.express.bar(cv_df, x="Score", y="Topic", orientation='h', error_x="Standard Deviation")
+  cv_barchart = plotly.express.bar(cv_df, x="Score", y="Topic", orientation='h')
 
   cv_barchart.update_traces(dict(
     customdata=topics,

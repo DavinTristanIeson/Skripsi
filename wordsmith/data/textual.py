@@ -3,6 +3,7 @@ from typing import Any, Optional, Sequence
 import gensim
 import pydantic
 import spacy
+import tqdm
 
 from common.models.enum import ExposedEnum
 
@@ -17,9 +18,11 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   max_unique_words: Optional[int] = None
   min_document_length: int = 5
   min_word_length: int = 3
+  should_lemmatize: int = False
 
   def load_nlp(self):
-    nlp = spacy.load("en_core_web_sm")
+    # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization. NER for detecting named entities.
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "morphologizer"])
     nlp.Defaults.stop_words |= set(self.stopwords)
     tokenizer: Any = nlp.tokenizer
     for token in self.ignore_tokens:
@@ -36,19 +39,34 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     nlp = self.load_nlp()
     greedy_corpus: Sequence = []
     dictionary = gensim.corpora.Dictionary()
+    
     spacy_docs = nlp.pipe(raw_documents)
-    for doc in spacy_docs:
+    for doc in tqdm.tqdm(spacy_docs, desc="Preprocessing documents...", total=len(raw_documents)):
       tokens = []
+
+      buffer = []
       for token in doc:
         remove_email = self.remove_email and token.like_email
         remove_number = self.remove_number and token.like_num
         remove_url = self.remove_url and token.like_url
         invalid_token = token.is_stop or token.is_punct or token.is_space
         empty_token = len(token) < self.min_word_length
-        if remove_number or remove_email or remove_url or invalid_token or empty_token:
+
+
+        if (remove_number or remove_email or remove_url or invalid_token or empty_token):
           continue
+        
+        is_entity = token.ent_type is not None
+        is_inside_entity = token.ent_iob == 1 or token.ent_iob == 3
+        if is_entity and is_inside_entity:
+          buffer.append(token.text)
+        elif len(buffer) > 0:
+          tokens.append('_'.join(buffer))
 
         tokens.append(token.lemma_.lower())
+
+      if len(buffer) > 0:
+        tokens.append('_'.join(buffer))
       greedy_corpus.append(tokens)
     dictionary.add_documents(greedy_corpus)
     dictionary.filter_extremes(

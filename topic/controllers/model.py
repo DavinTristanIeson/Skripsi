@@ -30,20 +30,27 @@ def topic_modeling(task: IPCTask):
   message = cast(IPCRequestData.TopicModeling, task.request)
   config = Config.from_project(message.project_id)
 
-  task.progress(0, f"Loading dataset from {config.source.path}")
-  df = config.source.load()
-  steps = TaskStepTracker(
-    max_steps=1 + len(config.data_schema.columns) + (len(config.data_schema.columns) * 4)
-  )
-  for colidx, (df, column) in enumerate(config.data_schema.preprocess(df)):
-    df = df
-    task.progress(steps.advance(), f"Preprocessing column: {column.name} with type \"{column.type}\"." +
-      " Preprocessing text may take some time..." +
-      f" ({colidx + 1} / {len(config.data_schema.columns)})"
-    )
-
   result_path = config.paths.full_path(ProjectPaths.Workspace)
-  df.to_parquet(result_path)
+  if os.path.exists(result_path):
+    task.progress(0, f"Loading cached dataset from {result_path}")
+    steps = TaskStepTracker(
+      max_steps=1 + (len(config.data_schema.columns) * 4)
+    )
+    df = config.paths.load_workspace()
+  else:
+    task.progress(0, f"Loading dataset from {config.source.path}")
+    df = config.source.load()
+    steps = TaskStepTracker(
+      max_steps=1 + len(config.data_schema.columns) + (len(config.data_schema.columns) * 4)
+    )
+    for colidx, (df, column) in enumerate(config.data_schema.preprocess(df)):
+      df = df
+      task.progress(steps.advance(), f"Preprocessing column: {column.name} with type \"{column.type}\"." +
+        " Preprocessing text may take some time..." +
+        f" ({colidx + 1} / {len(config.data_schema.columns)})"
+      )
+    df.to_parquet(result_path)
+
   task.progress(steps.advance(), f"Saved workspace table to {config.source.path}. You should be able to access the Table page to explore your dataset, but the topics have not been processed yet.")
   logger.info(f"Saved intermediate results to {result_path}")
 

@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +11,14 @@ from common.logger import RegisteredLogger
 import common.ipc as ipc
 import server.routes.evaluation
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app):
+  try:
+    yield
+  except asyncio.exceptions.CancelledError:
+    pass
+
+app = FastAPI(lifespan=lifespan)
 server.controllers.exceptions.register_error_handlers(app)
 
 app.add_middleware(

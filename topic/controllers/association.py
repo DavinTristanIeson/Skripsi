@@ -56,13 +56,19 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
     ])
   )
 
+  association_customdata = np.dstack([
+    residual_table.loc[association_sorter].to_numpy(),
+    crosstab.loc[association_sorter].to_numpy(),
+    heatmap_customdata.loc[crosstab_sorter].to_numpy(),
+  ])
   association_clustergram.update_traces(
-    customdata=residual_table.loc[association_sorter],
+    customdata=association_customdata,
     hovertemplate="<br>".join([
       str(b.name) + ": %{x}",
       str(a.name) + ": %{y}",
       "Strength: %{z}",
-      "Residual: %{customdata}",
+      "Residual: %{customdata[0]}",
+      "Frequency: %{customdata[1]} (%{customdata[2]}%)",
     ])
   )
   return AssociationData.Categorical(

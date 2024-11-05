@@ -89,6 +89,7 @@ class SchemaManager(pydantic.BaseModel):
 
     
     for col in self.columns:
+      yield df, col
       with TimeLogger(logger, f"Preprocessing {col.name} ({col.type})"):
         coldata = col.fit(cast(pd.Series, df.loc[:, col.name]))
         if col.type != SchemaColumnTypeEnum.Textual:
@@ -96,4 +97,3 @@ class SchemaManager(pydantic.BaseModel):
         else:
           df[col.preprocess_column] = coldata
 
-      yield df, col

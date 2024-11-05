@@ -3,6 +3,7 @@ import shutil
 import os
 from fastapi import APIRouter
 import numpy as np
+import pandas as pd
 from common.models.api import ApiResult, ApiError
 from server.controllers.project_checks import ProjectExistsDependency
 from server.models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, DatasetInferredColumnResource, ProjectLiteResource, ProjectResource
@@ -38,14 +39,15 @@ async def check_dataset(body: CheckDatasetSchema):
   for column in df.columns:
     dtype = df[column].dtype
     coltype: SchemaColumnTypeEnum
-    if dtype == np.float_ or dtype == np.int_:
+    if pd.api.types.is_numeric_dtype(dtype):
       coltype = SchemaColumnTypeEnum.Continuous
     else:
       uniquescnt = len(df[column].unique())
       if uniquescnt < 0.2 * len(df[column]):
         coltype = SchemaColumnTypeEnum.Categorical
       else:
-        has_long_text = df[column].str.len().mean() >= 20
+        is_string = pd.api.types.is_string_dtype(dtype)
+        has_long_text = is_string and df[column].str.len().mean() >= 20
         if has_long_text:
           coltype = SchemaColumnTypeEnum.Textual
         else:
