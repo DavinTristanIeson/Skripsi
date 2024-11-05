@@ -23,11 +23,11 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   def load_nlp(self):
     # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization. NER for detecting named entities.
     nlp = spacy.load("en_core_web_sm", disable=["parser", "morphologizer"])
-    nlp.Defaults.stop_words |= set(self.stopwords)
+    nlp.Defaults.stop_words |= set(map(lambda x: x.lower(), self.stopwords))
     tokenizer: Any = nlp.tokenizer
     for token in self.ignore_tokens:
       if token in nlp.Defaults.stop_words:
-        nlp.Defaults.stop_words.remove(token)
+        nlp.Defaults.stop_words.remove(token.lower())
       tokenizer.add_special_case(token, [{
         "ORTH": token,
         "LEMMA": token,
@@ -43,8 +43,6 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     spacy_docs = nlp.pipe(raw_documents)
     for doc in tqdm.tqdm(spacy_docs, desc="Preprocessing documents...", total=len(raw_documents)):
       tokens = []
-
-      buffer = []
       for token in doc:
         remove_email = self.remove_email and token.like_email
         remove_number = self.remove_number and token.like_num
@@ -52,23 +50,13 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         invalid_token = token.is_stop or token.is_punct or token.is_space
         empty_token = len(token) < self.min_word_length
 
-
         if (remove_number or remove_email or remove_url or invalid_token or empty_token):
           continue
-        
-        is_entity = token.ent_type is not None
-        is_inside_entity = token.ent_iob == 1 or token.ent_iob == 3
-        if is_entity and is_inside_entity:
-          buffer.append(token.text)
-        elif len(buffer) > 0:
-          tokens.append('_'.join(buffer))
 
         tokens.append(token.lemma_.lower())
-
-      if len(buffer) > 0:
-        tokens.append('_'.join(buffer))
       greedy_corpus.append(tokens)
     dictionary.add_documents(greedy_corpus)
+
     dictionary.filter_extremes(
       no_below=self.min_word_frequency,
       no_above=self.max_word_frequency,

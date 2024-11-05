@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import logging
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,8 +30,9 @@ app.add_middleware(
 )
 
 
+is_app = os.getenv("APP")
 RegisteredLogger().configure(
-  level=logging.DEBUG,
+  level=logging.WARNING if is_app else logging.DEBUG,
   terminal=True
 )
 

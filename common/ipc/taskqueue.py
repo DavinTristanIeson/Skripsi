@@ -101,6 +101,13 @@ class IPCTaskServer(metaclass=Singleton):
     
     if request.type == IPCOperationRequestType.TaskState:
       return IPCOperationResponseData.TaskState(results=self.results)
+    
+    if request.type == IPCOperationRequestType.ClearTasks:
+      with self.lock:
+        to_be_removed = filter(lambda x: x.startswith(request.id), list(self.results.keys()))
+        for id in to_be_removed:
+          self.results.pop(id)
+      return IPCOperationResponseData.Empty()
   
     raise Exception(f"Invalid IPC operation request type: {request.type}")
 

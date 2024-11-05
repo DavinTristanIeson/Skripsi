@@ -1,3 +1,4 @@
+import itertools
 import os
 from typing import Optional, cast
 import bertopic
@@ -30,20 +31,22 @@ def topic_modeling(task: IPCTask):
   message = cast(IPCRequestData.TopicModeling, task.request)
   config = Config.from_project(message.project_id)
 
+  TOPIC_MODELING_STEPS = 4
   result_path = config.paths.full_path(ProjectPaths.Workspace)
   if os.path.exists(result_path):
     task.progress(0, f"Loading cached dataset from {result_path}")
     steps = TaskStepTracker(
-      max_steps=1 + (len(config.data_schema.columns) * 4)
+      max_steps=1 + (len(config.data_schema.columns) * TOPIC_MODELING_STEPS)
     )
     df = config.paths.load_workspace()
   else:
     task.progress(0, f"Loading dataset from {config.source.path}")
     df = config.source.load()
     steps = TaskStepTracker(
-      max_steps=1 + len(config.data_schema.columns) + (len(config.data_schema.columns) * 4)
+      max_steps=1 + len(config.data_schema.columns) + (len(config.data_schema.columns) * TOPIC_MODELING_STEPS)
     )
     for colidx, (df, column) in enumerate(config.data_schema.preprocess(df)):
+      task.check_stop()
       df = df
       task.progress(steps.advance(), f"Preprocessing column: {column.name} with type \"{column.type}\"." +
         " Preprocessing text may take some time..." +
@@ -60,6 +63,13 @@ def topic_modeling(task: IPCTask):
     column_data = df[column.preprocess_column]
     mask = column_data.str.len() != 0
     documents: list[str] = list(column_data[mask])
+
+    if len(documents) == 0:
+      logger.warning(f"Skipping {column} as there are no valid documents.")
+      steps.advance(TOPIC_MODELING_STEPS)
+      df[column.topic_column] = [''] * len(column_data)
+      df[column.topic_index_column] = [-1] * len(column_data)
+      continue
 
     task.check_stop()
     task.progress(
