@@ -1,13 +1,15 @@
-bertopic # BERTopic implementation. Production build needs --no-deps to exclude sentence-transformers
+bertopic==0.16.4 # BERTopic implementation.
 gensim>=4.3.3 # Doc2vec implementation. 4.3.3 and above is required due to outdated scipy.
 
-spacy # Preprocessing
+spacy==3.7.5 # Preprocessing
 en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
 pydantic # Validation
-fastapi[standard] # API Server
+fastapi[standard]==0.115.2 # API Server
+uvicorn
 
 numpy<2.0
-pandas # Process dataframes
+pandas==2.2.3 # Process dataframes
 fastparquet # Load parquet
 orjson # Faster JSON for plotly
+openpyxl

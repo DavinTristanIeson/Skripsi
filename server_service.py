@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 import os
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 import server.controllers
@@ -36,12 +37,21 @@ RegisteredLogger().configure(
   terminal=True
 )
 
-app.include_router(server.routes.association.router, prefix="/api/projects")
-app.include_router(server.routes.topics.router, prefix="/api/projects")
-app.include_router(server.routes.projects.router, prefix="/api/projects")
-app.include_router(server.routes.evaluation.router, prefix="/api/projects")
-app.include_router(server.routes.general.router, prefix="/api")
-app.include_router(server.routes.debug.router, prefix="/api/debug")
+api_app = FastAPI(lifespan=lifespan)
+api_app.include_router(server.routes.association.router, prefix="/projects")
+api_app.include_router(server.routes.topics.router, prefix="/projects")
+api_app.include_router(server.routes.projects.router, prefix="/projects")
+api_app.include_router(server.routes.evaluation.router, prefix="/projects")
+api_app.include_router(server.routes.general.router, prefix="")
+api_app.include_router(server.routes.debug.router, prefix="/debug")
+
+app.mount('/api', api_app)
+
+if os.path.exists("views"):
+  app.mount("/", StaticFiles(directory="views", html = True), name="static")
+else:
+  print("No interface files has been found in /views. You should run \"python scripts/download_interface.py\" to download the default interface.")
+
 
 locker = ipc.taskqueue.IPCTaskClient()
 locker.initialize(
