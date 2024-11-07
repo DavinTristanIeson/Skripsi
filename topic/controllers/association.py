@@ -123,10 +123,10 @@ def temporal_association_plot(a: pd.Series, b: pd.Series, config: Config, column
   model = config.paths.load_bertopic(str(a.name))
   df = config.paths.load_workspace()
 
-  documents = cast(list[str], df.loc[~mask, column_a.preprocess_column])
+  documents: list[str] = list(df.loc[~mask, column_a.preprocess_column])
   topics: list[int] = list(df.loc[~mask, column_a.topic_index_column])
 
-  col2_data = cast(list[str], b.astype(str))
+  col2_data = list(b.astype(str))
 
   params = dict()
   if column_b.bins is not None:
