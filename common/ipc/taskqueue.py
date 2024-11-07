@@ -108,6 +108,7 @@ class IPCTaskServer(metaclass=Singleton):
         for id in to_be_removed:
           if id in self.ongoing_tasks:
             self.ongoing_tasks[id].set()
+            self.ongoing_tasks.pop(id)
           self.results.pop(id)
       return IPCOperationResponseData.Empty()
   

@@ -106,7 +106,7 @@ def topic_modeling(task: IPCTask):
           embeddings = svd.fit_transform(sparse_embeddings)
           pipeline.append(svd)
         else:
-          embeddings: npt.NDArray = sparse_embeddings.todense() # type: ignore
+          embeddings: npt.NDArray = np.asarray(sparse_embeddings.todense()) # type: ignore
       embedding_model = make_pipeline(*pipeline)
     else:
       raise ApiError(f"Invalid document embedding method: {column.topic_modeling.embedding_method}", 422)
