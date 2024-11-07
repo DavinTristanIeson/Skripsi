@@ -65,11 +65,7 @@ def topic_modeling(task: IPCTask):
     documents: list[str] = list(column_data[mask])
 
     if len(documents) == 0:
-      logger.warning(f"Skipping {column} as there are no valid documents.")
-      steps.advance(TOPIC_MODELING_STEPS)
-      df[column.topic_column] = [''] * len(column_data)
-      df[column.topic_index_column] = [-1] * len(column_data)
-      continue
+      raise ValueError(f"{column.name} does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of {column.name} to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
 
     task.check_stop()
     task.progress(
@@ -121,17 +117,17 @@ def topic_modeling(task: IPCTask):
     if column.topic_modeling.seed_topics is not None:
       kwargs["seed_topic_list"] = column.topic_modeling.seed_topics
 
+    max_cluster_size = int(column.topic_modeling.max_topic_size * len(documents))
 
-    hdbscan_kwargs = dict()
-    if column.topic_modeling.max_topic_size is not None:
-      hdbscan_kwargs["max_cluster_size"] = int(column.topic_modeling.max_topic_size * len(documents))
+    if column.topic_modeling.min_topic_size >= max_cluster_size:
+      raise ValueError("Min. topic size should not be greater than max. topic size. Please set a higher max topic size. Note: This can also happen if you have too few valid documents to analyze.")
     
     hdbscan_model = hdbscan.HDBSCAN(
       min_cluster_size=column.topic_modeling.min_topic_size,
+      max_cluster_size=max_cluster_size,
       metric="euclidean",
       cluster_selection_method="eom",
       prediction_data=True,
-      **hdbscan_kwargs
     )
 
     ctfidf_model = bertopic.vectorizers.ClassTfidfTransformer(
@@ -139,10 +135,9 @@ def topic_modeling(task: IPCTask):
       reduce_frequent_words=True,
     )
 
-    # We already have preprocessed min df and max df. There's no need to filter the words anymore.
     vectorizer_model = sklearn.feature_extraction.text.CountVectorizer(
-      min_df=1,
-      max_df=1.0,
+      min_df=column.preprocessing.min_df,
+      max_df=column.preprocessing.max_df,
       stop_words=None,
       ngram_range=column.topic_modeling.n_gram_range
     )

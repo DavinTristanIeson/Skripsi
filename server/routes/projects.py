@@ -45,7 +45,7 @@ async def check_dataset(body: CheckDatasetSchema):
     embedding_method: Optional[DocumentEmbeddingMethodEnum] = None
     min_topic_size: Optional[int] = None
     min_document_length: Optional[int] = None
-    min_word_frequency: Optional[int] = None
+    min_df: Optional[int] = None
     if pd.api.types.is_numeric_dtype(dtype):
       coltype = SchemaColumnTypeEnum.Continuous
     else:
@@ -70,7 +70,7 @@ async def check_dataset(body: CheckDatasetSchema):
 
           min_topic_size = min(15, max(5, valid_documents_count // 1000))
           min_document_length = min(10, max(3, int(median_doclen / 10)))
-          min_word_frequency = min(5, max(1, valid_documents_count // 1000))
+          min_df = min(5, max(1, valid_documents_count // 1000))
         else:
           coltype = SchemaColumnTypeEnum.Unique
 
@@ -80,7 +80,7 @@ async def check_dataset(body: CheckDatasetSchema):
       embedding_method=embedding_method,
       min_topic_size=min_topic_size,
       min_document_length=min_document_length,
-      min_word_frequency=min_word_frequency,
+      min_df=min_df,
     ))
 
   return ApiResult(

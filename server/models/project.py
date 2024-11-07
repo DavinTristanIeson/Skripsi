@@ -62,7 +62,7 @@ class DatasetInferredColumnResource(pydantic.BaseModel):
   embedding_method: Optional[DocumentEmbeddingMethodEnum] = None
   min_topic_size: Optional[int] = None
   min_document_length: Optional[int] = None
-  min_word_frequency: Optional[int] = None
+  min_df: Optional[int] = None
   
 
 class CheckDatasetResource(pydantic.BaseModel):

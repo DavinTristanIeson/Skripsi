@@ -21,7 +21,6 @@ async def lifespan(app):
     pass
 
 app = FastAPI(lifespan=lifespan)
-server.controllers.exceptions.register_error_handlers(app)
 
 app.add_middleware(
   CORSMiddleware,
@@ -44,6 +43,7 @@ api_app.include_router(server.routes.projects.router, prefix="/projects")
 api_app.include_router(server.routes.evaluation.router, prefix="/projects")
 api_app.include_router(server.routes.general.router, prefix="")
 api_app.include_router(server.routes.debug.router, prefix="/debug")
+server.controllers.exceptions.register_error_handlers(api_app)
 
 app.mount('/api', api_app)
 

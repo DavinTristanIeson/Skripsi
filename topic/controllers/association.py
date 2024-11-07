@@ -28,9 +28,6 @@ def categorical_association_plot(a: pd.Series, b: pd.Series):
 
   crosstab_clustergram, crosstab_sorter = wordsmith.visual.chart.clustergram(crosstab)
   association_clustergram, association_sorter = wordsmith.visual.chart.clustergram(association_table)
-  shared_params = dict(
-    
-  )
   crosstab_clustergram.update_layout(
     xaxis=dict(
       title=b.name,
