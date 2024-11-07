@@ -52,7 +52,7 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   lower_bound: Optional[float] = None
   upper_bound: Optional[float] = None
 
-  fill_na: FillNaModeEnum = FillNaModeEnum.Exclude
+  fill_na: Optional[FillNaModeEnum] = FillNaModeEnum.Exclude
   fill_na_value: Optional[float] = None
 
   def fit(self, data: pd.Series)->pd.Series:
@@ -68,9 +68,9 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Categorical]
-  min_frequency: int = 1
+  min_frequency: int = pydantic.Field(default=1, gt=0)
 
-  fill_na: FillNaModeEnum = FillNaModeEnum.Exclude
+  fill_na: Optional[FillNaModeEnum] = FillNaModeEnum.Exclude
   fill_na_value: Optional[str] = None
 
   def fit(self, data: pd.Series)->pd.Series:

@@ -13,12 +13,11 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   remove_email: bool = True
   remove_url: bool = True
   remove_number: bool = True
-  min_word_frequency: int = 5
-  max_word_frequency: float = 1 / 2
-  max_unique_words: Optional[int] = None
-  min_document_length: int = 5
-  min_word_length: int = 3
-  should_lemmatize: int = False
+  min_df: int = pydantic.Field(default=5, gt=0)
+  max_df: float = pydantic.Field(default=1/2, gt=0.0, le=1.0)
+  max_unique_words: Optional[int] = pydantic.Field(default=None, gt=0)
+  min_document_length: int = pydantic.Field(default=5, gt=0)
+  min_word_length: int = pydantic.Field(default=3, gt=0)
 
   def load_nlp(self):
     # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization. NER for detecting named entities.
@@ -58,8 +57,8 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     dictionary.add_documents(greedy_corpus)
 
     dictionary.filter_extremes(
-      no_below=self.min_word_frequency,
-      no_above=self.max_word_frequency,
+      no_below=self.min_df,
+      no_above=self.max_df,
       keep_n=10000000000000000 if self.max_unique_words is None else self.max_unique_words,
       keep_tokens=self.ignore_tokens
     )
@@ -83,12 +82,18 @@ ExposedEnum().register(DocumentEmbeddingMethodEnum)
 
 class TopicModelingConfig(pydantic.BaseModel):
   low_memory: bool = False
-  min_topic_size: int = 15
-  max_topic_size: float = 1 / 10
-  max_topics: Optional[int] = None
+  min_topic_size: int = pydantic.Field(default=15, gt=1)
+  max_topic_size: float = pydantic.Field(default=1 / 5, gt=0.0, le=1.0)
+  max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
   n_gram_range: tuple[int, int] = (1, 2)
   seed_topics: Optional[Sequence[Sequence[str]]] = None
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.Doc2Vec
+
+  @pydantic.field_validator("n_gram_range", mode="after")
+  def __n_gram_range_validator(cls, value: tuple[int, int]):
+    if value[0] > value[1]:
+      return (value[1], value[0])
+    return value
 
   no_outliers: bool = False
   represent_outliers: bool = False

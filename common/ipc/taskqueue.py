@@ -106,6 +106,8 @@ class IPCTaskServer(metaclass=Singleton):
       with self.lock:
         to_be_removed = filter(lambda x: x.startswith(request.id), list(self.results.keys()))
         for id in to_be_removed:
+          if id in self.ongoing_tasks:
+            self.ongoing_tasks[id].set()
           self.results.pop(id)
       return IPCOperationResponseData.Empty()
   
