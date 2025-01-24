@@ -68,6 +68,10 @@ class ProjectPathManager(pydantic.BaseModel):
       raise ApiError(f"{path} does not exist. Perhaps the file has not been created yet.", 404)
     return path
 
+  @property
+  def config_path(self):
+    return self.full_path(ProjectPaths.Config)
+
   @file_loading_error_handler("workspace table")
   def load_workspace(self)->pd.DataFrame:
     path = self.full_path(ProjectPaths.Workspace)

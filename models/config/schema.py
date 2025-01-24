@@ -1,6 +1,7 @@
 import abc
 import datetime
 from enum import Enum
+import json
 from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union, cast
 import re
 
@@ -118,8 +119,7 @@ class MultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
   min_frequency: int = pydantic.Field(default=1, gt=0)
   delimiter: str = ","
-  category_regex: Optional[str] = None
-  internal_delimiter: str = ', '
+  is_json: bool = True
 
   def fit(self, df):
     # Remove min_frequency
@@ -129,8 +129,8 @@ class MultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     rows = []
     for row in data:
       row_categories: list[str]
-      if self.category_regex is not None:
-        row_categories = list(map(lambda match: str(match.group(1)).strip(), re.finditer(self.category_regex, row)))
+      if self.is_json:
+        row_categories = list(json.loads(row))
       else:
         row_categories = list(map(lambda category: category.strip(), str(row).split(self.delimiter)))
       
@@ -143,14 +143,8 @@ class MultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     final_rows: list[str] = []
     for row in rows:
       filtered_row = list(filter(lambda category: category not in filtered_category_frequencies.index, row))
-      final_rows.append(self.internal_delimiter.join(filtered_row))
+      final_rows.append(json.dumps(filtered_row))
     df[self.name] = pd.Series(rows)
-  
-  def delimited(self, data: pd.Series)->list[list[str]]:
-    rows: list[list[str]] = []
-    for row in data:
-      rows.append(str(row).split(self.internal_delimiter))
-    return rows
   
 class GeospatialSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   latitude_dataset_name: str

@@ -6,7 +6,7 @@ import pydantic
 import pandas as pd
 
 from common.logger import RegisteredLogger
-from common.models.validators import CommonModelConfig, discriminated_union_model_validator
+from common.models.validators import CommonModelConfig, DiscriminatedUnionValidator
 from common.models.enum import ExposedEnum
 
 class DataSourceTypeEnum(str, Enum):
@@ -68,9 +68,7 @@ class ExcelDataSource(pydantic.BaseModel, BaseDataSource):
     logger.info(f"Loaded data source from {self.path}")
     return df
 
-DataSourceUnion = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type")]
-class DataSource(pydantic.RootModel[DataSourceUnion]):
-  _error_rewriter = discriminated_union_model_validator("type")
+DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [
   "DataSourceTypeEnum",

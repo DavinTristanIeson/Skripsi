@@ -40,8 +40,8 @@ class Config(pydantic.BaseModel):
       contents = json.load(f)
       return Config.model_validate(contents)
 
-  def save_to_json(self, folder_path: str):
-    config_file = os.path.join(folder_path, "config.json")
+  def save_to_json(self):
+    config_file = os.path.join(self.paths.project_path, "config.json")
     with open(config_file, 'w', encoding='utf-8') as f:
       json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
     return
