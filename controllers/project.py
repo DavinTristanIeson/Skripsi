@@ -7,7 +7,7 @@ from common.logger import RegisteredLogger
 from common.models.api import ApiError
 
 from models.config import Config, SchemaColumn, SchemaColumnTypeEnum, DocumentEmbeddingMethodEnum
-from models.project import InferDatasetColumnResource, InferDatasetCategoryFrequenciesResource, InferDatasetDescriptiveStatisticsResource
+from models.task import InferDatasetColumnResource, InferDatasetCategoryFrequenciesResource, InferDatasetDescriptiveStatisticsResource
 
 def get_project_config(project_id: str):
   return Config.from_project(project_id)

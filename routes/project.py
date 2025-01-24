@@ -2,6 +2,7 @@ import http
 import os
 from fastapi import APIRouter
 from common.models.api import ApiResult, ApiError
+from common.task.server import TaskServer
 import controllers
 from models.config import DATA_DIRECTORY, Config, ProjectPathManager
 from controllers.project import ProjectExistsDependency
@@ -104,6 +105,7 @@ async def update__project(old_config: ProjectExistsDependency, config: Config):
     os.rename(old_config.paths.project_path, config.paths.project_path)
 
   config.paths.cleanup()
+  TaskServer().clear_tasks(old_config.project_id)
   config.save_to_json()
 
   return ApiResult(
@@ -123,6 +125,7 @@ async def delete__project(project_id: str):
     raise ApiError(f"We cannot find any projects with ID: \"{project_id}\", perhaps it had been manually deleted by a user?", 404)
 
   manager.cleanup(all=True)
+  TaskServer().clear_tasks()
 
   return ApiResult(
     data=None,

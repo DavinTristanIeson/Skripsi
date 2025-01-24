@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import os
+import concurrent.futures
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,13 @@ import controllers
 import routes
 
 from common.logger import RegisteredLogger
+from common import task
+
+task_server = task.TaskServer()
+task_server.initialize(
+  handlers={},
+  pool=concurrent.futures.ThreadPoolExecutor(16)
+)
 
 @asynccontextmanager
 async def lifespan(app):
@@ -17,6 +25,8 @@ async def lifespan(app):
     yield
   except asyncio.exceptions.CancelledError:
     pass
+  task_server.clear_tasks()
+  task_server.pool.shutdown(cancel_futures=True)
 
 app = FastAPI(lifespan=lifespan)
 
@@ -35,10 +45,7 @@ RegisteredLogger().configure(
 )
 
 api_app = FastAPI(lifespan=lifespan)
-api_app.include_router(routes.association.router, prefix="/projects")
-api_app.include_router(routes.topics.router, prefix="/projects")
-api_app.include_router(routes.projects.router, prefix="/projects")
-api_app.include_router(routes.evaluation.router, prefix="/projects")
+api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.debug.router, prefix="/debug")
 controllers.exceptions.register_error_handlers(api_app)

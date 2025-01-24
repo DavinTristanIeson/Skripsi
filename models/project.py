@@ -7,7 +7,7 @@ import pandas as pd
 import pydantic
 from common.models.api import ApiError
 from common.models.validators import FilenameField
-from ..config import Config, SchemaColumnTypeEnum, DataSource
+from .config import Config, SchemaColumnTypeEnum, DataSource
 
 # Resource
 class ProjectLiteResource(pydantic.BaseModel):
