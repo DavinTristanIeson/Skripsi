@@ -7,7 +7,21 @@ import tqdm
 
 from common.models.enum import ExposedEnum
 
+
+class DocumentEmbeddingMethodEnum(str, Enum):
+  Doc2Vec = "doc2vec"
+  All_MiniLM_L6_V2 = "all-MiniLM-L6-v2"
+  TFIDF = "tfidf"
+
+ExposedEnum().register(DocumentEmbeddingMethodEnum)
+
+class DocumentPreprocessingMethodEnum(str, Enum):
+  English = "en_core_web_sm"
+
+ExposedEnum().register(DocumentPreprocessingMethodEnum)
+
 class TextPreprocessingConfig(pydantic.BaseModel):
+  pipeline_type: DocumentPreprocessingMethodEnum = DocumentPreprocessingMethodEnum.English
   ignore_tokens: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
   stopwords: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
   remove_email: bool = True
@@ -19,9 +33,15 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   min_document_length: int = pydantic.Field(default=5, gt=0)
   min_word_length: int = pydantic.Field(default=3, gt=0)
 
+  @property
+  def spacy_pipeline_name(self):
+    if self.pipeline_type == DocumentPreprocessingMethodEnum.English:
+      return "en_core_web_sm"
+    raise ValueError(f"Invalid pipeline type: {self.pipeline_type}")
+
   def load_nlp(self):
-    # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization. NER for detecting named entities.
-    nlp = spacy.load("en_core_web_sm", disable=["parser", "morphologizer"])
+    # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization.
+    nlp = spacy.load(self.spacy_pipeline_name, disable=["parser", "morphologizer", "ner"])
     nlp.Defaults.stop_words |= set(map(lambda x: x.lower(), self.stopwords))
     tokenizer: Any = nlp.tokenizer
     for token in self.ignore_tokens:
@@ -103,22 +123,13 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       corpus.append(filtered_doc)
     return corpus
 
-
-class DocumentEmbeddingMethodEnum(str, Enum):
-  Doc2Vec = "doc2vec"
-  EnglishSBERT = "english-sbert"
-  TFIDF = "tfidf"
-
-ExposedEnum().register(DocumentEmbeddingMethodEnum)
-
 class TopicModelingConfig(pydantic.BaseModel):
   low_memory: bool = False
   min_topic_size: int = pydantic.Field(default=15, gt=1)
   max_topic_size: float = pydantic.Field(default=1 / 5, gt=0.0, le=1.0)
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
   n_gram_range: tuple[int, int] = (1, 2)
-  seed_topics: Optional[Sequence[Sequence[str]]] = None
-  embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.Doc2Vec
+  embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
 
   @pydantic.field_validator("n_gram_range", mode="after")
   def __n_gram_range_validator(cls, value: tuple[int, int]):

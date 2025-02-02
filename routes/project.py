@@ -3,14 +3,17 @@ import os
 from fastapi import APIRouter
 from common.models.api import ApiResult, ApiError
 from common.task.server import TaskServer
+from common.logger import RegisteredLogger
 import controllers
-from models.config import DATA_DIRECTORY, Config, ProjectPathManager
+from models.config import DATA_DIRECTORY, Config, ProjectPathManager, ProjectPaths
 from controllers.project import ProjectExistsDependency
-from models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, InferDatasetColumnResource, ProjectLiteResource, ProjectResource
+from models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, InferDatasetColumnResource, ProjectLiteResource, ProjectResource, CheckDatasetColumnSchema
  
 router = APIRouter(
   tags=['Projects']
 )
+
+logger = RegisteredLogger().provision("Project Controller")
 
 @router.post(
   "/check-project-id", 
@@ -33,17 +36,30 @@ async def check_dataset(body: CheckDatasetSchema):
   df = body.root.load()
   columns: list[InferDatasetColumnResource] = []
   for column in df.columns:
-    columns.append(controllers.project.infer_column(column, df))
+    inferred = controllers.project.infer_column_without_type(column, df)
+    columns.append(inferred)
 
   return ApiResult(
     data=CheckDatasetResource(
       columns=columns,
       dataset_columns=list(df.columns),
-      preview_rows=df.to_dict(orient="records")
+      total_rows=len(df),
+      preview_rows=df.head().to_dict(orient="records")
     ),
     message=f"We have inferred the columns from the dataset at {body.root.path}. Next, please configure how you would like to process the individual columns."
   )
-    
+
+@router.post("/check-dataset-column")
+async def check_dataset_column(body: CheckDatasetColumnSchema):
+  df = body.source.load()
+  inferred: InferDatasetColumnResource = controllers.project.infer_column_by_type(body.column, df, body.dtype)
+
+  return ApiResult(
+    data=inferred,
+    message=None
+  )
+
+
 @router.get('/')
 async def get__projects():
   folder_name = os.path.join(os.getcwd(), DATA_DIRECTORY)
@@ -72,7 +88,7 @@ async def get__project(config: ProjectExistsDependency):
     data=ProjectResource(
       id=config.project_id,
       config=config,
-      path=Config.paths.project_path,
+      path=config.paths.project_path,
     ),
     message=None
   )
@@ -86,7 +102,20 @@ async def create__project(config: Config):
     raise ApiError(f"Project \"{config.project_id}\" already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
 
   os.makedirs(folder_path)
+
+  logger.info(f"Saving configuration to {config.paths.config_path}")
   config.save_to_json()
+
+  logger.info(f"Loading dataset from {config.source.path} with type {config.source.type}")
+  df = config.source.load()
+
+  logger.info(f"Fitting dataset")
+  df = config.data_schema.fit(df)
+  
+  workspace_path = config.paths.full_path(ProjectPaths.Workspace)
+  logger.info(f"Saving fitted dataset in {workspace_path}")
+  df.to_parquet(workspace_path)
+
   return ApiResult(
     data=ProjectResource(
       id=config.project_id,

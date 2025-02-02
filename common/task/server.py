@@ -83,11 +83,6 @@ class TaskServer(metaclass=Singleton):
   def result(self, id: str)->Optional[TaskResponse]:
     return self.results.get(id, None)
   
-  def sanity_check(self, id: str)->Optional[TaskResponse]:
-    sanity = TaskResponse.Idle(id)
-    with self.lock:
-      self.results[id] = sanity
-  
   def clear_tasks(self, prefix: Optional[str] = None):
     with self.lock:
       to_be_removed = filter(lambda x: prefix is None or x.startswith(prefix), list(self.results.keys()))

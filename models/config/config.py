@@ -1,4 +1,5 @@
-from typing import Any, cast
+import functools
+from typing import Any, Optional, cast
 import pydantic
 import json
 import os
@@ -24,8 +25,8 @@ class Config(pydantic.BaseModel):
   paths: ProjectPathManager = pydantic.Field(exclude=True)
   
   @pydantic.model_validator(mode="before")
-  def __validate__paths(self):
-    current: dict[str, Any] = cast(dict[str, Any], self)
+  @classmethod
+  def __validate__paths(cls, current: dict[str, Any]):
     if "project_id" in current and isinstance(current["project_id"], str):
       current["paths"] = ProjectPathManager(project_id=current["project_id"])
     return current

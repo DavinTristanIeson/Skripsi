@@ -4,8 +4,8 @@ from typing import Any, Callable, Optional
 
 import pydantic
 from common.logger import RegisteredLogger
-from models.task.requests import TaskRequest
-from models.task.responses import TaskResponse, TaskResponseData
+from .requests import TaskRequest
+from .responses import TaskResponse, TaskResponseData
 
 class TaskStepTracker(pydantic.BaseModel):
   max_steps: int

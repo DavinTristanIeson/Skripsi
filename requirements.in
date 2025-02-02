@@ -13,3 +13,4 @@ pandas==2.2.3 # Process dataframes
 fastparquet # Load parquet
 orjson # Faster JSON for plotly
 openpyxl
+ipykernel
