@@ -4,7 +4,7 @@ from pydantic import ConfigDict, ValidationError, ValidationInfo, WrapValidator,
 import pydantic
 from pydantic_core import InitErrorDetails
 
-CommonModelConfig = ConfigDict(use_enum_values=True)
+CommonModelConfig = ConfigDict(use_enum_values=True, arbitrary_types_allowed=True)
 
 def fix_discriminated_union_loc(v: Any, handler: Callable[[Any], None]):
   try:

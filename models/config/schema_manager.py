@@ -1,4 +1,5 @@
-from typing import Callable, Optional, Sequence, cast
+import functools
+from typing import Annotated, Callable, Optional, Sequence, cast
 
 import pandas as pd
 import pydantic
@@ -8,11 +9,8 @@ from common.models.api import ApiError
 from .schema import CategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
-class SchemaManager(pydantic.BaseModel):
-  columns: list[SchemaColumn]
 
-  @pydantic.field_validator("columns", mode="after")
-  def __validate_columns(cls, value: list[SchemaColumn]):
+def __validate_schema_manager_columns(value: list[SchemaColumn]):
     unique_names: set[str] = set()
     non_unique_names: set[str] = set()
     has_text_column = False
@@ -32,7 +30,50 @@ class SchemaManager(pydantic.BaseModel):
       raise ValueError(f"There should be at least one textual column in the dataset.")
 
     return list(filter(lambda x: x.active, value))
-      
+
+def __extend_schema_manager_columns(value: list[SchemaColumn]):
+    offset = 0
+    final_columns = list(value)
+    for idx, col in enumerate(value):
+      additional_internal_columns: Optional[list[SchemaColumn]] = None
+      if col.type == SchemaColumnTypeEnum.Temporal:
+        col = cast(TemporalSchemaColumn, col)
+        additional_internal_columns = [
+          col.year_column,
+          col.month_column,
+          col.day_of_week_column,
+          col.hour_column,
+        ]
+      elif col.type == SchemaColumnTypeEnum.Textual:
+        col = cast(TextualSchemaColumn, col)
+        additional_internal_columns = [
+          col.preprocess_column,
+          col.topic_column,
+        ]
+      if additional_internal_columns is None:
+        continue
+      for col in additional_internal_columns:
+        final_columns.insert(idx + offset, col)
+        offset += 1
+    return final_columns
+
+def __serialize_columns(value: list[SchemaColumn], handler):
+  return handler(list(filter(lambda x: not x.internal, value)))
+  
+  
+
+SchemaColumnListField = Annotated[
+  list[SchemaColumn],
+  pydantic.AfterValidator(__validate_schema_manager_columns),
+  pydantic.AfterValidator(__extend_schema_manager_columns),
+  pydantic.WrapSerializer(__serialize_columns)
+]
+class SchemaManager(pydantic.BaseModel):
+  columns: SchemaColumnListField
+
+  def as_dictionary(self)->dict[str, SchemaColumn]:
+    return {col.name: col for col in self.columns}
+
   def of_type(self, type: SchemaColumnTypeEnum)->list[SchemaColumn]:
     return list(filter(lambda x: x.type == type and x.active, self.columns))
   
@@ -68,13 +109,15 @@ class SchemaManager(pydantic.BaseModel):
   
   def fit(self, df: pd.DataFrame)->pd.DataFrame:
     try:
-      fitted_df = df.loc[:, [col.name for col in self.columns if col.active]]
+      fitted_df = df.loc[:, [col.name for col in self.columns if col.active and not col.internal]]
     except KeyError as e:
       raise KeyError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {str(e)}")
     
     for col in self.columns:
+      if col.internal:
+        continue
       with TimeLogger(logger, f"Fitting {col.name} ({col.type})"):
-        fitted_df[col.name] = col.fit(fitted_df[col.name])
+        col.fit(fitted_df)
     return fitted_df
     
-
+    
