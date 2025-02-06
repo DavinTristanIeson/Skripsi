@@ -5,17 +5,14 @@ import pandas as pd
 from common.logger import RegisteredLogger
 from common.models.api import ApiError
 
+from models.project.cache import ProjectCacheDependency
 from models.config import Config, SchemaColumn, SchemaColumnTypeEnum
-from models.project import InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource
+from models.project.project import InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource
 
-def get_project_config(project_id: str):
-  return Config.from_project(project_id)
 
-ProjectExistsDependency = Annotated[Config, Depends(get_project_config)]
-
-def get_data_column(config: ProjectExistsDependency, column: str = Query()):
+def get_data_column(cache: ProjectCacheDependency, column: str = Query()):
   try:
-    return config.data_schema.assert_exists(column)
+    return cache.config.data_schema.assert_exists(column)
   except KeyError:
     raise ApiError(f"Column {column} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
 SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(get_data_column)]
@@ -75,13 +72,11 @@ def infer_column_without_type(column: str, df: pd.DataFrame)->InferDatasetColumn
           return infer_column_by_type(column, df, SchemaColumnTypeEnum.Unique)
   except Exception as e:
     logger.error(e)
-
   logger.warning(f"Unable to infer any autofill values for column {column} as it doesn't fulfill any of the conditions.")
   return infer_column_by_type(column, df, SchemaColumnTypeEnum.Unique)
 
 
 __all__ = [
-  "ProjectExistsDependency",
   "SchemaColumnExistsDependency",
   "infer_column_without_type"
 ]

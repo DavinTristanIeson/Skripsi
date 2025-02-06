@@ -1,4 +1,5 @@
 import abc
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -10,7 +11,7 @@ from common.models.enum import ExposedEnum
 from common.models.validators import CommonModelConfig
 from models.config.schema import SchemaColumn, SchemaColumnTypeEnum
 
-class DatasetFilterTypeEnum(str, Enum):
+class TableFilterTypeEnum(str, Enum):
   # Special
   And = "and"
   Or = "or"
@@ -36,24 +37,24 @@ class DatasetFilterTypeEnum(str, Enum):
   Excludes = "excludes"
   Only = "only"
 
-ExposedEnum().register(DatasetFilterTypeEnum)
+ExposedEnum().register(TableFilterTypeEnum)
 
 ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS = [
-  DatasetFilterTypeEnum.Empty,
-  DatasetFilterTypeEnum.NotEmpty,
-  DatasetFilterTypeEnum.EqualTo,
-  DatasetFilterTypeEnum.IsOneOf,
+  TableFilterTypeEnum.Empty,
+  TableFilterTypeEnum.NotEmpty,
+  TableFilterTypeEnum.EqualTo,
+  TableFilterTypeEnum.IsOneOf,
 ]
 ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS = [
   *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
-  DatasetFilterTypeEnum.GreaterThan,
-  DatasetFilterTypeEnum.GreaterThanOrEqualTo,
-  DatasetFilterTypeEnum.LessThan,
-  DatasetFilterTypeEnum.LessThanOrEqualTo,
+  TableFilterTypeEnum.GreaterThan,
+  TableFilterTypeEnum.GreaterThanOrEqualTo,
+  TableFilterTypeEnum.LessThan,
+  TableFilterTypeEnum.LessThanOrEqualTo,
 ]
 ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS = [
   *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
-  DatasetFilterTypeEnum.HasText,
+  TableFilterTypeEnum.HasText,
 ]
 ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   SchemaColumnTypeEnum.Categorical: ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
@@ -65,23 +66,30 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   SchemaColumnTypeEnum.Temporal: ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.MultiCategorical: [
     *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
-    DatasetFilterTypeEnum.Excludes,
-    DatasetFilterTypeEnum.Includes,
-    DatasetFilterTypeEnum.Only,
+    TableFilterTypeEnum.Excludes,
+    TableFilterTypeEnum.Includes,
+    TableFilterTypeEnum.Only,
   ],
 }
 
-class DatasetFilterParams:
+class TableFilterParams(pydantic.BaseModel):
   data: pd.Series
   column: SchemaColumn
 
-class BaseDatasetFilter(pydantic.BaseModel, abc.ABC):
+class BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   model_config = CommonModelConfig
   target: str
   type: Any
  
   @abc.abstractmethod
-  def apply(self, params: DatasetFilterParams)->pd.Series[bool] | npt.NDArray:
+  def apply(self, params: TableFilterParams)->pd.Series[bool] | npt.NDArray:
+    pass
+
+class TableSort(pydantic.BaseModel, abc.ABC, frozen=True):
+  name: str
+  direction: int
+
+  def apply(self, params: TableFilterParams):
     pass
 
 

@@ -8,7 +8,7 @@ import pydantic
 from common.models.api import ApiError
 from common.models.validators import FilenameField, CommonModelConfig
 
-from .config import Config, SchemaColumnTypeEnum, DataSource
+from ..config import Config, SchemaColumnTypeEnum, DataSource
 
 # Resource
 class ProjectLiteResource(pydantic.BaseModel):
@@ -93,3 +93,16 @@ class CheckDatasetColumnSchema(pydantic.BaseModel):
   source: DataSourceField
   column: str
   dtype: SchemaColumnTypeEnum
+
+__all__ = [
+  "ProjectLiteResource",
+  "ProjectResource",
+
+  "InferDatasetColumnResource",
+  "InferDatasetDescriptiveStatisticsResource",
+  
+  "CheckDatasetColumnSchema",
+  "CheckDatasetSchema",
+  "CheckProjectIdSchema",
+  "CheckDatasetResource",
+]

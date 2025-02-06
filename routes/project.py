@@ -5,9 +5,19 @@ from common.models.api import ApiResult, ApiError
 from common.task.server import TaskServer
 from common.logger import RegisteredLogger
 import controllers
+from models.project import (
+  ProjectCacheManager,
+  get_cached_data_source,
+  ProjectCacheDependency, 
+  CheckDatasetResource,
+  CheckDatasetSchema,
+  CheckProjectIdSchema,
+  InferDatasetColumnResource,
+  ProjectLiteResource,
+  ProjectResource,
+  CheckDatasetColumnSchema
+)
 from models.config import DATA_DIRECTORY, Config, ProjectPathManager, ProjectPaths
-from controllers.project import ProjectExistsDependency
-from models.project import CheckDatasetResource, CheckDatasetSchema, CheckProjectIdSchema, InferDatasetColumnResource, ProjectLiteResource, ProjectResource, CheckDatasetColumnSchema
  
 router = APIRouter(
   tags=['Projects']
@@ -33,7 +43,7 @@ async def check_project(body: CheckProjectIdSchema):
 
 @router.post("/check-dataset")
 async def check_dataset(body: CheckDatasetSchema):
-  df = body.root.load()
+  df = get_cached_data_source(body.root)
   columns: list[InferDatasetColumnResource] = []
   for column in df.columns:
     inferred = controllers.project.infer_column_without_type(column, df)
@@ -51,7 +61,7 @@ async def check_dataset(body: CheckDatasetSchema):
 
 @router.post("/check-dataset-column")
 async def check_dataset_column(body: CheckDatasetColumnSchema):
-  df = body.source.load()
+  df = get_cached_data_source(body.source)
   inferred: InferDatasetColumnResource = controllers.project.infer_column_by_type(body.column, df, body.dtype)
 
   return ApiResult(
@@ -83,12 +93,12 @@ async def get__projects():
   )
 
 @router.get('/{project_id}')
-async def get__project(config: ProjectExistsDependency):
+async def get__project(cache: ProjectCacheDependency):
   return ApiResult(
     data=ProjectResource(
-      id=config.project_id,
-      config=config,
-      path=config.paths.project_path,
+      id=cache.id,
+      config=cache.config,
+      path=cache.config.paths.project_path,
     ),
     message=None
   )
@@ -126,7 +136,8 @@ async def create__project(config: Config):
   )
 
 @router.put('/{project_id}')
-async def update__project(old_config: ProjectExistsDependency, config: Config):
+async def update__project(cache: ProjectCacheDependency, config: Config):
+  old_config = cache.config
   if config.project_id != old_config.project_id:
     if os.path.isdir(config.paths.project_path):
       raise ApiError(f"Project '{config.project_id}' already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -135,6 +146,7 @@ async def update__project(old_config: ProjectExistsDependency, config: Config):
 
   config.paths.cleanup()
   TaskServer().clear_tasks(old_config.project_id)
+  ProjectCacheManager().invalidate(cache.id)
   config.save_to_json()
 
   return ApiResult(
@@ -155,6 +167,7 @@ async def delete__project(project_id: str):
 
   manager.cleanup(all=True)
   TaskServer().clear_tasks()
+  ProjectCacheManager().invalidate(project_id)
 
   return ApiResult(
     data=None,

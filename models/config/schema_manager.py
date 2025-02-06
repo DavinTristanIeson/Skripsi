@@ -1,4 +1,5 @@
 import functools
+import http
 from typing import Annotated, Callable, Optional, Sequence, cast
 
 import pandas as pd
@@ -104,14 +105,14 @@ class SchemaManager(pydantic.BaseModel):
       if col.name == name:
         column = col
     if column is None:
-      raise KeyError(f"Column {name} doesn't exist in the schema")
+      raise ApiError(f"Column {name} doesn't exist in the schema", http.HTTPStatus.NOT_FOUND)
     return column
   
   def fit(self, df: pd.DataFrame)->pd.DataFrame:
     try:
       fitted_df = df.loc[:, [col.name for col in self.columns if col.active and not col.internal]]
-    except KeyError as e:
-      raise KeyError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {str(e)}")
+    except ApiError as e:
+      raise ApiError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {str(e)}", http.HTTPStatus.NOT_FOUND)
     
     for col in self.columns:
       if col.internal:

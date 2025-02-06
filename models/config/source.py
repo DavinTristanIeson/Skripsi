@@ -1,6 +1,5 @@
 import abc
 from enum import Enum
-import functools
 from typing import Annotated, Literal, Optional, Union
 
 import pydantic
@@ -17,7 +16,7 @@ class DataSourceTypeEnum(str, Enum):
 
 ExposedEnum().register(DataSourceTypeEnum)
 
-class BaseDataSource(abc.ABC):
+class BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
   path: FilePathField
 
   @abc.abstractmethod
@@ -26,48 +25,34 @@ class BaseDataSource(abc.ABC):
 
 logger = RegisteredLogger().provision("Config")
 
-@functools.lru_cache(1)
-def load_csv(path: str, delimiter: str):
-  df = pd.read_csv(path, delimiter=delimiter, on_bad_lines="skip")
-  return df
-
-class CSVDataSource(pydantic.BaseModel, BaseDataSource):
+class CSVDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
   model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.CSV]
   delimiter: str = ','
 
   def load(self)->pd.DataFrame:
-    df = load_csv(self.path, self.delimiter)
+    df = pd.read_csv(self.path, delimiter=self.delimiter, on_bad_lines="skip")
     logger.info(f"Loaded data source from {self.path}")
     return df
 
-@functools.lru_cache(1)
-def load_parquet(path: str)->pd.DataFrame:
-  df = pd.read_parquet(path)
-  return df
-
-class ParquetDataSource(pydantic.BaseModel, BaseDataSource):
+class ParquetDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
   model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.Parquet]
   def load(self)->pd.DataFrame:
-    df = load_parquet(self.path)
+    df = pd.read_parquet(self.path)
     logger.info(f"Loaded data source from {self.path}")
     return df
   
-@functools.lru_cache(1)
-def load_excel(path: str, *, sheet_name: str)->pd.DataFrame:
-  kwargs = dict()
-  if sheet_name is not None:
-    kwargs["sheet_name"] = sheet_name
-  df = pd.read_excel(path)
-  return df
-class ExcelDataSource(pydantic.BaseModel, BaseDataSource):
+class ExcelDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
   model_config = CommonModelConfig
   type: Literal[DataSourceTypeEnum.Excel]
   sheet_name: Optional[str]
   
   def load(self)->pd.DataFrame:
-    df = load_excel(self.path, sheet_name=self.sheet_name)
+    kwargs = dict()
+    if self.sheet_name is not None:
+      kwargs["sheet_name"] = self.sheet_name
+    df = pd.read_excel(self.path)
     logger.info(f"Loaded data source from {self.path}")
     return df
 
@@ -77,5 +62,5 @@ __all__ = [
   "DataSourceTypeEnum",
   "ExcelDataSource",
   "CSVDataSource",
-  "DataSource"
+  "DataSource",
 ]
