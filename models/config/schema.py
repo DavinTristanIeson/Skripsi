@@ -86,7 +86,6 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
     last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
     bin_categories[len(histogram_edges)] = f"B{last_bin_id}: [{last_histogram_edge_str}, inf)"
-    print(histogram_edges, bin_categories)
     
     categorical_bins = categorical_bins.rename_categories(bin_categories)
     categorical_bins = categorical_bins.set_categories(sorted(bin_categories.values()), ordered=True)

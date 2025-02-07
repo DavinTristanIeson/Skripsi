@@ -2,18 +2,16 @@ from dataclasses import dataclass, field
 import functools
 import itertools
 import threading
-from typing import Annotated, Sequence
+from typing import Annotated, Optional, Sequence
 
 from fastapi import Depends
 from common.logger import RegisteredLogger
 from common.models.metaclass import Singleton
-from common.storage.cache import CacheClient
+from common.storage.cache import CacheClient, CacheItem
 from models.config import Config
 import pandas as pd
 
 from models.config.source import DataSource
-from models.table.filter import TableSort
-from models.table.filter_variants import TableFilter
 
 logger = RegisteredLogger().provision("CacheClient")
 
@@ -26,13 +24,20 @@ class ProjectCache:
     init=False,
   )
 
-  @classmethod
-  def workspace_key(cls, filters: Sequence[TableFilter], sorts: Sequence[TableSort]):
-    if len(filters) == 0:
-      return ''
-    return ' '.join([hex(hash(filter)) for filter in itertools.chain(filters, sorts)])
-
-
+  def load_workspace(self)->pd.DataFrame:
+    empty_key = ''
+    cached_df = self.workspaces.get(empty_key)
+    if cached_df is not None:
+      return cached_df
+    
+    df = self.config.paths.load_workspace()
+    self.workspaces.set(CacheItem(
+      key=empty_key,
+      value=df,
+      persistent=True
+    ))
+    return df
+  
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]
   lock: threading.Lock

@@ -9,6 +9,7 @@ import pydantic
 
 from common.models.enum import ExposedEnum
 from common.models.validators import CommonModelConfig
+from models.config.config import Config
 from models.config.schema import SchemaColumn, SchemaColumnTypeEnum
 
 class TableFilterTypeEnum(str, Enum):
@@ -72,22 +73,28 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   ],
 }
 
-class TableFilterParams(pydantic.BaseModel):
-  data: pd.Series
-  column: SchemaColumn
-
+@dataclass
+class TableFilterParams:
+  data: pd.DataFrame
+  config: Config
 class BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   model_config = CommonModelConfig
   target: str
   type: Any
  
   @abc.abstractmethod
-  def apply(self, params: TableFilterParams)->pd.Series[bool] | npt.NDArray:
+  def apply(self, params: TableFilterParams)->pd.Series | npt.NDArray:
+    pass
+
+class BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
+  model_config = CommonModelConfig
+  @abc.abstractmethod
+  def apply(self, params: TableFilterParams)->pd.Series | npt.NDArray:
     pass
 
 class TableSort(pydantic.BaseModel, abc.ABC, frozen=True):
   name: str
-  direction: int
+  asc: bool
 
   def apply(self, params: TableFilterParams):
     pass

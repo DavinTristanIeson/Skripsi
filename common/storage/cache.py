@@ -43,7 +43,7 @@ class CacheClient(Generic[T]):
         self.records.pop(key, None)
         return None
       # LRU
-      logger.debug(f"[{self.name}] GET {key} (CACHE HIT): {value}")
+      logger.debug(f"[{self.name}] GET {key} (CACHE HIT)")
       self.records.move_to_end(key)
       return value.value
     
@@ -71,7 +71,7 @@ class CacheClient(Generic[T]):
 
   def set(self, value: CacheItem[T]):
     self.records[value.key] = value
-    logger.debug(f"[{self.name}] SET {value.key}: {value}")
+    logger.debug(f"[{self.name}] SET {value.key}")
     if len(self.records) == 0:
       return
     if len(self.records) > self.maxsize:
