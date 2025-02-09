@@ -28,7 +28,6 @@ class TaskResponse(pydantic.BaseModel):
   data: TaskResponseData.DiscriminatedUnion
   status: TaskStatus
   message: Optional[str] = None
-  progress: float = 0
   timestamp: datetime.datetime = pydantic.Field(
     default_factory=lambda: datetime.datetime.now()
   )
@@ -38,17 +37,15 @@ class TaskResponse(pydantic.BaseModel):
     return TaskResponse(
       data=data,
       message=message,
-      progress=1,
       status=TaskStatus.Success,
       id=id,
     )
 
   @staticmethod
-  def Pending(id: str, progress: float, message: str):
+  def Pending(id: str, message: str):
     return TaskResponse(
       data=TaskResponseData.Empty(),
       message=message,
-      progress=progress,
       status=TaskStatus.Pending,
       id=id,
     )
@@ -58,7 +55,6 @@ class TaskResponse(pydantic.BaseModel):
     return TaskResponse(
       data=TaskResponseData.Empty(),
       message=error_message,
-      progress=1,
       status=TaskStatus.Failed,
       id=id,
     )
@@ -68,7 +64,6 @@ class TaskResponse(pydantic.BaseModel):
     return TaskResponse(
       data=TaskResponseData.Empty(),
       message=None,
-      progress=0,
       status=TaskStatus.Idle,
       id=id,
     )

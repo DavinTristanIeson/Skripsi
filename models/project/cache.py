@@ -30,7 +30,7 @@ class ProjectCache:
     if cached_df is not None:
       return cached_df
     
-    df = self.config.paths.load_workspace()
+    df = self.config.load_workspace()
     self.workspaces.set(CacheItem(
       key=empty_key,
       value=df,

@@ -1,7 +1,9 @@
+import http
+import json
 import os
 import shutil
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
@@ -23,13 +25,22 @@ class ProjectPaths(SimpleNamespace):
   Config = "config.json"
   
   Workspace = "workspace.parquet"
-  Topics = "topics.parquet"
-  TopicHierarchy = "topic-hierarchy.parquet"
-  Metadata = 'metadata'
+  Topics = "topics.json"
 
   Embeddings = "embeddings"
+  def DocumentEmbeddings(self, column: str):
+    return os.path.join(self.Embeddings, column, "document_embeddings.npy")
+  
+  def UMAPEmbeddings(self, column: str):
+    return os.path.join(self.Embeddings, column, "umap_embeddings.npy")
+
+  def VisualizationEmbeddings(self, column: str):
+    return os.path.join(self.Embeddings, column, "visualization_embeddings.npy")
+  
+  def EmbeddingModel(self, column: str, model: str):
+    return os.path.join(self.Embedding, column, model)
+
   BERTopic = 'bertopic'
-  Evaluation = "evaluation.json"
 
 logger = RegisteredLogger().provision("Wordsmith Data Loader")
 
@@ -67,6 +78,11 @@ class ProjectPathManager(pydantic.BaseModel):
     if not os.path.exists(path):
       raise ApiError(f"{path} does not exist. Perhaps the file has not been created yet.", 404)
     return path
+  
+  def allocate_path(self, path: str)->str:
+    dirpath = os.path.dirname(path)
+    os.makedirs(dirpath, exist_ok=True)
+    return dirpath
 
   @property
   def config_path(self):
@@ -75,50 +91,15 @@ class ProjectPathManager(pydantic.BaseModel):
   @file_loading_error_handler("workspace table")
   def load_workspace(self)->pd.DataFrame:
     path = self.full_path(ProjectPaths.Workspace)
-    return pd.read_parquet(path)
-      
-  @file_loading_error_handler("document embeddings")
-  def load_embeddings(self, column: str)->npt.NDArray:
-    path = self.assert_path(os.path.join(ProjectPaths.Embeddings, f"{column}.npy"))
-    return np.load(path)
-
-  @file_loading_error_handler("BERTopic model")
-  def load_bertopic(self, column: str)->"bertopic.BERTopic":
-    import bertopic
-    path = self.assert_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
-    return bertopic.BERTopic.load(path)
-  
+ 
   @file_loading_error_handler("topic information")
-  def load_topics(self)->pd.DataFrame:
+  def load_topics(self)->Any:
     path = self.assert_path(ProjectPaths.Topics)
-    return pd.read_parquet(path)
-  
-  @file_loading_error_handler("topic hierarchy information")
-  def load_topic_hierarchy(self)->pd.DataFrame:
-    path = self.assert_path(ProjectPaths.TopicHierarchy)
-    return pd.read_parquet(path)
-  
-  @file_loading_error_handler("additional information for rows")
-  def load_row_metadata(self)->pd.DataFrame:
-    path = self.assert_path(ProjectPaths.Metadata)
-    return pd.read_parquet(path)
-  
-  def load_evaluation(self, column: str)->ProjectTopicsEvaluationResult:
-    import json
-
-    topics_path = self.full_path(os.path.join(ProjectPaths.BERTopic, f"{column}"))
-    if not os.path.exists(topics_path):
-      raise ApiError(f"The topic modeling procedure has not been run on {column} so we cannot determine the quality of the topics.", 400)
-    path = self.assert_path(os.path.join(ProjectPaths.Evaluation))
-    if not os.path.exists(path):
-      raise ApiError(f"The quality of the topics discovered in {column} has never been evaluated before. Please manually start the topic evaluation procedure.", 400)
-    
-    try:
-      with open(path) as f:
-        return ProjectTopicsEvaluationResult.model_validate(json.load(f))
-    except Exception as e:
-      logger.error(f"Failed to load evaluation data. Error => {e}")
-      raise ApiError(f"An unexpected error has occurred while loading evaluation data from {ProjectPaths.Evaluation}. The file may have been corrupted; try to delete the file and then execute the topic evaluation procedure again.", 500)
+    with open(path, 'r', encoding='utf-8') as f:
+      try:
+        return json.load(f)
+      except json.decoder.JSONDecodeError:
+        raise ApiError(f"Failed to load topic information from {path}. The file may be corrupted or outdated. Please run the topic modeling procedure again.", http.HTTPStatus.BAD_REQUEST)
   
   def cleanup(self, all: bool = False):
     directories = [
@@ -127,10 +108,7 @@ class ProjectPathManager(pydantic.BaseModel):
     ]
     files = [
       self.full_path(ProjectPaths.Workspace),
-      self.full_path(ProjectPaths.Evaluation),
       self.full_path(ProjectPaths.Topics),
-      self.full_path(ProjectPaths.TopicHierarchy),
-      self.full_path(ProjectPaths.Metadata),
     ]
 
     if all:

@@ -1,5 +1,5 @@
-import functools
 from typing import Any, Optional, cast
+import pandas as pd
 import pydantic
 import json
 import os
@@ -46,6 +46,15 @@ class Config(pydantic.BaseModel):
     with open(config_file, 'w', encoding='utf-8') as f:
       json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
     return
+  
+  def load_workspace(self)->pd.DataFrame:
+    # Fix fastparquet limitation wherein it doesn't preserve ordered flag.
+    df = self.paths.load_workspace()
+    for col in self.data_schema.categorical():
+      # Set ordered categories
+      df[col.name] = col.fit(df[col.name]) # type: ignore
+    return df
+      
 
 __all__ = [
   "Config",

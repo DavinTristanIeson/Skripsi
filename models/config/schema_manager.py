@@ -120,5 +120,5 @@ class SchemaManager(pydantic.BaseModel):
       with TimeLogger(logger, f"Fitting {col.name} ({col.type})"):
         col.fit(fitted_df)
     return fitted_df
-    
+
     

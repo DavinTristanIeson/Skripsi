@@ -35,23 +35,27 @@ class TaskPayload:
     if self.stop_event.is_set():
       raise Exception("This process has been cancelled.")
 
-  def progress(self, progress: float, message: str):
+  def progress(self, message: str):
+    logger.info(message)
     with self.lock:
-      self.results[self.id] = TaskResponse.Pending(self.id, progress, message)
+      self.results[self.id] = TaskResponse.Pending(self.id, message)
     self.check_stop()
     
   def success(self, data: TaskResponseData.TypeUnion, message: Optional[str]):
+    logger.info(message)
     with self.lock:
       self.results[self.id] = TaskResponse.Success(self.id, data, message)
     self.check_stop()
   
   def error(self, error: Exception):
+    logger.error(str(error))
     if self.stop_event.is_set():
       # No need report. Parent process is already aware
       return
     with self.lock:
       self.results[self.id] = TaskResponse.Error(self.id, str(error))
     self.stop_event.set()
+    raise error
 
 
 TaskHandlerFn = Callable[[TaskPayload], None]

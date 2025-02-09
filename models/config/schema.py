@@ -98,19 +98,23 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   category_order: Optional[list[str]] = None
   alphanumeric_order: bool = False
   def fit(self, df):
-    data = df[self.name].astype(str)
-    if self.category_order is None:
-      new_data = pd.Categorical(data)
+    raw_data = df[self.name]
+    if raw_data.dtype == 'category':
+      data = raw_data
+    else:  
+      data = pd.Categorical(raw_data.astype(str))
+
+    category_order: Optional[list[str]] = None  
+    if self.category_order is not None:
+      category_order = self.category_order
     elif self.alphanumeric_order:
-      new_data = pd.Categorical(data, ordered=True)
-      new_data = new_data.reorder_categories(sorted(new_data.categories))
-    else:
-      new_data = pd.Categorical(
-        data,
-        ordered=True,
-        categories=self.category_order
-      )
-    df[self.name] = new_data
+      category_order = sorted(data.categories)
+
+    data = data.reorder_categories(
+      category_order,
+      ordered=True
+    )
+    df[self.name] = data
 
 class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
@@ -134,16 +138,6 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       name=f"{self.name} (Topic)",
       internal=True
     )
-  
-  def preprocess(self, data: pd.Series):
-    isna_mask = data.isna()
-    new_data = data.astype(str)
-    new_data[isna_mask] = ''
-    documents = cast(Sequence[str], new_data[~isna_mask])
-
-    preprocessed_documents = tuple(map(lambda x: ' '.join(x), self.preprocessing.preprocess(documents)))
-    new_data[~isna_mask] = preprocessed_documents
-    return new_data
 
 class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig

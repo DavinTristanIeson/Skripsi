@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, Sequence
 import gensim
@@ -70,10 +71,13 @@ class TextPreprocessingConfig(pydantic.BaseModel):
           sbert_tokens.append("URL")
           continue
         sbert_tokens.append(token.text_with_ws)
-      sbert_corpus.append(' '.join(sbert_tokens))
+      if len(sbert_tokens) == 0:
+        sbert_corpus.append(None) # type: ignore
+      else:
+        sbert_corpus.append(' '.join(sbert_tokens))
     return sbert_corpus
 
-  def preprocess(self, raw_documents: Sequence[str])->list[list[str]]:
+  def preprocess_topic_keywords(self, raw_documents: Sequence[str])->list[str]:
     nlp = self.load_nlp()
     greedy_corpus: list[list[str]] = []
     dictionary = gensim.corpora.Dictionary()
@@ -114,19 +118,33 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       keep_tokens=self.ignore_tokens
     )
 
-    corpus: list[list[str]] = []
+    corpus: list[str] = []
     for doc in greedy_corpus:
       filtered_doc = list(filter(lambda token: token in dictionary.token2id, doc))
       if len(filtered_doc) < self.min_document_length:
-        corpus.append([])
+        corpus.append(None) # type: ignore
         continue
-      corpus.append(filtered_doc)
+      corpus.append(' '.join(filtered_doc))
     return corpus
+  
 
 class TopicModelingConfig(pydantic.BaseModel):
   low_memory: bool = False
+
+  # https://stackoverflow.com/questions/67898039/hdbscan-difference-between-parameters
+
+  # Minimal number of topics
   min_topic_size: int = pydantic.Field(default=15, gt=1)
+  # Maximum number of topics
   max_topic_size: float = pydantic.Field(default=1 / 5, gt=0.0, le=1.0)
+
+  # Higher value produces more outliers. Lower value might make outliers be included into the topics. This corresponds to HDBSCAN min_samples * min_cluster_size
+  clustering_conservativeness: float = pydantic.Field(default=1, gt=0.0, le=1.0)
+  
+  # Corresponds to UMAP n_neighbors parameter. By default we set this equal to min_topic_size. We keep min_dist=0.1 to help clustering since higher min_dist softens the grouping.
+  # This determines the shape of the embedding. Higher values means UMAP will consider the global structure more when reducing the dimensions of the embedding.
+  globality_consideration: Optional[int] = pydantic.Field(default=None, gt=1)
+
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
   n_gram_range: tuple[int, int] = (1, 2)
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
