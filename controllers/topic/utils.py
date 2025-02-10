@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -9,13 +10,20 @@ from models.config.paths import ProjectPaths
 from models.config.schema import TextualSchemaColumn
 import numpy.typing as npt
 
+if TYPE_CHECKING:
+  from sklearn.base import BaseEstimator
+
 @dataclass
 class BERTopicColumnIntermediateResult:
+  config: Config
+  embedding_documents: list[str]
   documents: list[str]
-  # Marks which documents
+  # Marks which documents are excluded
   mask: pd.Series
   column: TextualSchemaColumn
   embeddings: npt.NDArray
+  embedding_model: BaseEstimator
+  task: TaskPayload
 
 def assert_valid_workspace_for_topic_modeling(df: pd.DataFrame, task: TaskPayload, config: Config):
   workspace_path = config.paths.full_path(ProjectPaths.Workspace)

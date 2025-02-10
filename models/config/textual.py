@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, Sequence
-import gensim
 import pydantic
-import spacy
 import tqdm
 
 from common.models.enum import ExposedEnum
@@ -12,7 +10,7 @@ from common.models.enum import ExposedEnum
 class DocumentEmbeddingMethodEnum(str, Enum):
   Doc2Vec = "doc2vec"
   All_MiniLM_L6_V2 = "all-MiniLM-L6-v2"
-  TFIDF = "tfidf"
+  LSA = "lsa"
 
 ExposedEnum().register(DocumentEmbeddingMethodEnum)
 
@@ -41,6 +39,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     raise ValueError(f"Invalid pipeline type: {self.pipeline_type}")
 
   def load_nlp(self):
+    import spacy
     # Tok2vec is needed for POS tagging, POS tagging and attribute ruler is needed for rule-based lemmatization.
     nlp = spacy.load(self.spacy_pipeline_name, disable=["parser", "morphologizer", "ner"])
     nlp.Defaults.stop_words |= set(map(lambda x: x.lower(), self.stopwords))
@@ -78,9 +77,11 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     return sbert_corpus
 
   def preprocess_topic_keywords(self, raw_documents: Sequence[str])->list[str]:
+    from gensim.corpora import Dictionary
+    
     nlp = self.load_nlp()
     greedy_corpus: list[list[str]] = []
-    dictionary = gensim.corpora.Dictionary()
+    dictionary = Dictionary()
     
     spacy_docs = nlp.pipe(raw_documents)
     for doc in tqdm.tqdm(spacy_docs, desc="Preprocessing documents...", total=len(raw_documents)):

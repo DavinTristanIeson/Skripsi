@@ -1,9 +1,7 @@
-import http
-import json
 import os
 import shutil
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -28,17 +26,22 @@ class ProjectPaths(SimpleNamespace):
   Topics = "topics.json"
 
   Embeddings = "embeddings"
-  def DocumentEmbeddings(self, column: str):
-    return os.path.join(self.Embeddings, column, "document_embeddings.npy")
-  
-  def UMAPEmbeddings(self, column: str):
-    return os.path.join(self.Embeddings, column, "umap_embeddings.npy")
 
-  def VisualizationEmbeddings(self, column: str):
-    return os.path.join(self.Embeddings, column, "visualization_embeddings.npy")
+  @staticmethod
+  def DocumentEmbeddings(column: str):
+    return os.path.join(ProjectPaths.Embeddings, column, "document_embeddings.npy")
+
+  @staticmethod
+  def UMAPEmbeddings(column: str):
+    return os.path.join(ProjectPaths.Embeddings, column, "umap_embeddings.npy")
   
-  def EmbeddingModel(self, column: str, model: str):
-    return os.path.join(self.Embedding, column, model)
+  @staticmethod
+  def VisualizationEmbeddings(column: str):
+    return os.path.join(ProjectPaths.Embeddings, column, "visualization_embeddings.npy")
+  
+  @staticmethod
+  def EmbeddingModel(column: str, model: str):
+    return os.path.join(ProjectPaths.Embeddings, column, model)
 
   BERTopic = 'bertopic'
 
@@ -74,21 +77,7 @@ class ProjectPathManager(pydantic.BaseModel):
   def config_path(self):
     return self.full_path(ProjectPaths.Config)
 
-  def cleanup(self, all: bool = False):
-    directories = [
-      self.full_path(ProjectPaths.Embeddings),
-      self.full_path(ProjectPaths.BERTopic),
-    ]
-    files = [
-      self.full_path(ProjectPaths.Workspace),
-      self.full_path(ProjectPaths.Topics),
-    ]
-
-    if all:
-      files.extend([
-        self.full_path(ProjectPaths.Config),
-      ])
-
+  def __cleanup(self, directories: list[str], files: list[str]):
     try:
       for dir in directories:
         if os.path.exists(dir):
@@ -111,3 +100,29 @@ class ProjectPathManager(pydantic.BaseModel):
       else:
         logger.warning(f"Skipping the deletion of {self.project_path} as there are non-managed files in the folder: {remaining_files}")
 
+  def cleanup(self, all: bool = False):
+    directories = [
+      self.full_path(ProjectPaths.Embeddings),
+      self.full_path(ProjectPaths.BERTopic),
+    ]
+    files = [
+      self.full_path(ProjectPaths.Workspace),
+      self.full_path(ProjectPaths.Topics),
+    ]
+
+    if all:
+      files.extend([
+        self.full_path(ProjectPaths.Config),
+      ])
+    self.__cleanup(directories, files)
+
+  def cleanup_topic_modeling(self, all: bool = False):
+    directories = [
+      self.full_path(ProjectPaths.Embeddings),
+      self.full_path(ProjectPaths.BERTopic),
+    ]
+    files = [
+      self.full_path(ProjectPaths.Topics),
+    ]
+
+    self.__cleanup(directories, files)

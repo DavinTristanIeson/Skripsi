@@ -3,6 +3,7 @@ import pandas as pd
 
 from common.logger import TimeLogger
 from common.task.executor import TaskPayload
+from controllers.topic.dimensionality_reduction import BERTopicCachedUMAP
 from controllers.topic.interpret import bertopic_topic_labels
 from controllers.topic.utils import BERTopicColumnIntermediateResult
 from models.config.config import Config
@@ -24,7 +25,8 @@ def topic_modeling(
   from umap import UMAP
 
   column = intermediate.column
-  documents = intermediate.documents
+  config = intermediate.config
+  documents = intermediate.embedding_documents
   mask = intermediate.mask
   embeddings = intermediate.embeddings
 
@@ -37,13 +39,9 @@ def topic_modeling(
   if column.topic_modeling.min_topic_size >= max_cluster_size:
     raise ValueError("Min. topic size should not be greater than max. topic size. Please set a higher max topic size. Note: This can also happen if you have too few valid documents to analyze.")
   
-  umap_model = UMAP(
-    n_neighbors=column.topic_modeling.globality_consideration or column.topic_modeling.min_topic_size,
-    min_dist=0.1,
-    # BERTopic uses 5 dimensions
-    n_components=5,
-    metric="euclidean",
-    low_memory=column.topic_modeling.low_memory
+  umap_model = BERTopicCachedUMAP(
+    paths=config.paths,
+    column=column,
   )
 
   hdbscan_model = hdbscan.HDBSCAN(
@@ -67,11 +65,12 @@ def topic_modeling(
   )
 
   model = bertopic.BERTopic(
-    umap_model=umap_model,
+    umap_model=umap_model, # type: ignore
     hdbscan_model=hdbscan_model,
     ctfidf_model=ctfidf_model,
     vectorizer_model=vectorizer_model,
-    representation_model=bertopic.representation.MaximalMarginalRelevance(),
+    top_n_words=50,
+    representation_model=bertopic.representation.MaximalMarginalRelevance(top_n_words=50),
     low_memory=column.topic_modeling.low_memory,
     calculate_probabilities=False,
     verbose=True,
@@ -94,14 +93,14 @@ def topic_modeling(
   if column.topic_modeling.no_outliers:
     topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=embeddings)
     if column.topic_modeling.represent_outliers:
-      model.update_topics(intermediate.documents, topics=topics)
+      model.update_topics(intermediate.embedding_documents, topics=topics)
 
   topic_labels = bertopic_topic_labels(model)
   if model._outliers:
     topic_labels.insert(0, '')
   model.set_topic_labels(topic_labels)
 
-  topic_number_column = pd.Series(np.full(len(intermediate.documents), -1), dtype=np.int32)
+  topic_number_column = pd.Series(np.full(len(intermediate.embedding_documents), -1), dtype=np.int32)
   topic_number_column[intermediate.mask] = topics
 
   labels_mapper = {k: v for k, v in enumerate(topic_labels)}
