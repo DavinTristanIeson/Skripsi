@@ -44,20 +44,6 @@ class ProjectPaths(SimpleNamespace):
 
 logger = RegisteredLogger().provision("Wordsmith Data Loader")
 
-def file_loading_error_handler(entity_type: str):
-  def decorator(fn):
-    def inner(*args, **kwargs):
-      try:
-        return fn(*args, **kwargs)
-      except ApiError as e:
-        # Ignore api errors
-        raise e
-      except Exception as e:
-        logger.error(f"Failed to load the {entity_type}. Error: {e}")
-        raise ApiError(f"Failed to load the {entity_type}. Please wait for the topic modeling procedure to finish. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
-    return inner
-  return decorator
-
 class ProjectPathManager(pydantic.BaseModel):
   project_id: str
 
@@ -88,19 +74,6 @@ class ProjectPathManager(pydantic.BaseModel):
   def config_path(self):
     return self.full_path(ProjectPaths.Config)
 
-  @file_loading_error_handler("workspace table")
-  def load_workspace(self)->pd.DataFrame:
-    path = self.full_path(ProjectPaths.Workspace)
- 
-  @file_loading_error_handler("topic information")
-  def load_topics(self)->Any:
-    path = self.assert_path(ProjectPaths.Topics)
-    with open(path, 'r', encoding='utf-8') as f:
-      try:
-        return json.load(f)
-      except json.decoder.JSONDecodeError:
-        raise ApiError(f"Failed to load topic information from {path}. The file may be corrupted or outdated. Please run the topic modeling procedure again.", http.HTTPStatus.BAD_REQUEST)
-  
   def cleanup(self, all: bool = False):
     directories = [
       self.full_path(ProjectPaths.Embeddings),
@@ -136,5 +109,5 @@ class ProjectPathManager(pydantic.BaseModel):
           logger.error(f"An error has occurred while deleting {self.project_path}. Error => {e}")
           raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)
       else:
-        logger.warn(f"Skipping the deletion of {self.project_path} as there are non-wordsmith-managed files in the folder: {remaining_files}")
+        logger.warning(f"Skipping the deletion of {self.project_path} as there are non-managed files in the folder: {remaining_files}")
 

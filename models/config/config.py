@@ -10,7 +10,7 @@ from common.models.api import ApiError
 from common.models.validators import FilenameField
 from .schema_manager import SchemaManager
 from .source import DataSource
-from .paths import DATA_DIRECTORY, ProjectPathManager
+from .paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 
   
 logger = RegisteredLogger().provision("Config")
@@ -49,13 +49,17 @@ class Config(pydantic.BaseModel):
   
   def load_workspace(self)->pd.DataFrame:
     # Fix fastparquet limitation wherein it doesn't preserve ordered flag.
-    df = self.paths.load_workspace()
+    path = self.paths.full_path(ProjectPaths.Workspace)
+    try:
+      df = pd.read_parquet(path)
+    except Exception as e:
+      logger.error(e)
+      raise ApiError(f"Failed to load the workspace table from {path}. Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
     for col in self.data_schema.categorical():
       # Set ordered categories
       df[col.name] = col.fit(df[col.name]) # type: ignore
     return df
       
-
 __all__ = [
   "Config",
 ]

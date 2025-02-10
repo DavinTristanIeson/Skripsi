@@ -1,3 +1,5 @@
+import http
+import os
 from typing import Annotated, Optional
 
 from fastapi import Depends, Query
@@ -5,9 +7,8 @@ import pandas as pd
 from common.logger import RegisteredLogger
 from common.models.api import ApiError
 
-from models.project.cache import ProjectCacheDependency
-from models.config import Config, SchemaColumn, SchemaColumnTypeEnum
-from models.project.project import InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource
+from models.config import Config, SchemaColumn, SchemaColumnTypeEnum, ProjectPathManager, ProjectPaths
+from models.project import InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource, ProjectCacheDependency, ProjectCacheManager
 
 
 def get_data_column(cache: ProjectCacheDependency, column: str = Query()):
@@ -75,8 +76,17 @@ def infer_column_without_type(column: str, df: pd.DataFrame)->InferDatasetColumn
   logger.warning(f"Unable to infer any autofill values for column {column} as it doesn't fulfill any of the conditions.")
   return infer_column_by_type(column, df, SchemaColumnTypeEnum.Unique)
 
+def assert_project_id_doesnt_exist(project_id: str):
+  paths = ProjectPathManager(project_id=project_id)
+  if os.path.exists(paths.project_path):
+    raise ApiError(f"Project \"{project_id}\" already exists. Please try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+
+# This is not cached
+ProjectExistsDependency = Annotated[Config, Depends(Config.from_project)]
 
 __all__ = [
   "SchemaColumnExistsDependency",
-  "infer_column_without_type"
+  "infer_column_without_type",
+  "assert_project_id_doesnt_exist",
+  "ProjectExistsDependency"
 ]

@@ -50,6 +50,9 @@ class TableEngine:
     with TimeLogger("TableFilter", title="Applying sort to dataset..."):
       return df.sort_values(by=sort.name, ascending=sort.asc)
     
+  def reorder(self, df: pd.DataFrame):
+    return self.config.data_schema.reorder(df, all=False)
+    
   def paginate(self, df: pd.DataFrame, params: PaginationParams):
     active_columns = filter(lambda x: x.active, self.config.data_schema.columns)
     active_column_names = map(lambda x: x.name, active_columns)
@@ -79,5 +82,5 @@ class TableEngine:
       to_idx = (page + 1) * params.limit
       df = df.iloc[from_idx:to_idx, :]
 
-    return df
+    return self.reorder(df)
     

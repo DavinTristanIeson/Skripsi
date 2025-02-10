@@ -183,11 +183,14 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
 
   def fit(self, df):
-    kwargs = dict()
-    if self.datetime_format is not None:
-      kwargs["format"] = self.datetime_format
-    datetime_column = pd.to_datetime(df[self.name], **kwargs)
-    df[self.name] = datetime_column
+    if not pd.api.types.is_datetime64_any_dtype(df[self.name]):
+      kwargs = dict()
+      if self.datetime_format is not None:
+        kwargs["format"] = self.datetime_format
+      datetime_column = pd.to_datetime(df[self.name], **kwargs)
+      df[self.name] = datetime_column
+    else:
+      datetime_column = df[self.name]
 
     year_column = pd.Categorical(datetime_column.dt.year)
     year_column = year_column.rename_categories({v: str(v) for v in year_column.categories})
@@ -233,12 +236,14 @@ class GeospatialSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   def fit(self, df):
     # Latitude range is [-90, 90]. Longtitude range is [-180, 180]
     data = df[self.name].astype(np.float64)
-    if self.role == GeospatialRoleEnum.Latitude:
-      latitude_mask = np.bitwise_or(data < -90, data > 90)
-      data[latitude_mask] = pd.NA
-    else:
-      longitude_mask = np.bitwise_or(data < -180, data > 180)
-      data[longitude_mask] = pd.NA
+
+    # This messes things up if this column is ever changed to Continuous.
+    # if self.role == GeospatialRoleEnum.Latitude:
+    #   latitude_mask = np.bitwise_or(data < -90, data > 90)
+    #   data[latitude_mask] = pd.NA
+    # else:
+    #   longitude_mask = np.bitwise_or(data < -180, data > 180)
+    #   data[longitude_mask] = pd.NA
     df[self.name] = data
 
 class UniqueSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):

@@ -5,6 +5,7 @@ from common.models.api import ApiResult, ApiError
 from common.task.server import TaskServer
 from common.logger import RegisteredLogger
 import controllers
+import controllers.project
 from models.project import (
   ProjectCacheManager,
   get_cached_data_source,
@@ -15,7 +16,8 @@ from models.project import (
   InferDatasetColumnResource,
   ProjectLiteResource,
   ProjectResource,
-  CheckDatasetColumnSchema
+  CheckDatasetColumnSchema,
+  UpdateProjectIdSchema
 )
 from models.config import DATA_DIRECTORY, Config, ProjectPathManager, ProjectPaths
  
@@ -105,22 +107,20 @@ async def get__project(cache: ProjectCacheDependency):
 
 @router.post('/')
 async def create__project(config: Config):
-  folder_path = os.path.join(os.getcwd(), DATA_DIRECTORY, config.project_id)
-  os.makedirs(DATA_DIRECTORY, exist_ok=True)
+  # Condition checks
+  controllers.project.assert_project_id_doesnt_exist(config.project_id)
+  os.makedirs(config.paths.project_path, exist_ok=True)
 
-  if os.path.isdir(folder_path):
-    raise ApiError(f"Project \"{config.project_id}\" already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-
-  os.makedirs(folder_path)
-
-  logger.info(f"Saving configuration to {config.paths.config_path}")
-  config.save_to_json()
-
+  # Create workspace
   logger.info(f"Loading dataset from {config.source.path} with type {config.source.type}")
   df = config.source.load()
 
   logger.info(f"Fitting dataset")
   df = config.data_schema.fit(df)
+
+  # Commit changes
+  logger.info(f"Saving configuration to {config.paths.config_path}")
+  config.save_to_json()
   
   workspace_path = config.paths.full_path(ProjectPaths.Workspace)
   logger.info(f"Saving fitted dataset in {workspace_path}")
@@ -135,27 +135,53 @@ async def create__project(config: Config):
     message=f"Your new project \"{config.project_id}\", has been successfully created."
   )
 
-@router.put('/{project_id}')
-async def update__project(cache: ProjectCacheDependency, config: Config):
+@router.patch('/{project_id}/update-project-id')
+async def update__project_id(cache: ProjectCacheDependency, body: UpdateProjectIdSchema):
   old_config = cache.config
-  if config.project_id != old_config.project_id:
-    if os.path.isdir(config.paths.project_path):
-      raise ApiError(f"Project '{config.project_id}' already exists. Try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-    
-    os.rename(old_config.paths.project_path, config.paths.project_path)
+  # Condition checks
+  controllers.project.assert_project_id_doesnt_exist(body.project_id)
 
-  config.paths.cleanup()
+  # Action
+  os.rename(old_config.paths.project_path, body.project_id)
+
+  # Invalidate cache
+  ProjectCacheManager().invalidate(old_config.project_id)
   TaskServer().clear_tasks(old_config.project_id)
-  ProjectCacheManager().invalidate(cache.id)
-  config.save_to_json()
+  
+@router.put('/{project_id}')
+async def update__project(cache: ProjectCacheDependency, new_config: Config):
+  old_config = cache.config
+  if old_config.project_id != new_config.project_id:
+    raise ApiError("We do not support updating the project ID in this endpoint. Consider using /api/projects/:id/update-project-id instead", http.HTTPStatus.BAD_REQUEST)
+  
+  if old_config.source != new_config.source:
+    raise ApiError("We do not support updating the data source after a project has been created to avoid any file corruption. Consider creating a new project instead.", http.HTTPStatus.BAD_REQUEST)
+
+  # Resolve project differences
+  df = old_config.load_workspace()
+  logger.info(f"Resolving differences in the configurations of \"{new_config.project_id}\"")
+  df = new_config.data_schema.resolve_difference(old_config.data_schema, df)
+  logger.info(f"Successfully resolved the differences in the column configurations of \"{new_config.project_id}\"")
+  workspace_path = new_config.paths.full_path(ProjectPaths.Workspace)
+
+  # Commit changes
+  logger.info(f"Saving configuration to {new_config.paths.config_path}")
+  new_config.save_to_json()
+
+  logger.info(f"Saving resolved dataset in {workspace_path}")
+  df.to_parquet(workspace_path)
+
+  # Invalidate cache
+  ProjectCacheManager().invalidate(old_config.project_id)
+  TaskServer().clear_tasks(old_config.project_id)
 
   return ApiResult(
     data=ProjectResource(
-      id=config.project_id,
-      config=config,
+      id=new_config.project_id,
+      config=new_config,
       path=Config.paths.project_path
     ),
-    message=f"Project \"{config.project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
+    message=f"Project \"{new_config.project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )
 
 @router.delete('/{project_id}')

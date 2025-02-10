@@ -76,7 +76,6 @@ class CheckDatasetResource(pydantic.BaseModel):
 class CheckProjectIdSchema(pydantic.BaseModel):
   project_id: FilenameField
 
-
 def validate_file_path(data: DataSource):
   if not os.path.exists(data.path):
     raise ApiError(f"Cannot find any file at {data.path}. Are you sure you have provided the correct path?", http.HTTPStatus.NOT_FOUND)
@@ -93,6 +92,9 @@ class CheckDatasetColumnSchema(pydantic.BaseModel):
   source: DataSourceField
   column: str
   dtype: SchemaColumnTypeEnum
+
+class UpdateProjectIdSchema(pydantic.BaseModel):
+  project_id: str
 
 __all__ = [
   "ProjectLiteResource",

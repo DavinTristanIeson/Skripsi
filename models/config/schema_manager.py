@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import http
 from typing import Annotated, Callable, Optional, Sequence, cast
@@ -7,6 +8,7 @@ import pydantic
 
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.api import ApiError
+from models.config.source import DataSource
 from .schema import CategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
@@ -61,14 +63,18 @@ def __extend_schema_manager_columns(value: list[SchemaColumn]):
 def __serialize_columns(value: list[SchemaColumn], handler):
   return handler(list(filter(lambda x: not x.internal, value)))
   
-  
-
 SchemaColumnListField = Annotated[
   list[SchemaColumn],
   pydantic.AfterValidator(__validate_schema_manager_columns),
   pydantic.AfterValidator(__extend_schema_manager_columns),
   pydantic.WrapSerializer(__serialize_columns)
 ]
+
+@dataclass
+class SchemaColumnDiff:
+  previous: SchemaColumn
+  current: SchemaColumn
+
 class SchemaManager(pydantic.BaseModel):
   columns: SchemaColumnListField
 
@@ -108,17 +114,55 @@ class SchemaManager(pydantic.BaseModel):
       raise ApiError(f"Column {name} doesn't exist in the schema", http.HTTPStatus.NOT_FOUND)
     return column
   
-  def fit(self, df: pd.DataFrame)->pd.DataFrame:
+  def reorder(self, df: pd.DataFrame, *, all: bool = False):
+    return df.loc[:, [col.name for col in self.columns if col.name in df.columns and (all or col.active)]]
+
+  def __fit_column(self, df: pd.DataFrame, col: SchemaColumn):
+    if col.internal:
+      return
+    with TimeLogger(logger, f"Fitting {col.name} ({col.type})"):
+      try:
+        col.fit(df)
+      except Exception as e:
+        logger.error(e)
+        raise ApiError(f"An error has occurred while fitting \"{col.name}\": {e}. Please check if your dataset matches your column configuration.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+
+  def fit(self, raw_df: pd.DataFrame)->pd.DataFrame:
     try:
-      fitted_df = df.loc[:, [col.name for col in self.columns if col.active and not col.internal]]
-    except ApiError as e:
-      raise ApiError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {str(e)}", http.HTTPStatus.NOT_FOUND)
+      # don't exclude inactive columns, this is required for more effective updating.
+      df = raw_df.loc[:, [col.name for col in self.columns if not col.internal]]
+    except (IndexError, KeyError) as e:
+      logger.error(e)
+      raise ApiError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {e.args}", http.HTTPStatus.NOT_FOUND)
     
     for col in self.columns:
-      if col.internal:
-        continue
-      with TimeLogger(logger, f"Fitting {col.name} ({col.type})"):
-        col.fit(fitted_df)
-    return fitted_df
-
+      self.__fit_column(df, col)
+    reordered_df = self.reorder(df, all=True)
+    return reordered_df
+  
+  def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[SchemaColumnDiff]:
+    current = self.columns
+    prev_columns = set(map(lambda x: x.name, previous))
+    current_columns = set(map(lambda x: x.name, current))
+    columnar_differences = prev_columns.symmetric_difference(current_columns)
+    if len(columnar_differences) > 0:
+      raise ApiError(f"There are columns that only exist in one of the configurations but not in both: {list(columnar_differences)}. To avoid data corruption, we do not allow users to modify the columns or the data source after the creation of a project. Consider creating a new project instead.", http.HTTPStatus.BAD_REQUEST)
+  
+    previous_column_map = {col.name: col for col in previous}
+    non_internal_columns = filter(lambda col: not col.internal, self.columns)
+    different_columns = filter(lambda col: col != previous_column_map[col.name], non_internal_columns)
+    column_diffs = list(map(lambda col: SchemaColumnDiff(
+      previous=previous_column_map[col.name],
+      current=col
+    ), different_columns))
+    return column_diffs
+    
+  def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame)->pd.DataFrame:
+    column_diffs = self.resolve_column_difference(prev.columns)
+    df = workspace_df.copy()
+    for diff in column_diffs:
+      logger.info(f"Fitting \"{diff.current.name}\" again since the column options has changed.")
+      self.__fit_column(df, diff.current)
+    reordered_df = self.reorder(df)
+    return reordered_df
     

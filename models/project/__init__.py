@@ -6,7 +6,8 @@ from .project import (
   InferDatasetColumnResource,
   InferDatasetDescriptiveStatisticsResource,
   ProjectLiteResource,
-  ProjectResource
+  ProjectResource,
+  UpdateProjectIdSchema
 )
 from .cache import (
   get_cached_data_source,
