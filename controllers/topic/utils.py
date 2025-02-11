@@ -10,6 +10,8 @@ from models.config.paths import ProjectPaths
 from models.config.schema import TextualSchemaColumn
 import numpy.typing as npt
 
+from models.topic.topic import TopicHierarchyModel, TopicModel
+
 if TYPE_CHECKING:
   from sklearn.base import BaseEstimator
   from bertopic import BERTopic
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
 class BERTopicColumnIntermediateResult:
   config: Config
   embedding_documents: list[str]
-  documents: list[str]
+  documents: pd.Series
   # Marks which documents are excluded
   mask: pd.Series
   column: TextualSchemaColumn
@@ -27,12 +29,14 @@ class BERTopicColumnIntermediateResult:
   embedding_model: BaseEstimator
   task: TaskPayload
   model: BERTopic
-  topics: list[int]
+  document_topic_assignments: list[int]
 
   document_visualization_embeddings: npt.NDArray
   topic_visualization_embeddings: npt.NDArray
   topic_embeddings: npt.NDArray
-  hierarchy: DiGraph
+
+  topics: list[TopicModel]
+  hierarchy: TopicHierarchyModel
 
 
   @staticmethod
@@ -47,7 +51,7 @@ class BERTopicColumnIntermediateResult:
       config=config,
       task=task,
       hierarchy=None, # type: ignore
-      topics=None, # type: ignore
+      document_topic_assignments=None, # type: ignore
       document_visualization_embeddings=None, # type: ignore
       topic_embeddings=None, # type: ignore
       topic_visualization_embeddings=None, # type: ignore

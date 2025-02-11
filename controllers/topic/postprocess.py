@@ -1,17 +1,20 @@
+import functools
 import http
-from typing import TYPE_CHECKING, cast
+import itertools
+from typing import TYPE_CHECKING, Optional, Sequence, cast
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
 from common.models.api import ApiError
-from controllers.topic.interpret import bertopic_topic_labels
+from controllers.topic.interpret import BERTopicCTFIDFRepresentationResult, BERTopicInterpreter
 from controllers.topic.utils import BERTopicColumnIntermediateResult
-from models.topic.topic import TopicModelingResultModel
+from models.topic.topic import TopicHierarchyModel, TopicModelingResultModel
 
 from .dimensionality_reduction import VisualizationCachedUMAP, BERTopicCachedUMAP
 if TYPE_CHECKING:
   from bertopic import BERTopic
+
 
 def bertopic_visualization_embeddings(
   intermediate: BERTopicColumnIntermediateResult
@@ -44,15 +47,18 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   import sklearn.metrics
   import scipy.spatial.distance
   import scipy.cluster.hierarchy
+  import scipy.sparse
   import networkx as nx
   
   model = intermediate.model
   task = intermediate.task
   documents = intermediate.documents
-
+  topics = intermediate.document_topic_assignments
+  column = intermediate.column
   
   task.progress(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
 
+  # Classic hierarchical clustering
   topic_embeddings: npt.NDArray = cast(npt.NDArray, model.topic_embeddings_)
   intertopic_distances = sklearn.metrics.pairwise.cosine_distances(topic_embeddings)
   condensed_intertopic_distances = scipy.spatial.distance.squareform(intertopic_distances)
@@ -63,6 +69,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       scipy.cluster.hierarchy.ward(condensed_intertopic_distances)
     )
   )
+  hierarchy_root = hierarchy_tree.id
   dendrogram = nx.DiGraph()
 
   def explore_hierarchy(G: nx.DiGraph, node: scipy.cluster.hierarchy.ClusterNode):
@@ -74,6 +81,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       G.add_edge(node.id, node.right.id)
       explore_hierarchy(G, node.right)
 
+  # Simplified hierarchical clustering
   def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float):
     ndata = G.nodes.get(node)
     successors = list(G.successors(node))
@@ -91,44 +99,76 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
     for successor in successors:
       simplify_dendrogram(G, successor, threshold)
 
-
   explore_hierarchy(
     G=dendrogram,
     node=hierarchy_tree
   )
-
   simplified_dendrogram = cast(nx.DiGraph, dendrogram.copy())
   simplify_dendrogram(
     G=simplified_dendrogram,
-    node=hierarchy_tree.id,
+    node=hierarchy_root,
     threshold=1 + intermediate.column.topic_modeling.super_topic_similarity
   )
 
+  # Update node IDs with new hiearchy
   node_relabel_mapping = dict()
   new_node_label = len(topic_embeddings)
   for node in sorted(simplified_dendrogram.nodes):
     node_relabel_mapping[node] = new_node_label
     new_node_label += 1
   nx.relabel_nodes(simplified_dendrogram, node_relabel_mapping)
+  hierarchy_root = node_relabel_mapping[hierarchy_root]
 
-  def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float):
-    ndata = G.nodes.get(node)
-    successors = list(G.successors(node))
+  # Initialize base BOWs
+  interpreter = BERTopicInterpreter(
+    topic_ctfidf=model.c_tf_idf_, # type: ignore
+    ctfidf_model=model.ctfidf_model, # type: ignore
+    n_words=column.topic_modeling.n_words,
+    vectorizer_model=model.vectorizer_model,
+  )
+  documents = intermediate.documents
+  representation_results: dict[int, BERTopicCTFIDFRepresentationResult] = dict()
+  
+  for node in simplified_dendrogram.nodes:
+    documents_in_this_node = cast(Sequence[str], documents[topics == node])
+    meta_document_bow = interpreter.represent_as_bow(documents_in_this_node)
+    meta_document_ctfidf = interpreter.represent_as_ctfidf(meta_document_bow)
+    representation = BERTopicCTFIDFRepresentationResult(
+      bow=meta_document_bow,
+      ctfidf=meta_document_ctfidf,
+      words=interpreter.get_weighted_words(meta_document_ctfidf)
+    )
+    representation_results[node] = representation
 
-    if ndata is None or ndata["diff"] == 0:
-      return
-    if ndata["diff"] <= threshold:
-      predecessors = list(G.predecessors(node))
-      if len(predecessors) != 0:
-        parent = predecessors[0]
-        for successor in successors:
-          G.add_edge(parent, successor)
-        G.remove_node(node)
+  # Agglomeratively sum up BOWs to calculate topic words for each super-topic
+  def label_dendrogram(G: nx.DiGraph, node: int):
+    if node in representation_results:
+      return representation_results[node].bow
     
-    for successor in successors:
-      simplify_dendrogram(G, successor, threshold)
+    children_bows = list(map(lambda x: label_dendrogram(G, x), G.successors(node)))
 
-  intermediate.hierarchy = simplified_dendrogram
+    agglomerated_bow = functools.reduce(lambda acc, cur: acc + cur, children_bows[1:], children_bows[0])
+    agglomerated_ctfidf = interpreter.represent_as_ctfidf(agglomerated_bow)
+    agglomerated_words = interpreter.get_weighted_words(agglomerated_ctfidf)
+
+    representation_results[node] = BERTopicCTFIDFRepresentationResult(
+      ctfidf=agglomerated_ctfidf,
+      bow=agglomerated_bow,
+      words=agglomerated_words,
+    )
+    return agglomerated_bow
+    
+  label_dendrogram(simplified_dendrogram, hierarchy_root)
+
+  def build_topic_hierarchy(G: nx.DiGraph, node: int):
+    children: list[TopicHierarchyModel] = []
+    for successor in G.successors(node):
+      children.append(successor)
+    return TopicHierarchyModel(
+      id=node,
+      words=representation_results[node].words,
+      children=children,
+    )
 
 
 def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnIntermediateResult):

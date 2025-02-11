@@ -6,6 +6,7 @@ from common.task.executor import TaskPayload
 from common.task.responses import TaskResponse, TaskResponseData
 from controllers.topic.embedding import bertopic_embedding
 from controllers.topic.modeling import bertopic_topic_modeling
+from controllers.topic.postprocess import bertopic_post_processing
 from controllers.topic.preprocess import bertopic_preprocessing
 from controllers.topic.utils import BERTopicColumnIntermediateResult, assert_valid_workspace_for_topic_modeling
 from models.config.paths import ProjectPaths
@@ -59,6 +60,8 @@ def run_topic_modeling_procedure(task: TaskPayload):
     bertopic_topic_modeling(intermediate)
     model = intermediate.model
     logger.info(f"Topics of {intermediate.column.name}: {model.topic_labels_}. ")
+    
+    bertopic_post_processing(df, intermediate)
 
     bertopic_path = config.paths.allocate_path(os.path.join(ProjectPaths.BERTopic(intermediate.column.name)))
     task.progress(f"Saving BERTopic model in \"{bertopic_path}\".")

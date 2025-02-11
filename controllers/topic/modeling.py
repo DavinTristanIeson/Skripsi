@@ -81,7 +81,6 @@ def bertopic_topic_modeling(
       model.update_topics(intermediate.embedding_documents, topics=topics)
 
   intermediate.model = model
-  intermediate.topics = topics
+  intermediate.document_topic_assignments = topics
 
   bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic(column.name)))
-  model.save(bertopic_path, )

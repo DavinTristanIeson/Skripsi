@@ -24,7 +24,7 @@ def bertopic_preprocessing(
     # preprocess_topic_keywords set NA for invalid documents, so we need to recompute mask
     df.loc[original_mask, preprocess_name] = column.preprocessing.preprocess_topic_keywords(original_documents) # type: ignore
     mask = df[preprocess_name].notna()
-    preprocess_documents = list(df.loc[mask, preprocess_name])
+    preprocess_documents = df.loc[mask, preprocess_name]
   
   if len(preprocess_documents) == 0:
     raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
@@ -34,7 +34,7 @@ def bertopic_preprocessing(
   sbert_documents = column.preprocessing.preprocess_sbert(original_documents)
 
   intermediate.embedding_documents = sbert_documents
-  intermediate.documents = preprocess_documents
+  intermediate.documents = preprocess_documents # type: ignore
 
 
 
