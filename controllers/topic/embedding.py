@@ -228,8 +228,7 @@ def bertopic_embedding(
   ).build()
   intermediate.embedding_model = embedding_model
 
-  embedding_path = paths.full_path(ProjectPaths.DocumentEmbeddings(column.name))
-  paths.allocate_path(embedding_path)
+  embedding_path = paths.allocate_path(ProjectPaths.DocumentEmbeddings(column.name))
 
   if os.path.exists(embedding_path):
     task.progress(f"Loading cached document embeddings for \"{column.name}\" from \"{embedding_path}\".")

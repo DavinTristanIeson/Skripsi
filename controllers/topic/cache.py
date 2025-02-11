@@ -25,7 +25,3 @@ class CachedEmbeddingModel(abc.ABC):
     if self.has_cached_embeddings():
       return np.load(self.embedding_path)
     raise UnavailableCacheException(f"There are no cached embeddings in {self.embedding_path}. This is a developer oversight; remember to add a self.has_cached_embeddings check before calling this function.")
-
-def invalidate_topic_modeling_cache(project_id: str):
-  paths = ProjectPathManager(project_id=project_id)
-  paths.cleanup()

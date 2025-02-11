@@ -1,34 +1,23 @@
-import numpy as np
-import pandas as pd
-
+import os
 from common.logger import TimeLogger
-from common.task.executor import TaskPayload
 from controllers.topic.dimensionality_reduction import BERTopicCachedUMAP
-from controllers.topic.interpret import bertopic_topic_labels
 from controllers.topic.utils import BERTopicColumnIntermediateResult
-from models.config.config import Config
 from models.config.paths import ProjectPaths
-from models.config.schema import TextualSchemaColumn
 
-def topic_modeling(
-  task: TaskPayload,
-  config: Config,
+def bertopic_topic_modeling(
   intermediate: BERTopicColumnIntermediateResult,
-  index: int,
-  total: int
 ):
   import bertopic
   import bertopic.vectorizers
   import bertopic.representation
   import hdbscan
   import sklearn.feature_extraction
-  from umap import UMAP
 
   column = intermediate.column
   config = intermediate.config
   documents = intermediate.embedding_documents
-  mask = intermediate.mask
   embeddings = intermediate.embeddings
+  task = intermediate.task
 
   kwargs = dict()
   if column.topic_modeling.max_topics is not None:
@@ -45,7 +34,7 @@ def topic_modeling(
   )
 
   hdbscan_model = hdbscan.HDBSCAN(
-    min_cluster_size=column.topic_modeling.min_topic_size,
+    min_cluster_size=max(2, column.topic_modeling.min_topic_size),
     max_cluster_size=max_cluster_size,
     min_samples=max(2, int(column.topic_modeling.clustering_conservativeness * column.topic_modeling.min_topic_size)),
     metric="euclidean",
@@ -83,27 +72,16 @@ def topic_modeling(
   with TimeLogger("Topic Modeling", "Performing Topic Modeling", report_start=True):
     topics, probs = model.fit_transform(documents, embeddings)
 
-
   task.check_stop()
   task.progress(f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics.")
-
-  umap_embeddings_path = config.paths.full_path(ProjectPaths.Embeddings)
-  task.progress(f"Saving the UMAP embeddings for {column.name} to ")
 
   if column.topic_modeling.no_outliers:
     topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=embeddings)
     if column.topic_modeling.represent_outliers:
       model.update_topics(intermediate.embedding_documents, topics=topics)
 
-  topic_labels = bertopic_topic_labels(model)
-  if model._outliers:
-    topic_labels.insert(0, '')
-  model.set_topic_labels(topic_labels)
+  intermediate.model = model
+  intermediate.topics = topics
 
-  topic_number_column = pd.Series(np.full(len(intermediate.embedding_documents), -1), dtype=np.int32)
-  topic_number_column[intermediate.mask] = topics
-
-  labels_mapper = {k: v for k, v in enumerate(topic_labels)}
-
-  topic_column = topic_number_column.replace({**labels_mapper, -1: ''})
-  topic_column = pd.Categorical(topic_column)
+  bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic(column.name)))
+  model.save(bertopic_path, )

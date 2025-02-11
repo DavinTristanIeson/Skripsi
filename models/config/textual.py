@@ -150,6 +150,9 @@ class TopicModelingConfig(pydantic.BaseModel):
   n_gram_range: tuple[int, int] = (1, 2)
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
 
+  # How similar should topics be to be grouped under the same super-topic
+  super_topic_similarity: float = pydantic.Field(default=0.7, gt=0.0, le=1.0)
+
   @pydantic.field_validator("n_gram_range", mode="after")
   def __n_gram_range_validator(cls, value: tuple[int, int]):
     if value[0] > value[1]:

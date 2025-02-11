@@ -23,27 +23,35 @@ class ProjectPaths(SimpleNamespace):
   Config = "config.json"
   
   Workspace = "workspace.parquet"
-  Topics = "topics.json"
+  TopicsFolder = "topics"
 
-  Embeddings = "embeddings"
+  @staticmethod
+  def Topics(column: str):
+    return os.path.join(ProjectPaths.TopicsFolder, f"{column}.json")
+
+  EmbeddingsFolder = "embeddings"
 
   @staticmethod
   def DocumentEmbeddings(column: str):
-    return os.path.join(ProjectPaths.Embeddings, column, "document_embeddings.npy")
+    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "document_embeddings.npy")
 
   @staticmethod
   def UMAPEmbeddings(column: str):
-    return os.path.join(ProjectPaths.Embeddings, column, "umap_embeddings.npy")
+    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "umap_embeddings.npy")
   
   @staticmethod
   def VisualizationEmbeddings(column: str):
-    return os.path.join(ProjectPaths.Embeddings, column, "visualization_embeddings.npy")
+    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "visualization_embeddings.npy")
   
   @staticmethod
   def EmbeddingModel(column: str, model: str):
-    return os.path.join(ProjectPaths.Embeddings, column, model)
+    return os.path.join(ProjectPaths.EmbeddingsFolder, column, model)
 
-  BERTopic = 'bertopic'
+  BERTopicFolder = 'bertopic'
+
+  @staticmethod
+  def BERTopic(column: str):
+    return os.path.join(ProjectPaths.BERTopicFolder, column)
 
 logger = RegisteredLogger().provision("Wordsmith Data Loader")
 
@@ -71,7 +79,7 @@ class ProjectPathManager(pydantic.BaseModel):
   def allocate_path(self, path: str)->str:
     dirpath = os.path.dirname(path)
     os.makedirs(dirpath, exist_ok=True)
-    return dirpath
+    return path
 
   @property
   def config_path(self):
@@ -102,12 +110,12 @@ class ProjectPathManager(pydantic.BaseModel):
 
   def cleanup(self, all: bool = False):
     directories = [
-      self.full_path(ProjectPaths.Embeddings),
-      self.full_path(ProjectPaths.BERTopic),
+      self.full_path(ProjectPaths.EmbeddingsFolder),
+      self.full_path(ProjectPaths.BERTopicFolder),
+      self.full_path(ProjectPaths.TopicsFolder),
     ]
     files = [
       self.full_path(ProjectPaths.Workspace),
-      self.full_path(ProjectPaths.Topics),
     ]
 
     if all:
@@ -116,13 +124,12 @@ class ProjectPathManager(pydantic.BaseModel):
       ])
     self.__cleanup(directories, files)
 
-  def cleanup_topic_modeling(self, all: bool = False):
+  def cleanup_topic_modeling(self):
     directories = [
-      self.full_path(ProjectPaths.Embeddings),
-      self.full_path(ProjectPaths.BERTopic),
+      self.full_path(ProjectPaths.EmbeddingsFolder),
+      self.full_path(ProjectPaths.BERTopicFolder),
+      self.full_path(ProjectPaths.TopicsFolder),
     ]
-    files = [
-      self.full_path(ProjectPaths.Topics),
-    ]
+    files = []
 
     self.__cleanup(directories, files)

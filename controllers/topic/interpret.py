@@ -19,7 +19,7 @@ def bertopic_topic_words(model: "BERTopic")->list[list[str]]:
 
 def bertopic_topic_labels(model: "BERTopic")->list[str]:
   topic_words = bertopic_topic_words(model)
-  topic_labels = list(map(lambda words: ', '.join(filter(bool, words[:5])), topic_words))
+  topic_labels = list(map(lambda words: ', '.join(filter(bool, words[:3])), topic_words))
   custom_labels_maybe = cast(Optional[list[str]], model.custom_labels_)
 
   if custom_labels_maybe is not None:

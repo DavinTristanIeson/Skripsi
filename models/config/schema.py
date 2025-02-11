@@ -11,8 +11,9 @@ import pydantic
 import pandas as pd
 
 from common.constants import DAYS_OF_WEEK, HOURS, MONTHS
-from common.models.validators import CommonModelConfig, FilenameField, DiscriminatedUnionValidator, validate_http_url
+from common.models.validators import CommonModelConfig, FilenameField, DiscriminatedUnionValidator
 from common.models.enum import ExposedEnum
+from models.topic.topic import TopicModelingResultModel
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 class SchemaColumnTypeEnum(str, Enum):
@@ -24,6 +25,9 @@ class SchemaColumnTypeEnum(str, Enum):
   Unique = "unique"
   Geospatial = "geospatial"
   Image = "image"
+
+  # Internal
+  Topic = "topic"
 
 ExposedEnum().register(SchemaColumnTypeEnum)
 
@@ -38,8 +42,12 @@ class BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
   internal: bool = pydantic.Field(default=False, exclude=True)
   active: bool = True
 
+  def get_internal_columns(self)->Sequence["SchemaColumn"]:
+    return []
+
+  @abc.abstractmethod
   def fit(self, df: pd.DataFrame)->None:
-    pass
+    ...
 
 class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
@@ -54,6 +62,9 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       internal=True,
       alphanumeric_order=True
     )
+  
+  def get_internal_columns(self):
+    return [self.bins_column]
   
   def __format_3f(self, value: float)->str:
     return f"{value:.3f}".rstrip('0').rstrip('.')
@@ -77,15 +88,15 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})"
 
       bin_name = str(category + 1).rjust(digit_length, '0')
-      bin_categories[category] = f"B{bin_name}: {hist_range}"
+      bin_categories[category] = f"BIN{bin_name}: {hist_range}"
     
     first_histogram_edge_str = self.__format_3f(histogram_edges[0])
     first_bin_id = str(1).rjust(digit_length, '0') 
-    bin_categories[0] = f"B{first_bin_id}: (-inf, {first_histogram_edge_str})"
+    bin_categories[0] = f"BIN{first_bin_id}: (-inf, {first_histogram_edge_str})"
 
     last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
     last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
-    bin_categories[len(histogram_edges)] = f"B{last_bin_id}: [{last_histogram_edge_str}, inf)"
+    bin_categories[len(histogram_edges)] = f"BIN{last_bin_id}: [{last_histogram_edge_str}, inf)"
     
     categorical_bins = categorical_bins.rename_categories(bin_categories)
     categorical_bins = categorical_bins.set_categories(sorted(bin_categories.values()), ordered=True)
@@ -116,6 +127,12 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     )
     df[self.name] = data
 
+class TopicSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  type: Literal[SchemaColumnTypeEnum.Topic]
+  internal = True
+  def fit(self, df):
+    pass
+
 class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   name: FilenameField
@@ -133,11 +150,22 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
   @functools.cached_property
   def topic_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return TopicSchemaColumn(
+      type=SchemaColumnTypeEnum.Topic,
       name=f"{self.name} (Topic)",
       internal=True
     )
+  
+  def get_internal_columns(self):
+    return [
+      self.preprocess_column,
+      self.topic_column,
+    ]
+  
+  def fit(self, df):
+    data = df[self.name].astype(np.float64)
+    df[self.name] = data
+
 
 class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
@@ -180,7 +208,14 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       alphanumeric_order=True,
       category_order=HOURS,
     )
-
+  
+  def get_internal_columns(self):
+    return [
+      self.year_column,
+      self.month_column,
+      self.day_of_week_column,
+      self.hour_column,
+    ]
 
   def fit(self, df):
     if not pd.api.types.is_datetime64_any_dtype(df[self.name]):
@@ -208,59 +243,68 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     hour_column = pd.Categorical(datetime_column.dt.hour)
     hour_column = hour_column.rename_categories({k: v for k, v in enumerate(HOURS)})
     df[self.hour_column.name] = hour_column
+
+class BaseMultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel, abc.ABC):
+  delimiter: str = ","
+  is_json: bool = True
+
+  def _convert_string_to_tags_list(self, data: Sequence[str])->list[list[str]]:
+    rows: list[list[str]] = []
+    for row in data:
+      row_categories: list[str]
+      if self.is_json:
+        row_categories = list(json.loads(row))
+      else:
+        row_categories = list(map(
+          lambda category: category.strip(),
+          str(row).split(self.delimiter)
+        ))
+      rows.append(row_categories)
+    return rows
   
-class MultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  def _convert_tags_list_to_json(self, tags_list: Sequence[Sequence[str]]):
+    return list(map(
+      lambda tags: json.dumps(tags),
+      tags_list
+    ))
+
+class MultiCategoricalSchemaColumn(BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
   delimiter: str = ","
   is_json: bool = True
 
   def fit(self, df):
-    data = df[self.name].astype(str)
-    rows: list[str] = []
-    for row in data:
-      row_categories: list[str]
-      if self.is_json:
-        row_categories = list(json.loads(row))
-      else:
-        row_categories = list(map(lambda category: category.strip(), str(row).split(self.delimiter)))
-    
-      rows.append(json.dumps(row_categories))
-
-    df[self.name] = pd.Series(rows)
+    data: Sequence[str] = df[self.name].astype(str) # type: ignore
+    tags_list = self._convert_string_to_tags_list(data)
+    json_strings = self._convert_tags_list_to_json(tags_list)
+    df[self.name] = pd.Series(json_strings)
   
 class GeospatialSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Geospatial]
   role: GeospatialRoleEnum
-  def fit(self, df):
-    # Latitude range is [-90, 90]. Longtitude range is [-180, 180]
-    data = df[self.name].astype(np.float64)
 
-    # This messes things up if this column is ever changed to Continuous.
-    # if self.role == GeospatialRoleEnum.Latitude:
-    #   latitude_mask = np.bitwise_or(data < -90, data > 90)
-    #   data[latitude_mask] = pd.NA
-    # else:
-    #   longitude_mask = np.bitwise_or(data < -180, data > 180)
-    #   data[longitude_mask] = pd.NA
+  def fit(self, df):
+    data = df[self.name].astype(np.float64)
     df[self.name] = data
 
 class UniqueSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Unique]
+
   def fit(self, df):
     df[self.name] = df[self.name].astype(str)
   
-class ImageSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class ImageSchemaColumn(BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Image]
   
   def fit(self, df):
-    data = df[self.name].astype(str)
-    valid_link_mask = data.apply(validate_http_url)
-    data[valid_link_mask] = pd.NA
-    df[self.name] = data
+    data: Sequence[str] = df[self.name].astype(str) # type: ignore
+    tags_list = self._convert_string_to_tags_list(data)
+    json_strings = self._convert_tags_list_to_json(tags_list)
+    df[self.name] = pd.Series(json_strings)
 
   
 SchemaColumn = Annotated[
@@ -273,6 +317,7 @@ SchemaColumn = Annotated[
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
     ImageSchemaColumn,
+    TopicSchemaColumn,
   ],
   pydantic.Field(discriminator="type"),
   DiscriminatedUnionValidator

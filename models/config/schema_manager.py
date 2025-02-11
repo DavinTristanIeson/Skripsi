@@ -9,7 +9,7 @@ import pydantic
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.api import ApiError
 from models.config.source import DataSource
-from .schema import CategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, UniqueSchemaColumn
+from .schema import CategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
 
@@ -104,6 +104,9 @@ class SchemaManager(pydantic.BaseModel):
   
   def geospatial(self)->list[GeospatialSchemaColumn]:
     return cast(list[GeospatialSchemaColumn], self.of_type(SchemaColumnTypeEnum.Geospatial))
+  
+  def topic(self)->list[TopicSchemaColumn]:
+    return cast(list[TopicSchemaColumn], self.of_type(SchemaColumnTypeEnum.Topic))
 
   def assert_exists(self, name:str)->SchemaColumn:
     column: Optional[SchemaColumn] = None
@@ -151,10 +154,13 @@ class SchemaManager(pydantic.BaseModel):
     previous_column_map = {col.name: col for col in previous}
     non_internal_columns = filter(lambda col: not col.internal, self.columns)
     different_columns = filter(lambda col: col != previous_column_map[col.name], non_internal_columns)
-    column_diffs = list(map(lambda col: SchemaColumnDiff(
-      previous=previous_column_map[col.name],
-      current=col
-    ), different_columns))
+    
+    column_diffs: list[SchemaColumnDiff] = []
+    for col in different_columns:
+      column_diffs.append(SchemaColumnDiff(
+        previous=previous_column_map[col.name],
+        current=col
+      ))
     return column_diffs
     
   def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame)->pd.DataFrame:
@@ -163,6 +169,16 @@ class SchemaManager(pydantic.BaseModel):
     for diff in column_diffs:
       logger.info(f"Fitting \"{diff.current.name}\" again since the column options has changed.")
       self.__fit_column(df, diff.current)
+
+    for diff in column_diffs:
+      internal_columns = diff.previous.get_internal_columns()
+      # cleanup previous column differences
+      if diff.previous.type != diff.current.type:
+        df.drop(
+          list(map(lambda x: x.name, internal_columns)),
+          axis=1, inplace=True
+        )
+        
     reordered_df = self.reorder(df)
     return reordered_df
     

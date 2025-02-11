@@ -14,3 +14,7 @@ fastparquet # Load parquet
 orjson # Faster JSON for plotly
 openpyxl
 ipykernel
+
+torch==2.2.2
+
+matplotlib
