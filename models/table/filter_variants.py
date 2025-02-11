@@ -10,7 +10,6 @@ from models.table.errors import TableFilterError
 from models.table.filter import BaseCompoundTableFilter, BaseTableFilter, TableFilterParams, TableFilterTypeEnum
 from common.models.validators import CommonModelConfig, DiscriminatedUnionValidator
 from common.logger import RegisteredLogger
-import numpy.typing as npt
 import pandas as pd
 
 logger = RegisteredLogger().provision("Filter Controller")
@@ -199,7 +198,7 @@ class IncludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, f
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)
-    mask = cast(npt.NDArray, next(coroutine))
+    mask = cast(np.ndarray, next(coroutine))
     values = set(map(str, self.values))
     for raw_tags in coroutine:
       tags = cast(list[str], raw_tags)
@@ -212,7 +211,7 @@ class ExcludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, f
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)
-    mask = cast(npt.NDArray, next(coroutine))
+    mask = cast(np.ndarray, next(coroutine))
     values = set(map(str, self.values))
     for raw_tags in coroutine:
       tags = cast(list[str], raw_tags)
@@ -225,7 +224,7 @@ class OnlyTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, froze
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)
-    mask = cast(npt.NDArray, next(coroutine))
+    mask = cast(np.ndarray, next(coroutine))
     values = set(map(str, self.values))
     for raw_tags in coroutine:
       tags = cast(list[str], raw_tags)

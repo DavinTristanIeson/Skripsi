@@ -152,7 +152,7 @@ class TopicModelingConfig(pydantic.BaseModel):
 
   # How similar should topics be to be grouped under the same super-topic
   super_topic_similarity: float = pydantic.Field(default=0.7, gt=0.0, le=1.0)
-  n_words: int = pydantic.Field(default=50, ge=3)
+  top_n_words: int = pydantic.Field(default=50, ge=3)
 
   @pydantic.field_validator("n_gram_range", mode="after")
   def __n_gram_range_validator(cls, value: tuple[int, int]):

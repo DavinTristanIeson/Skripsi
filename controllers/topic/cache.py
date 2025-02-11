@@ -1,12 +1,12 @@
 import abc
 import os
+from typing import Optional
 import numpy as np
-import numpy.typing as npt
 
+from common.logger import RegisteredLogger
 from models.config.paths import ProjectPathManager
 
-class UnavailableCacheException(Exception):
-  pass
+logger = RegisteredLogger().provision("Topic Modeling")
 
 class CachedEmbeddingModel(abc.ABC):
   @property
@@ -14,14 +14,26 @@ class CachedEmbeddingModel(abc.ABC):
   def embedding_path(self)->str:
     pass
 
-  def save_embeddings(self, embeddings: npt.NDArray):
-    os.makedirs(os.path.dirname(self.embedding_path), exist_ok=True)
-    np.save(self.embedding_path, embeddings)
+  def save_embeddings(self, embeddings: np.ndarray):
+    logger.info(f"Saving embeddings to \"{self.embedding_path}\".")
+    try:
+      os.makedirs(os.path.dirname(self.embedding_path), exist_ok=True)
+      np.save(self.embedding_path, embeddings)
+      logger.info(f"Saved embeddings to \"{self.embedding_path}\".")
+    except Exception as e:
+      # Silent failure. Continue process as normal.
+      logger.error(f"Failed to save embeddings to \"{self.embedding_path}\".")
+      logger.error(e)
 
-  def has_cached_embeddings(self):
-    return os.path.exists(self.embedding_path)
-  
-  def load_cached_embeddings(self)->npt.NDArray:
-    if self.has_cached_embeddings():
-      return np.load(self.embedding_path)
-    raise UnavailableCacheException(f"There are no cached embeddings in {self.embedding_path}. This is a developer oversight; remember to add a self.has_cached_embeddings check before calling this function.")
+  def load_cached_embeddings(self)->Optional[np.ndarray]:
+    if not os.path.exists(self.embedding_path):
+      return None
+    try:
+      embeddings = np.load(self.embedding_path)
+      logger.info(f"Loaded cached embeddings from \"{self.embedding_path}\".")
+      return embeddings
+    except Exception as e:
+      # Silent failure. Continue process as normal.
+      logger.info(f"Failed to load cached embeddings from \"{self.embedding_path}\".")
+      logger.error(e)
+      return None

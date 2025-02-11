@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-import numpy.typing as npt
+import numpy as np
 import pandas as pd
 import pydantic
 
@@ -83,13 +83,13 @@ class BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   type: Any
  
   @abc.abstractmethod
-  def apply(self, params: TableFilterParams)->pd.Series | npt.NDArray:
+  def apply(self, params: TableFilterParams)->pd.Series | np.ndarray:
     pass
 
 class BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   model_config = CommonModelConfig
   @abc.abstractmethod
-  def apply(self, params: TableFilterParams)->pd.Series | npt.NDArray:
+  def apply(self, params: TableFilterParams)->pd.Series | np.ndarray:
     pass
 
 class TableSort(pydantic.BaseModel, abc.ABC, frozen=True):

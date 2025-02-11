@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import pydantic
 

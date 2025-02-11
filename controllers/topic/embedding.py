@@ -3,11 +3,10 @@ from enum import Enum
 import functools
 import http
 import os
-from typing import TYPE_CHECKING, Any, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, cast
 import abc
 
 import numpy as np
-import numpy.typing as npt
 
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.api import ApiError
@@ -98,8 +97,9 @@ class Doc2VecEmbeddingModel(BaseBertopicEmbeddingModel):
     return self
   
   def transform(self, X: Sequence[str]):
-    if self.has_cached_embeddings():
-      return self.load_cached_embeddings()
+    cached_embeddings = self.load_cached_embeddings()
+    if cached_embeddings:
+      return cached_embeddings
     
     with TimeLogger(logger, "Transforming documents to embeddings with Doc2Vec", report_start=True):
       embeddings = np.array(tuple(
@@ -128,8 +128,9 @@ class SbertEmbeddingModel(BaseBertopicEmbeddingModel):
     return self
   
   def transform(self, X: Sequence[str]):
-    if self.has_cached_embeddings():
-      return self.load_cached_embeddings()
+    cached_embeddings = self.load_cached_embeddings()
+    if cached_embeddings:
+      return cached_embeddings
     # Use the original documents since SBERT performs better with full data
     with TimeLogger(logger, "Transforming documents to embeddings with SBERT", report_start=True):
       embeddings = self.model.encode(X, show_progress_bar=True) # type: ignore
@@ -192,8 +193,9 @@ class LsaEmbeddingModel(BaseBertopicEmbeddingModel):
     return self
   
   def transform(self, X: Sequence[str]):
-    if self.has_cached_embeddings():
-      return self.load_cached_embeddings()
+    cached_embeddings = self.load_cached_embeddings()
+    if cached_embeddings:
+      return cached_embeddings
     # Use the original documents since SBERT performs better with full data
     with TimeLogger(logger, "Transforming documents to embeddings with LSA", report_start=True):
       embeddings = self.model.transform(X, show_progress_bar=True) # type: ignore
@@ -201,7 +203,7 @@ class LsaEmbeddingModel(BaseBertopicEmbeddingModel):
     return embeddings
 
 @dataclass
-class BertopicEmbeddingModelFactory:
+class BERTopicEmbeddingModelFactory:
   paths: ProjectPathManager
   column: TextualSchemaColumn
   def build(self):
@@ -215,30 +217,25 @@ class BertopicEmbeddingModelFactory:
     else:
       raise ApiError(f"Invalid document embedding method: {self.column.topic_modeling.embedding_method}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
  
+SupportedBERTopicEmbeddingModels = Union[SbertEmbeddingModel, Doc2VecEmbeddingModel, LsaEmbeddingModel]
+
 def bertopic_embedding(
+  embedding_model: SupportedBERTopicEmbeddingModels,
   intermediate: BERTopicColumnIntermediateResult
 ):
   paths = intermediate.config.paths
   column = intermediate.column
   task = intermediate.task
 
-  embedding_model = BertopicEmbeddingModelFactory(
-    paths=paths,
-    column=column,
-  ).build()
-  intermediate.embedding_model = embedding_model
-
   embedding_path = paths.allocate_path(ProjectPaths.DocumentEmbeddings(column.name))
 
-  if os.path.exists(embedding_path):
-    task.progress(f"Loading cached document embeddings for \"{column.name}\" from \"{embedding_path}\".")
-    embeddings = np.load(embedding_path)
+  embeddings = embedding_model.load_cached_embeddings()
+  if embeddings is not None:
+    task.progress(f"Using cached document vectors for \"{column.name}\" from \"{embedding_path}\".")
     intermediate.embeddings = embeddings
     return
   
-  task.progress(
-    f"Transforming documents of \"{column.name}\" into document embeddings."
-  )
+  task.progress(f"Transforming documents of \"{column.name}\" into document vectors...")
 
   if embedding_model.preference() == BERTopicEmbeddingModelPreprocessingPreference.Light:
     input_documents = intermediate.embedding_documents

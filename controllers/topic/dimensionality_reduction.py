@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 import functools
+import http
 from typing import TYPE_CHECKING
 import abc
 
+import numpy as np
+
+from common.models.api import ApiError
 from controllers.topic.cache import CachedEmbeddingModel
 from models.config import ProjectPathManager, TextualSchemaColumn, ProjectPaths
-import numpy.typing as npt
 if TYPE_CHECKING:
   from sklearn.base import BaseEstimator, TransformerMixin
   from umap import UMAP
@@ -20,15 +23,18 @@ class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin)
   def model(self)->UMAP:
     ...
 
-  def fit(self, X: npt.NDArray):
-    if self.has_cached_embeddings():
+  def fit(self, X: np.ndarray):
+    cached_embeddings = self.load_cached_embeddings()
+    if cached_embeddings:
       return self
+    
     self.model.fit(X)
     return self
   
-  def transform(self, X: npt.NDArray):
-    if self.has_cached_embeddings():
-      return self.load_cached_embeddings()
+  def transform(self, X: np.ndarray):
+    cached_embeddings = self.load_cached_embeddings()
+    if cached_embeddings:
+      return cached_embeddings
     return self.model.transform(X)
 
 class BERTopicCachedUMAP(CachedUMAP):
@@ -53,7 +59,16 @@ class BERTopicCachedUMAP(CachedUMAP):
   def model(self):
     return self.__model
 
+
+@dataclass
+class VisualizationCachedUMAPResult:
+  document_embeddings: np.ndarray
+  topic_embeddings: np.ndarray
+
+@dataclass
 class VisualizationCachedUMAP(CachedUMAP):
+  corpus_size: int
+  topic_count: int
   @property
   def embedding_path(self):
     return self.paths.full_path(ProjectPaths.VisualizationEmbeddings(self.column.name))
@@ -73,3 +88,16 @@ class VisualizationCachedUMAP(CachedUMAP):
   @property
   def model(self):
     return self.__model
+  
+  def join_embeddings(self, document_embeddings: np.ndarray, topic_embeddings: np.ndarray):
+    return np.vstack([document_embeddings, topic_embeddings])
+  
+  def separate_embeddings(self, embeddings: np.ndarray):
+    expected_length = self.corpus_size + self.topic_count
+    if embeddings.shape[0] != expected_length:
+      raise ApiError(f"Expected cached visualization embeddings for \"{self.column.name}\" to have {self.corpus_size} + {self.topic_count} rows, but got {embeddings.shape[0]} instead. Maybe the cached visualization embeddings in \"{self.embedding_path}\" has been corrupted. To fix this, please run the topic modeling procedure again.", http.HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    return VisualizationCachedUMAPResult(
+      document_embeddings=embeddings[:self.corpus_size],
+      topic_embeddings=embeddings[self.corpus_size:],
+    )

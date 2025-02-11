@@ -22,6 +22,7 @@ class Config(pydantic.BaseModel):
   source: DataSource
   # schema is taken by pydantic
   data_schema: SchemaManager
+
   paths: ProjectPathManager = pydantic.Field(exclude=True)
   
   @pydantic.model_validator(mode="before")

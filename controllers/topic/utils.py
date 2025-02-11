@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from common.models.api import ApiError
@@ -8,7 +9,6 @@ from common.task.executor import TaskPayload
 from models.config.config import Config
 from models.config.paths import ProjectPaths
 from models.config.schema import TextualSchemaColumn
-import numpy.typing as npt
 
 from models.topic.topic import TopicHierarchyModel, TopicModel
 
@@ -25,19 +25,12 @@ class BERTopicColumnIntermediateResult:
   # Marks which documents are excluded
   mask: pd.Series
   column: TextualSchemaColumn
-  embeddings: npt.NDArray
-  embedding_model: BaseEstimator
+  embeddings: np.ndarray
   task: TaskPayload
   model: BERTopic
   document_topic_assignments: list[int]
-
-  document_visualization_embeddings: npt.NDArray
-  topic_visualization_embeddings: npt.NDArray
-  topic_embeddings: npt.NDArray
-
-  topics: list[TopicModel]
-  hierarchy: TopicHierarchyModel
-
+  
+  topic_embeddings: np.ndarray
 
   @staticmethod
   def initialize(
