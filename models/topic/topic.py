@@ -1,11 +1,10 @@
 import datetime
 from typing import TYPE_CHECKING, Optional
+
 import pydantic
 
 from models.config.paths import ProjectPathManager, ProjectPaths
 
-if TYPE_CHECKING:
-  from bertopic import BERTopic
 
 class TopicModel(pydantic.BaseModel):
   id: int
@@ -28,8 +27,8 @@ class TopicModelingResultModel(pydantic.BaseModel):
     default_factory=lambda: datetime.datetime.now()
   )
 
-  def save_to_json(self, model: BERTopic, column: str):
+  def save_to_json(self, column: str):
     paths = ProjectPathManager(project_id=self.project_id)
     topics_path = paths.allocate_path(ProjectPaths.Topics(column))
-    model.save(topics_path, serialization="safetensors", save_ctfidf=True, save_embedding_model=False)
-
+    with open(topics_path, 'w', encoding='utf-8') as f:
+      f.write(self.model_dump_json())

@@ -27,7 +27,7 @@ class BERTopicColumnIntermediateResult:
   column: TextualSchemaColumn
   embeddings: np.ndarray
   task: TaskPayload
-  model: BERTopic
+  model: "BERTopic"
   document_topic_assignments: list[int]
   
   topic_embeddings: np.ndarray
@@ -45,13 +45,9 @@ class BERTopicColumnIntermediateResult:
       task=task,
       hierarchy=None, # type: ignore
       document_topic_assignments=None, # type: ignore
-      document_visualization_embeddings=None, # type: ignore
-      topic_embeddings=None, # type: ignore
-      topic_visualization_embeddings=None, # type: ignore
       documents=None, # type: ignore
       mask=None, # type: ignore
       embeddings=None, # type: ignore
-      embedding_model=None, # type: ignore
       embedding_documents=None, # type: ignore
       model=None, # type: ignore
     )

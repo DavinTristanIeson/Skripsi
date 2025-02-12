@@ -58,7 +58,7 @@ class Config(pydantic.BaseModel):
       raise ApiError(f"Failed to load the workspace table from {path}. Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
     for col in self.data_schema.categorical():
       # Set ordered categories
-      df[col.name] = col.fit(df[col.name]) # type: ignore
+      col.fit(df) # type: ignore
     return df
       
 __all__ = [

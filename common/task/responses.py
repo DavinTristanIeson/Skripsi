@@ -5,16 +5,18 @@ from typing import Annotated, Any, Literal, Optional, Union
 import pydantic
 
 from common.models.enum import ExposedEnum
+from common.models.validators import CommonModelConfig
 
 class TaskResponseType(Enum):
   Empty = "empty"
 
-class TaskStatus(str, Enum):
+class TaskStatusEnum(str, Enum):
   Idle = "idle"
   Pending = "pending"
   Success = "success"
   Failed = "failed"
-ExposedEnum().register(TaskStatus)
+
+ExposedEnum().register(TaskStatusEnum)
 
 class TaskResponseData(SimpleNamespace):
   class Empty(pydantic.BaseModel):
@@ -23,47 +25,25 @@ class TaskResponseData(SimpleNamespace):
   TypeUnion = Union[Empty]
   DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
 
-class TaskResponse(pydantic.BaseModel):
-  id: str
-  data: TaskResponseData.DiscriminatedUnion
-  status: TaskStatus
-  message: Optional[str] = None
+class TaskLog(pydantic.BaseModel):
+  model_config = CommonModelConfig
+  status: TaskStatusEnum
+  message: str
   timestamp: datetime.datetime = pydantic.Field(
     default_factory=lambda: datetime.datetime.now()
   )
+class TaskResponse(pydantic.BaseModel):
+  model_config = CommonModelConfig
+  id: str
+  data: TaskResponseData.DiscriminatedUnion
+  logs: list[TaskLog]
+  status: TaskStatusEnum
 
-  @staticmethod
-  def Success(id: str, data: Any, message: Optional[str]):
-    return TaskResponse(
-      data=data,
-      message=message,
-      status=TaskStatus.Success,
-      id=id,
-    )
-
-  @staticmethod
-  def Pending(id: str, message: str):
-    return TaskResponse(
-      data=TaskResponseData.Empty(),
-      message=message,
-      status=TaskStatus.Pending,
-      id=id,
-    )
-
-  @staticmethod
-  def Error(id: str, error_message: str):
-    return TaskResponse(
-      data=TaskResponseData.Empty(),
-      message=error_message,
-      status=TaskStatus.Failed,
-      id=id,
-    )
-  
   @staticmethod
   def Idle(id: str):
     return TaskResponse(
       data=TaskResponseData.Empty(),
-      message=None,
-      status=TaskStatus.Idle,
+      logs=[],
+      status=TaskStatusEnum.Idle,
       id=id,
     )

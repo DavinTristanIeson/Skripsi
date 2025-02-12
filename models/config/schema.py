@@ -111,7 +111,7 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   def fit(self, df):
     raw_data = df[self.name]
     if raw_data.dtype == 'category':
-      data = raw_data
+      data = pd.Categorical(raw_data)
     else:  
       data = pd.Categorical(raw_data.astype(str))
 
@@ -121,15 +121,26 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     elif self.alphanumeric_order:
       category_order = sorted(data.categories)
 
-    data = data.reorder_categories(
-      category_order,
-      ordered=True
-    )
+  
+    if category_order is not None:
+      invalid_categories_in_config = set(category_order).difference(data.categories)
+      missing_categories_in_config = set(data.categories).difference(category_order)
+      
+      # Ensure that category order is proper
+      resolved_category_order: list[str] = sorted(missing_categories_in_config)
+      for category in category_order:
+        if category in invalid_categories_in_config:
+          continue
+        resolved_category_order.append(category)
+
+      data = data.reorder_categories(
+        resolved_category_order,
+        ordered=True
+      )
     df[self.name] = data
 
 class TopicSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Topic]
-  internal = True
   def fit(self, df):
     pass
 
@@ -163,7 +174,7 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     ]
   
   def fit(self, df):
-    data = df[self.name].astype(np.float64)
+    data = df[self.name].astype(str)
     df[self.name] = data
 
 

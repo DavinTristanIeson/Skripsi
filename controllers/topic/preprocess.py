@@ -20,11 +20,12 @@ def bertopic_preprocessing(
     original_mask = raw_documents.notna()
     original_documents: Sequence[str] = raw_documents[original_mask] # type: ignore
 
-    intermediate.task.progress(f"Preprocessing the documents in column \"{column.name}\". Text preprocessing may take some time...")
+    intermediate.task.log_pending(f"Preprocessing the documents in column \"{column.name}\". Text preprocessing may take some time...")
     # preprocess_topic_keywords set NA for invalid documents, so we need to recompute mask
     df.loc[original_mask, preprocess_name] = column.preprocessing.preprocess_topic_keywords(original_documents) # type: ignore
     mask = df[preprocess_name].notna()
     preprocess_documents = df.loc[mask, preprocess_name]
+    intermediate.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
   
   if len(preprocess_documents) == 0:
     raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")

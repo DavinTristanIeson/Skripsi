@@ -6,18 +6,18 @@ import pandas as pd
 
 from common.models.api import ApiError
 from controllers.topic.builder import BERTopicIndividualModels
-from controllers.topic.interpret import BERTopicCTFIDFRepresentationResult, BERTopicInterpreter, bertopic_count_topics, bertopic_topic_words
+from controllers.topic.interpret import BERTopicCTFIDFRepresentationResult, BERTopicInterpreter, bertopic_count_topics, bertopic_extract_topics
 from controllers.topic.utils import BERTopicColumnIntermediateResult
-from models.topic.topic import TopicHierarchyModel
+from models.topic.topic import TopicHierarchyModel, TopicModelingResultModel, TopicModel
 
-from .dimensionality_reduction import VisualizationCachedUMAP
+from .dimensionality_reduction import VisualizationCachedUMAP, VisualizationCachedUMAPResult
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
 
 def bertopic_visualization_embeddings(
   intermediate: BERTopicColumnIntermediateResult
-):
+)->VisualizationCachedUMAPResult:
   task = intermediate.task
   config = intermediate.config
   column = intermediate.column
@@ -25,9 +25,12 @@ def bertopic_visualization_embeddings(
   cached_umap_model = BERTopicIndividualModels.cast(intermediate.model).umap_model
   reduced_embeddings = cached_umap_model.load_cached_embeddings()
   if reduced_embeddings is None:
-    task.error(ApiError(f"Unable to find the embeddings created by UMAP in \"{cached_umap_model.embedding_path}\". The topic modeling procedure might not have been executed yet. Please re-run the topic modeling procedure to fix this.", http.HTTPStatus.INTERNAL_SERVER_ERROR))
-    return
-  task.progress("Mapping the document and topic vectors to 2D for visualization purposes...")
+    raise ApiError(
+      f"Unable to find the embeddings created by UMAP in \"{cached_umap_model.embedding_path}\". The topic modeling procedure might not have been executed yet. Please re-run the topic modeling procedure to fix this.",
+      http.HTTPStatus.INTERNAL_SERVER_ERROR
+    )
+    
+  task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
   topic_embeddings = intermediate.model.topic_embeddings_
   high_dimensional_embeddings = np.vstack([reduced_embeddings, topic_embeddings]) # type: ignore
   umap_model = VisualizationCachedUMAP(
@@ -36,8 +39,9 @@ def bertopic_visualization_embeddings(
     corpus_size=len(documents),
     topic_count=bertopic_count_topics(intermediate.model)
   )
-  umap_model.fit_transform(high_dimensional_embeddings)
-  task.progress(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {umap_model.embedding_path}.")
+  visualization_embeddings = umap_model.fit_transform(high_dimensional_embeddings)
+  task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {umap_model.embedding_path}.")
+  return umap_model.separate_embeddings(visualization_embeddings)
 
 def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateResult):
   import sklearn.metrics
@@ -52,7 +56,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   topics = intermediate.document_topic_assignments
   column = intermediate.column
   
-  task.progress(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
+  task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
 
   # Classic hierarchical clustering
   topic_embeddings: np.ndarray = cast(np.ndarray, model.topic_embeddings_)
@@ -167,6 +171,8 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
     )
   
   topic_hierarchy = build_topic_hierarchy(simplified_dendrogram, hierarchy_root)
+
+  task.log_success(f"Finished performing hierarchical clustering on the topics of \"{intermediate.column.name}\".")
   return topic_hierarchy
 
 
@@ -175,12 +181,7 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnInter
   model = intermediate.model
   task = intermediate.task
 
-  # Set topic labels
-  interpreter = BERTopicInterpreter.from_model(model, documents=intermediate.documents) # type: ignore
-  topic_labels = bertopic_topic_words(model).labels
-  if model._outliers:
-    topic_labels.insert(0, '')
-  model.set_topic_labels(topic_labels)
+  task.log_pending(f"Applying post-processing on the topics of \"{intermediate.column.name}\"...")
 
   # Set topic assignments
   document_topic_mapping_column = pd.Series(np.full(len(intermediate.embedding_documents), -1), dtype=np.int32)
@@ -188,8 +189,26 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnInter
   df[column.topic_column.name] = document_topic_mapping_column
 
   # Perform hierarchical clustering
+  task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
   hierarchy = bertopic_hierarchical_clustering(intermediate)
 
   # Embed document/topics
-  task.progress(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
-  bertopic_visualization_embeddings(intermediate)
+  visualization_topic_embeddings = bertopic_visualization_embeddings(intermediate).topic_embeddings
+  
+  # Set topic labels
+  topics = bertopic_extract_topics(
+    model,
+    visualization_topic_embeddings
+  )
+
+  # Create topic result
+  topic_modeling_result = TopicModelingResultModel(
+    project_id=intermediate.config.project_id,
+    topics=topics,
+    hierarchy=hierarchy
+  )
+
+  task.log_success(f"Finished appling post-processing on the topics of \"{intermediate.column.name}\".")
+  return topic_modeling_result
+
+  

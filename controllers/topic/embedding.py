@@ -231,11 +231,11 @@ def bertopic_embedding(
 
   embeddings = embedding_model.load_cached_embeddings()
   if embeddings is not None:
-    task.progress(f"Using cached document vectors for \"{column.name}\" from \"{embedding_path}\".")
+    task.log_success(f"Using cached document vectors for \"{column.name}\" from \"{embedding_path}\".")
     intermediate.embeddings = embeddings
     return
   
-  task.progress(f"Transforming documents of \"{column.name}\" into document vectors...")
+  task.log_pending(f"Transforming documents of \"{column.name}\" into document vectors...")
 
   if embedding_model.preference() == BERTopicEmbeddingModelPreprocessingPreference.Light:
     input_documents = intermediate.embedding_documents
@@ -246,5 +246,4 @@ def bertopic_embedding(
   intermediate.embeddings = embeddings
   embedding_model.save()
   
-  task.progress(f"All documents from \"{column.name}\" has been successfully embedded using {column.topic_modeling.embedding_method} and saved in \"{embedding_path}\".")
-  task.check_stop()
+  task.log_success(f"All documents from \"{column.name}\" has been successfully embedded using {column.topic_modeling.embedding_method} and saved in \"{embedding_path}\".")

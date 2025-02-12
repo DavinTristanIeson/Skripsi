@@ -1,14 +1,17 @@
 from dataclasses import dataclass
 import functools
+import itertools
 from typing import TYPE_CHECKING, Iterable, Optional, Sequence, cast
+import http
 
 import numpy as np
 
+from common.models.api import ApiError
 from controllers.topic.builder import BERTopicIndividualModels
+from models.topic.topic import TopicModel
 
 if TYPE_CHECKING:
   from bertopic import BERTopic
-  from scipy.sparse import spmatrix
   from sklearn.feature_extraction.text import CountVectorizer
   from bertopic.vectorizers import ClassTfidfTransformer
 
@@ -19,11 +22,6 @@ class BERTopicCTFIDFRepresentationResult:
   words: list[tuple[str, float]]
 
 @dataclass
-class BERTopicTopicWordResult:
-  topic_words: list[list[str]]
-  labels: list[str]
-
-@dataclass
 class BERTopicInterpreter:
   vectorizer_model: CountVectorizer
   ctfidf_model: ClassTfidfTransformer
@@ -32,11 +30,8 @@ class BERTopicInterpreter:
   top_n_words: int
   diversity: float
 
-  documents: Optional[Sequence[str]]
-  umap_embeddings: Optional[np.ndarray]
-
   @staticmethod
-  def from_model(model: BERTopic, *, documents: Sequence[str])->"BERTopicInterpreter":
+  def from_model(model: "BERTopic")->"BERTopicInterpreter":
     bertopic_components = BERTopicIndividualModels.cast(model)
     return BERTopicInterpreter(
       ctfidf_model=bertopic_components.ctfidf_model,
@@ -44,8 +39,6 @@ class BERTopicInterpreter:
       topic_ctfidf=cast(np.ndarray, model.c_tf_idf_),
       top_n_words=model.top_n_words,
       diversity=bertopic_components.representation_model.diversity,
-      umap_embeddings=bertopic_components.umap_model.load_cached_embeddings(),
-      documents=documents,
     )
   
   def __mmr(self, target_ctfidf: np.ndarray, selected_words_ctfidf: np.ndarray):
@@ -77,7 +70,7 @@ class BERTopicInterpreter:
 
     # Get the average between global and local. This follows the code in BERTopic implementation
     global_ctfidf = global_ctfidf.take(involved_topics, axis=0)
-    tuned_ctfidf = (global_ctfidf + ctfidf) / 2
+    tuned_ctfidf = (global_ctfidf + local_ctfidf ) / 2
     return tuned_ctfidf
 
   def get_weighted_words(self, ctfidf: np.ndarray)->list[tuple[str, float]]:
@@ -110,31 +103,49 @@ class BERTopicInterpreter:
   def represent_as_ctfidf(self, bow: np.ndarray)->np.ndarray:
     return cast(np.ndarray, self.ctfidf_model.transform(bow)) # type: ignore
   
-def bertopic_topic_words(model: BERTopic):
+
+def bertopic_extract_topics(
+  model: "BERTopic",
+  visualization_topic_embeddings: np.ndarray
+)->list[TopicModel]:
+  if model.topic_embeddings_ is None:
+    raise ApiError(
+      "BERTopic model has not been fitted yet! This might be a developer oversight.",
+      http.HTTPStatus.INTERNAL_SERVER_ERROR
+    )
   topic_words_mapping = model.get_topics()
-  all_topic_words: list[list[str]] = []
-  for key, raw_topic_words in topic_words_mapping.items():
+  topics: list[TopicModel] = []
+  for raw_key, raw_topic_words in topic_words_mapping.items():
+    key = int(raw_key)
     if key == -1:
       continue
-    raw_topic_words = cast(list[tuple[str, float]], raw_topic_words)
-    all_topic_words.append(list(map(
+    topic_words = cast(list[tuple[str, float]], raw_topic_words)
+    topic_embedding = model.topic_embeddings_[key] # type: ignore
+    pythonic_topic_embedding = list(map(float, topic_embedding))
+    visualization_topic_embedding = visualization_topic_embeddings[key]
+    pythonic_visualization_topic_embedding = list(map(float, visualization_topic_embedding))
+
+    representative_topic_words = list(itertools.islice(map(
       lambda el: el[0],
-      raw_topic_words
-    )))
-
-  topic_labels = []
-  for idx, topic_words in enumerate(all_topic_words):
-    representative_topic_words = list(filter(bool, topic_words[:3]))
+      topic_words
+    ), 3))
     if len(representative_topic_words) == 0:
-      topic_labels.append(f"Topic {idx+1}")
+      topic_label = f"Topic {key+1}"
     else:
-      topic_labels.append(', '.join(representative_topic_words))
+      topic_label = ', '.join(representative_topic_words)
+    topic_frequency = cast(int, model.get_topic_freq(int(key)))
 
-  return BERTopicTopicWordResult(
-    topic_words=all_topic_words,
-    labels=topic_labels
-  )
+    topic = TopicModel(
+      id=key,
+      label=topic_label,
+      words=topic_words,
+      frequency=topic_frequency,
+      embedding=pythonic_topic_embedding,
+      visualization_embedding=pythonic_visualization_topic_embedding,
+    )
+    topics.append(topic)
 
+  return topics
 
 def bertopic_count_topics(model: "BERTopic")->int:
   return len(model.get_topics().keys()) - model._outliers

@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+import os
 from typing import TYPE_CHECKING, cast
+from common.logger import RegisteredLogger
 from controllers.topic.dimensionality_reduction import BERTopicCachedUMAP
 from controllers.topic.embedding import BERTopicEmbeddingModelFactory, SupportedBERTopicEmbeddingModels
-from models.config.paths import ProjectPathManager
+from models.config.paths import ProjectPathManager, ProjectPaths
 from models.config.schema import TextualSchemaColumn
 if TYPE_CHECKING:
   from bertopic import BERTopic
@@ -12,6 +14,8 @@ if TYPE_CHECKING:
   from umap import UMAP
   from sklearn.feature_extraction.text import CountVectorizer
 
+
+logger = RegisteredLogger().provision("Topic Modeling")
 @dataclass
 class BERTopicIndividualModels:
   embedding_model: SupportedBERTopicEmbeddingModels
@@ -122,4 +126,21 @@ class BERTopicModelBuilder:
       verbose=True,
       **kwargs,
     )
+    return model
+    
+  def load(self):
+    paths = ProjectPathManager(project_id=self.project_id)
+    bertopic_path = paths.full_path(os.path.join(ProjectPaths.BERTopic(self.column.name)))
+    if not os.path.exists(bertopic_path):
+      return None
+    try:
+      model = BERTopic.load(bertopic_path)
+    except Exception as e:
+      logger.error(e)
+      return None
+    
+    model.embedding_model = self.build_embedding_model()
+    model.umap_model = self.build_umap_model()
+    model.hdbscan_model = self.build_hdbscan_model()
+
     return model
