@@ -16,9 +16,9 @@ from controllers.topic.utils import BERTopicColumnIntermediateResult
 from models.config import Config, TextualSchemaColumn, DocumentEmbeddingMethodEnum
 from models.config.paths import ProjectPathManager, ProjectPaths
 
+from sklearn.base import BaseEstimator, TransformerMixin
 if TYPE_CHECKING:
   from gensim.models import Doc2Vec
-  from sklearn.base import BaseEstimator, TransformerMixin
 
 logger = RegisteredLogger().provision("Topic Modeling")
 
@@ -58,22 +58,22 @@ class Doc2VecEmbeddingModel(BaseBertopicEmbeddingModel):
     return self.paths.full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
   
   @functools.cached_property
-  def model(self)->Doc2Vec:
+  def model(self)->"Doc2Vec":
     try:
-      import gensim
+      from gensim.models import Doc2Vec
     except ImportError:
       raise ApiError("The gensim library must be installed before SBERT document embedding can be performed.", 400)
   
     if os.path.exists(self.embedding_model_path):
       try:
-        model = cast(Doc2Vec, gensim.models.Doc2Vec.load(self.embedding_model_path))
+        model = cast(Doc2Vec, Doc2Vec.load(self.embedding_model_path))
         self.__pre_trained = True
         return model
       except Exception as e:
         logger.error(e)
         logger.error("Failed to load cached Doc2Vec model. Creating a new model...")
     # The documents will have been preprocessed so min_count=1 is fine.
-    return gensim.models.Doc2Vec(dm=0, dbow_words=0, min_count=1, vector_size=100)
+    return Doc2Vec(dm=0, dbow_words=0, min_count=1, vector_size=100)
   
   def save(self):
     os.makedirs(os.path.dirname(self.embedding_model_path), exist_ok=True)

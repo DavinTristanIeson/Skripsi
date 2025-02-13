@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import functools
 import http
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 import abc
 
 import numpy as np
@@ -9,8 +9,8 @@ import numpy as np
 from common.models.api import ApiError
 from controllers.topic.cache import CachedEmbeddingModel
 from models.config import ProjectPathManager, TextualSchemaColumn, ProjectPaths
+from sklearn.base import BaseEstimator, TransformerMixin
 if TYPE_CHECKING:
-  from sklearn.base import BaseEstimator, TransformerMixin
   from umap import UMAP
 
 @dataclass
@@ -20,12 +20,12 @@ class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin)
   
   @property
   @abc.abstractmethod
-  def model(self)->UMAP:
+  def model(self)->"UMAP":
     ...
 
   def fit(self, X: np.ndarray):
     cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings:
+    if cached_embeddings is not None:
       return self
     
     self.model.fit(X)
@@ -33,9 +33,11 @@ class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin)
   
   def transform(self, X: np.ndarray):
     cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings:
+    if cached_embeddings is not None:
       return cached_embeddings
-    return self.model.transform(X)
+    embeddings = cast(np.ndarray, self.model.transform(X))
+    self.save_embeddings(embeddings)
+    return embeddings
 
 class BERTopicCachedUMAP(CachedUMAP):
   @property

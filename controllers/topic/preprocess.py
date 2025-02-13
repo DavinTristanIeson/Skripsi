@@ -9,14 +9,14 @@ def bertopic_preprocessing(
 ):
   column = intermediate.column
   preprocess_name = column.preprocess_column.name
+  raw_documents = df[column.name]
   if column.preprocess_column.name in df.columns:
     # CACHED
     raw_preprocess_documents = df[preprocess_name]
     mask = df[preprocess_name].notna()
-    preprocess_documents = list(raw_preprocess_documents[mask])
+    preprocess_documents = raw_preprocess_documents[mask]
   else:
     # COMPUTE
-    raw_documents = df[column.name]
     original_mask = raw_documents.notna()
     original_documents: Sequence[str] = raw_documents[original_mask] # type: ignore
 
@@ -32,7 +32,9 @@ def bertopic_preprocessing(
   
   original_documents: Sequence[str] = raw_documents[mask] # type: ignore
   # Light preprocessing for SBERT
+  intermediate.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
   sbert_documents = column.preprocessing.preprocess_sbert(original_documents)
+  intermediate.task.log_pending(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
 
   intermediate.embedding_documents = sbert_documents
   intermediate.documents = preprocess_documents # type: ignore

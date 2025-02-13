@@ -47,7 +47,9 @@ class TaskServer(metaclass=Singleton):
       except Exception as e:
         logger.error(f"An error has occurred during the execution of task {message.id}. Error: {traceback.print_exception(e)}")
         with self.lock:
-          self.results[message.id].logs.append(TaskLog(
+          result = self.results[message.id]
+          result.status = TaskStatusEnum.Failed
+          result.logs.append(TaskLog(
             message=str(e),
             status=TaskStatusEnum.Failed
           ))

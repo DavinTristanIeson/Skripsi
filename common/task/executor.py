@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+import http
 import threading
 from typing import Any, Callable, Optional
 
 from common.logger import RegisteredLogger
+from common.models.api import ApiError
 from .requests import TaskRequest
 from .responses import TaskLog, TaskResponse, TaskResponseData, TaskStatusEnum
 
@@ -28,8 +30,12 @@ class TaskPayload:
     
   @property
   def task(self)->"TaskResponse":
-    with self.lock:
-      return self.results[self.id]
+    if self.id not in self.results:
+      raise ApiError(
+        f"The task \"{self.id}\" has not been created yet. This should be a developer oversight. Try re-executing the procedure again.",
+        http.HTTPStatus.INTERNAL_SERVER_ERROR
+      )
+    return self.results[self.id]
 
   def log(self, message: str, status: TaskStatusEnum):
     logger.info(f"({status}) {message}")
@@ -57,14 +63,5 @@ class TaskPayload:
       task.data = data
     self.check_stop()
     raise IntentionalThreadExit()
-  
-  def error(self, error: Exception):
-    logger.error(str(error))
-    if self.stop_event.is_set():
-      # No need report. Parent process is already aware
-      return
-    self.stop_event.set()
-    raise error
-
 
 TaskHandlerFn = Callable[[TaskPayload], None]

@@ -76,7 +76,7 @@ class ProjectPathManager(pydantic.BaseModel):
     return path
   
   def allocate_path(self, path: str)->str:
-    dirpath = os.path.dirname(path)
+    dirpath = os.path.dirname(self.full_path(path))
     os.makedirs(dirpath, exist_ok=True)
     return path
 
@@ -85,22 +85,26 @@ class ProjectPathManager(pydantic.BaseModel):
     return self.full_path(ProjectPaths.Config)
 
   def __cleanup(self, directories: list[str], files: list[str]):
+    logger.info(f"Cleaning up the following directories: {directories}; and files: {files}.")
     try:
       for dir in directories:
         if os.path.exists(dir):
           shutil.rmtree(dir)
+          logger.debug(f"Deleted {dir}.")
       for file in files:
         if os.path.exists(file):
           os.remove(file)
+          logger.debug(f"Deleted {file}.")
     except Exception as e:
       logger.error(f"An error has occurred while deleting directories and/or files from the project directory of {self.project_id}. Error => {e}")
       raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)
     
-    if all and os.path.exists(self.project_path):
+    if os.path.exists(self.project_path):
       remaining_files = os.listdir(self.project_path)
       if len(remaining_files) == 0:
         try:
           os.rmdir(self.project_path)
+          logger.info(f"Deleted {self.project_path} as there are no remaining files.")
         except ApiError as e:
           logger.error(f"An error has occurred while deleting {self.project_path}. Error => {e}")
           raise ApiError(f"An unexpected error has occurred while cleaning up the project directory of {self.project_id}: {e}", 500)

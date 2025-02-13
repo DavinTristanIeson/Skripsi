@@ -23,12 +23,11 @@ class BERTopicCTFIDFRepresentationResult:
 
 @dataclass
 class BERTopicInterpreter:
-  vectorizer_model: CountVectorizer
-  ctfidf_model: ClassTfidfTransformer
+  vectorizer_model: "CountVectorizer"
+  ctfidf_model: "ClassTfidfTransformer"
   # Always assume numpy array. Dealing with scipy sparse array typing is a pain.
   topic_ctfidf: np.ndarray
   top_n_words: int
-  diversity: float
 
   @staticmethod
   def from_model(model: "BERTopic")->"BERTopicInterpreter":
@@ -38,20 +37,7 @@ class BERTopicInterpreter:
       vectorizer_model=bertopic_components.vectorizer_model,
       topic_ctfidf=cast(np.ndarray, model.c_tf_idf_),
       top_n_words=model.top_n_words,
-      diversity=bertopic_components.representation_model.diversity,
     )
-  
-  def __mmr(self, target_ctfidf: np.ndarray, selected_words_ctfidf: np.ndarray):
-    from bertopic.representation._mmr import mmr
-    mmr_filtered_indices = mmr(
-      doc_embedding=target_ctfidf,
-      word_embeddings=selected_words_ctfidf,
-      diversity=self.diversity,
-      top_n=self.top_n_words,
-      # Provide integers rather than strings so that MMR returns the indices
-      words=np.arange(len(selected_words_ctfidf), dtype=np.int32) # type: ignore
-    )
-    return mmr_filtered_indices
 
   @functools.cached_property
   def vocabulary(self):
@@ -77,10 +63,6 @@ class BERTopicInterpreter:
     top_word_indices = np.argsort(ctfidf)[:self.top_n_words] # type: ignore
     words = self.vocabulary[top_word_indices]
     weights = ctfidf[top_word_indices]
-
-    mmr_filtered_indices = self.__mmr(ctfidf, weights)
-    words = words[mmr_filtered_indices]
-    weights = weights[mmr_filtered_indices]
     return list(zip(words, weights))
   
   def get_words(self, ctfidf: np.ndarray)->list[str]:
@@ -97,11 +79,10 @@ class BERTopicInterpreter:
     return (analyzer(doc) for doc in documents)
   
   def represent_as_bow(self, documents: Sequence[str])->np.ndarray:
-    meta_document = ' '.join(documents)
-    return cast(np.ndarray, self.vectorizer_model.transform(meta_document))
+    return np.array(self.vectorizer_model.transform(documents).sum(axis=0))[0] # type: ignore
   
   def represent_as_ctfidf(self, bow: np.ndarray)->np.ndarray:
-    return cast(np.ndarray, self.ctfidf_model.transform(bow)) # type: ignore
+    return cast(np.ndarray, self.ctfidf_model.transform([bow]))[0] # type: ignore
   
 
 def bertopic_extract_topics(
@@ -120,6 +101,7 @@ def bertopic_extract_topics(
     if key == -1:
       continue
     topic_words = cast(list[tuple[str, float]], raw_topic_words)
+    topic_words = list(filter(lambda x: len(x[0]) > 0, topic_words))
     topic_embedding = model.topic_embeddings_[key] # type: ignore
     pythonic_topic_embedding = list(map(float, topic_embedding))
     visualization_topic_embedding = visualization_topic_embeddings[key]
@@ -140,7 +122,6 @@ def bertopic_extract_topics(
       label=topic_label,
       words=topic_words,
       frequency=topic_frequency,
-      embedding=pythonic_topic_embedding,
       visualization_embedding=pythonic_visualization_topic_embedding,
     )
     topics.append(topic)

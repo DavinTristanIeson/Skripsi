@@ -1,6 +1,9 @@
 
 import os
 
+import numpy as np
+import pandas as pd
+
 from common.logger import RegisteredLogger, TimeLogger
 from common.task.executor import TaskPayload
 from common.task.responses import TaskResponseData, TaskStatusEnum
@@ -20,7 +23,7 @@ def bertopic_find_topics(
   from bertopic import BERTopic
   column = intermediate.column
   config = intermediate.config
-  documents = intermediate.embedding_documents
+  documents = list(intermediate.documents)
   embeddings = intermediate.embeddings
   task = intermediate.task
   model = intermediate.model
@@ -30,13 +33,21 @@ def bertopic_find_topics(
   if os.path.exists(bertopic_path):
     try:
       task.log_pending(f"Loaded cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
-      new_model = BERTopic.load(bertopic_path)
-      new_model.embedding_model = model.embedding_model
+      
+      new_model = BERTopic.load(bertopic_path, embedding_model=model.embedding_model)
       new_model.umap_model = model.umap_model
       new_model.hdbscan_model = model.hdbscan_model
       task.log_success(f"Loaded cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
+
       intermediate.model = new_model
-      return
+      intermediate.document_topic_assignments = np.array(new_model.topics_, dtype=np.int32)
+
+      if not new_model.topics_ or len(new_model.topics_) != len(intermediate.documents):
+        # Can't use cached model.
+        task.log_error(f"Cached BERTopic model in {bertopic_path} is not synchronized with current dataset. Re-fitting BERTopic model again.")
+      else:
+        # We can just return since we're already using the cached model
+        return
     except Exception as e:
       task.log_error(f"Failed to load cached BERTopic model from {bertopic_path}. Re-fitting BERTopic model again.")
       logger.error(e)
@@ -55,7 +66,7 @@ def bertopic_find_topics(
       model.update_topics(intermediate.embedding_documents, topics=topics)
 
   intermediate.model = model
-  intermediate.document_topic_assignments = topics
+  intermediate.document_topic_assignments = np.array(topics, dtype=np.int32)
 
   task.log_success(f"Saved BERTopic model in \"{bertopic_path}\".")
   model.save(bertopic_path, "safetensors", save_ctfidf=True)
@@ -124,8 +135,10 @@ def bertopic_topic_modeling(task: TaskPayload):
     
     # TOPIC POST PREPROCESSING
     result = bertopic_post_processing(df, intermediate)
-    result.save_as_json(intermediate.column)
+    topics_path = config.paths.allocate_path(ProjectPaths.Topics(intermediate.column.name))
+    task.log_success(f"Saving topics of \"{intermediate.column.name}\" in \"{topics_path}\"")
+    result.save_as_json(intermediate.column.name)
 
   df.to_parquet(workspace_path)
-  task.log_success("Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
+  task.log_success(f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
   task.success(TaskResponseData.Empty())

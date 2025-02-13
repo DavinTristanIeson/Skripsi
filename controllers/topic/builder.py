@@ -20,10 +20,10 @@ logger = RegisteredLogger().provision("Topic Modeling")
 class BERTopicIndividualModels:
   embedding_model: SupportedBERTopicEmbeddingModels
   umap_model: BERTopicCachedUMAP
-  hdbscan_model: HDBSCAN
-  vectorizer_model: CountVectorizer
-  ctfidf_model: ClassTfidfTransformer
-  representation_model: MaximalMarginalRelevance
+  hdbscan_model: "HDBSCAN"
+  vectorizer_model: "CountVectorizer"
+  ctfidf_model: "ClassTfidfTransformer"
+  representation_model: "MaximalMarginalRelevance"
 
   @staticmethod
   def cast(model: "BERTopic")->"BERTopicIndividualModels":
@@ -52,10 +52,10 @@ class BERTopicModelBuilder:
 
   def build_umap_model(self)->"UMAP":
     paths = ProjectPathManager(project_id=self.project_id)
-    return cast(UMAP, BERTopicCachedUMAP(
+    return BERTopicCachedUMAP(
       paths=paths,
       column=self.column,
-    ))
+    ) # type: ignore
   
   def build_hdbscan_model(self)->"HDBSCAN":
     from hdbscan import HDBSCAN
@@ -95,14 +95,6 @@ class BERTopicModelBuilder:
       reduce_frequent_words=True,
     )
     return ctfidf_model
-  
-  def build_representation_model(self)->"MaximalMarginalRelevance":
-    from bertopic.representation import MaximalMarginalRelevance
-    column = self.column
-    representation_model = MaximalMarginalRelevance(
-      top_n_words=column.topic_modeling.top_n_words
-    )
-    return representation_model
 
   def build(self)->"BERTopic":
     from bertopic import BERTopic
@@ -119,9 +111,7 @@ class BERTopicModelBuilder:
       hdbscan_model=self.build_hdbscan_model(),
       ctfidf_model=self.build_ctfidf_model(),
       vectorizer_model=self.build_vectorizer_model(),
-      representation_model=self.build_representation_model(),
-      # Get 50% more top words, to provide alternative options for MMR.
-      top_n_words=int(column.topic_modeling.top_n_words * 1.5),
+      top_n_words=int(column.topic_modeling.top_n_words),
       calculate_probabilities=False,
       verbose=True,
       **kwargs,

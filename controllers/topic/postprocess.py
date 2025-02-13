@@ -3,6 +3,7 @@ import http
 from typing import TYPE_CHECKING, Sequence, cast
 import numpy as np
 import pandas as pd
+import pydantic
 
 from common.models.api import ApiError
 from controllers.topic.builder import BERTopicIndividualModels
@@ -21,7 +22,9 @@ def bertopic_visualization_embeddings(
   task = intermediate.task
   config = intermediate.config
   column = intermediate.column
+  model = intermediate.model
   documents = intermediate.documents
+  document_topic_assignments = intermediate.document_topic_assignments
   cached_umap_model = BERTopicIndividualModels.cast(intermediate.model).umap_model
   reduced_embeddings = cached_umap_model.load_cached_embeddings()
   if reduced_embeddings is None:
@@ -30,8 +33,13 @@ def bertopic_visualization_embeddings(
       http.HTTPStatus.INTERNAL_SERVER_ERROR
     )
     
+  raw_topic_embeddings = []
+  for topic in range(bertopic_count_topics(model)):
+    topic_embedding = reduced_embeddings[document_topic_assignments == topic].sum(axis=0)
+    raw_topic_embeddings.append(topic_embedding)
+  topic_embeddings = np.array(raw_topic_embeddings)
+
   task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
-  topic_embeddings = intermediate.model.topic_embeddings_
   high_dimensional_embeddings = np.vstack([reduced_embeddings, topic_embeddings]) # type: ignore
   umap_model = VisualizationCachedUMAP(
     paths=config.paths,
@@ -43,7 +51,11 @@ def bertopic_visualization_embeddings(
   task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {umap_model.embedding_path}.")
   return umap_model.separate_embeddings(visualization_embeddings)
 
-def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateResult):
+class __HierarchicalClusteringGraphNodeData(pydantic.BaseModel):
+  diff: float
+  is_base: bool
+
+def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateResult)->TopicHierarchyModel:
   import sklearn.metrics
   import scipy.spatial.distance
   import scipy.cluster.hierarchy
@@ -53,7 +65,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   model = intermediate.model
   task = intermediate.task
   documents = intermediate.documents
-  topics = intermediate.document_topic_assignments
+  document_topic_assignments = intermediate.document_topic_assignments
   column = intermediate.column
   
   task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
@@ -73,7 +85,11 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   dendrogram = nx.DiGraph()
 
   def explore_hierarchy(G: nx.DiGraph, node: scipy.cluster.hierarchy.ClusterNode):
-    G.add_node(node.id, diff=node.dist)
+    G.add_node(
+      node.id,
+      diff=node.dist,
+      is_base=node.left is None and node.right is None
+    )
     if node.left is not None:
       G.add_edge(node.id, node.left.id)
       explore_hierarchy(G, node.left)
@@ -82,13 +98,14 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       explore_hierarchy(G, node.right)
 
   # Simplified hierarchical clustering
-  def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float):
-    ndata = G.nodes.get(node)
+  def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float, is_root: bool):
+    raw_ndata = G.nodes.get(node)
+    ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
     successors = list(G.successors(node))
 
-    if ndata is None or ndata["diff"] == 0:
+    if ndata is None or ndata.diff == 0:
       return
-    if ndata["diff"] <= threshold:
+    if ndata.diff <= threshold and not is_root:
       predecessors = list(G.predecessors(node))
       if len(predecessors) != 0:
         parent = predecessors[0]
@@ -97,7 +114,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
         G.remove_node(node)
     
     for successor in successors:
-      simplify_dendrogram(G, successor, threshold)
+      simplify_dendrogram(G, successor, threshold, is_root=False)
 
   explore_hierarchy(
     G=dendrogram,
@@ -107,13 +124,18 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   simplify_dendrogram(
     G=simplified_dendrogram,
     node=hierarchy_root,
-    threshold=1 + intermediate.column.topic_modeling.super_topic_similarity
+    threshold=1 + intermediate.column.topic_modeling.super_topic_similarity,
+    is_root=True
   )
 
-  # Update node IDs with new hiearchy
+  # Update node IDs with new hierarcchy
   node_relabel_mapping = dict()
-  new_node_label = topic_embeddings.shape[0]
-  for node in sorted(simplified_dendrogram.nodes):
+  new_node_label = bertopic_count_topics(model)
+  for node, raw_ndata in sorted(simplified_dendrogram.nodes(data=True)):
+    ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
+    if ndata.is_base:
+      # DO NOT RENAME BASE TOPICS
+      continue
     node_relabel_mapping[node] = new_node_label
     new_node_label += 1
   nx.relabel_nodes(simplified_dendrogram, node_relabel_mapping)
@@ -129,8 +151,11 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   documents = intermediate.documents
   representation_results: dict[int, BERTopicCTFIDFRepresentationResult] = dict()
   
-  for node in simplified_dendrogram.nodes:
-    documents_in_this_node = cast(Sequence[str], documents[topics == node])
+  for node, raw_ndata in simplified_dendrogram.nodes(data=True):
+    ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
+    if not ndata.is_base:
+      continue
+    documents_in_this_node = cast(Sequence[str], documents[document_topic_assignments == node])
     meta_document_bow = interpreter.represent_as_bow(documents_in_this_node)
     meta_document_ctfidf = interpreter.represent_as_ctfidf(meta_document_bow)
     representation = BERTopicCTFIDFRepresentationResult(
@@ -144,7 +169,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   def label_dendrogram(G: nx.DiGraph, node: int):
     if node in representation_results:
       return representation_results[node].bow
-    
+  
     children_bows = list(map(lambda x: label_dendrogram(G, x), G.successors(node)))
 
     agglomerated_bow = functools.reduce(lambda acc, cur: acc + cur, children_bows[1:], children_bows[0])
@@ -157,15 +182,20 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       words=agglomerated_words,
     )
     return agglomerated_bow
-    
+
   label_dendrogram(simplified_dendrogram, hierarchy_root)
 
   def build_topic_hierarchy(G: nx.DiGraph, node: int):
     children: list[TopicHierarchyModel] = []
     for successor in G.successors(node):
       children.append(successor)
+    try:
+      frequency = cast(int, model.get_topic_freq(node))
+    except KeyError:
+      frequency = functools.reduce(lambda acc, cur: acc + cur.frequency, children, 0)
     return TopicHierarchyModel(
       id=node,
+      frequency=frequency,
       words=representation_results[node].words,
       children=children,
     )
@@ -176,7 +206,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   return topic_hierarchy
 
 
-def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnIntermediateResult):
+def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnIntermediateResult)->TopicModelingResultModel:
   column = intermediate.column
   model = intermediate.model
   task = intermediate.task
@@ -189,7 +219,6 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnInter
   df[column.topic_column.name] = document_topic_mapping_column
 
   # Perform hierarchical clustering
-  task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
   hierarchy = bertopic_hierarchical_clustering(intermediate)
 
   # Embed document/topics

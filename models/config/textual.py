@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, Sequence
+import pandas as pd
 import pydantic
 import tqdm
 
@@ -70,10 +71,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
           sbert_tokens.append("URL")
           continue
         sbert_tokens.append(token.text_with_ws)
-      if len(sbert_tokens) == 0:
-        sbert_corpus.append(None) # type: ignore
-      else:
-        sbert_corpus.append(' '.join(sbert_tokens))
+      sbert_corpus.append(' '.join(sbert_tokens))
     return sbert_corpus
 
   def preprocess_topic_keywords(self, raw_documents: Sequence[str])->list[str]:
@@ -102,7 +100,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
           tokens.append("URL")
           continue
         if remove_number:
-          tokens.append("NUM")
+          tokens.append("NUMBER")
           continue
 
         if (invalid_token or empty_token):
