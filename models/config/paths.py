@@ -76,9 +76,10 @@ class ProjectPathManager(pydantic.BaseModel):
     return path
   
   def allocate_path(self, path: str)->str:
-    dirpath = os.path.dirname(self.full_path(path))
+    full_path = self.full_path(path)
+    dirpath = os.path.dirname(full_path)
     os.makedirs(dirpath, exist_ok=True)
-    return path
+    return full_path
 
   @property
   def config_path(self):

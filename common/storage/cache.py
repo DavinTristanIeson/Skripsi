@@ -87,3 +87,7 @@ class CacheClient(Generic[T]):
         logger.debug(f"[{self.name}] INVALIDATE {', '.join(cache_keys)}")
         for cache_key in cache_keys:
           self.records.pop(cache_key, None)
+
+  def clear(self):
+    with self.lock:
+      self.records.clear()

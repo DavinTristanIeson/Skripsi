@@ -30,6 +30,7 @@ def bertopic_preprocessing(
   if len(preprocess_documents) == 0:
     raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
   
+  intermediate.mask = mask
   original_documents: Sequence[str] = raw_documents[mask] # type: ignore
   # Light preprocessing for SBERT
   intermediate.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")

@@ -28,7 +28,7 @@ class BERTopicEmbeddingModelPreprocessingPreference(str, Enum):
 
 @dataclass
 class BaseBertopicEmbeddingModel(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
-  paths: ProjectPathManager
+  project_id: str
   column: TextualSchemaColumn
 
   @classmethod
@@ -42,7 +42,8 @@ class BaseBertopicEmbeddingModel(CachedEmbeddingModel, abc.ABC, BaseEstimator, T
 
   @property
   def embedding_path(self):
-    return self.paths.full_path(ProjectPaths.DocumentEmbeddings(self.column.name))
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.DocumentEmbeddings(self.column.name))
 
 
 @dataclass
@@ -55,7 +56,8 @@ class Doc2VecEmbeddingModel(BaseBertopicEmbeddingModel):
 
   @functools.cached_property
   def embedding_model_path(self):
-    return self.paths.full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
   
   @functools.cached_property
   def model(self)->"Doc2Vec":
@@ -147,7 +149,8 @@ class LsaEmbeddingModel(BaseBertopicEmbeddingModel):
 
   @functools.cached_property
   def embedding_model_path(self):
-    return self.paths.full_path(ProjectPaths.EmbeddingModel(self.column.name, "lsa.pickle"))
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.EmbeddingModel(self.column.name, "lsa.pickle"))
   
   @functools.cached_property
   def model(self):
@@ -204,16 +207,16 @@ class LsaEmbeddingModel(BaseBertopicEmbeddingModel):
 
 @dataclass
 class BERTopicEmbeddingModelFactory:
-  paths: ProjectPathManager
+  project_id: str
   column: TextualSchemaColumn
   def build(self):
     embedding_method = self.column.topic_modeling.embedding_method
     if embedding_method == DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2:
-      return SbertEmbeddingModel(paths=self.paths, column=self.column)
+      return SbertEmbeddingModel(project_id=self.project_id, column=self.column)
     elif embedding_method == DocumentEmbeddingMethodEnum.Doc2Vec:
-      return Doc2VecEmbeddingModel(paths=self.paths, column=self.column)
+      return Doc2VecEmbeddingModel(project_id=self.project_id, column=self.column)
     elif embedding_method == DocumentEmbeddingMethodEnum.LSA:
-      return LsaEmbeddingModel(paths=self.paths, column=self.column)
+      return LsaEmbeddingModel(project_id=self.project_id, column=self.column)
     else:
       raise ApiError(f"Invalid document embedding method: {self.column.topic_modeling.embedding_method}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
  

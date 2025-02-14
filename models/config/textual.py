@@ -64,11 +64,13 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       for token in doc:
         remove_email = self.remove_email and token.like_email
         remove_url = self.remove_url and token.like_url
+        if token.is_space or not token.is_ascii:
+          continue
         if remove_email:
-          sbert_tokens.append("EMAIL")
+          sbert_tokens.append("email")
           continue
         if remove_url:
-          sbert_tokens.append("URL")
+          sbert_tokens.append("url")
           continue
         sbert_tokens.append(token.text_with_ws)
       sbert_corpus.append(' '.join(sbert_tokens))

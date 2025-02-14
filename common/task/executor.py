@@ -10,10 +10,6 @@ from .responses import TaskLog, TaskResponse, TaskResponseData, TaskStatusEnum
 
 logger = RegisteredLogger().provision("Task")
 
-
-class IntentionalThreadExit(Exception):
-  pass
-
 @dataclass
 class TaskPayload:
   id: str
@@ -62,6 +58,5 @@ class TaskPayload:
       task.status = TaskStatusEnum.Success
       task.data = data
     self.check_stop()
-    raise IntentionalThreadExit()
 
 TaskHandlerFn = Callable[[TaskPayload], None]

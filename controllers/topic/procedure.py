@@ -142,3 +142,5 @@ def bertopic_topic_modeling(task: TaskPayload):
   df.to_parquet(workspace_path)
   task.log_success(f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
   task.success(TaskResponseData.Empty())
+
+  cache.workspaces.clear()

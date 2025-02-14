@@ -1,5 +1,6 @@
 import functools
 import http
+import itertools
 from typing import TYPE_CHECKING, Sequence, cast
 import numpy as np
 import pandas as pd
@@ -7,7 +8,7 @@ import pydantic
 
 from common.models.api import ApiError
 from controllers.topic.builder import BERTopicIndividualModels
-from controllers.topic.interpret import BERTopicCTFIDFRepresentationResult, BERTopicInterpreter, bertopic_count_topics, bertopic_extract_topics
+from controllers.topic.interpret import BERTopicCTFIDFRepresentationResult, BERTopicInterpreter, bertopic_count_topics, bertopic_extract_topics, bertopic_extract_topic_embeddings
 from controllers.topic.utils import BERTopicColumnIntermediateResult
 from models.topic.topic import TopicHierarchyModel, TopicModelingResultModel, TopicModel
 
@@ -24,32 +25,24 @@ def bertopic_visualization_embeddings(
   column = intermediate.column
   model = intermediate.model
   documents = intermediate.documents
-  document_topic_assignments = intermediate.document_topic_assignments
-  cached_umap_model = BERTopicIndividualModels.cast(intermediate.model).umap_model
-  reduced_embeddings = cached_umap_model.load_cached_embeddings()
-  if reduced_embeddings is None:
-    raise ApiError(
-      f"Unable to find the embeddings created by UMAP in \"{cached_umap_model.embedding_path}\". The topic modeling procedure might not have been executed yet. Please re-run the topic modeling procedure to fix this.",
-      http.HTTPStatus.INTERNAL_SERVER_ERROR
-    )
-    
-  raw_topic_embeddings = []
-  for topic in range(bertopic_count_topics(model)):
-    topic_embedding = reduced_embeddings[document_topic_assignments == topic].sum(axis=0)
-    raw_topic_embeddings.append(topic_embedding)
-  topic_embeddings = np.array(raw_topic_embeddings)
+  embeddings = intermediate.embeddings    
 
   task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
-  high_dimensional_embeddings = np.vstack([reduced_embeddings, topic_embeddings]) # type: ignore
-  umap_model = VisualizationCachedUMAP(
-    paths=config.paths,
+  vis_umap_model = VisualizationCachedUMAP(
+    project_id=config.project_id,
     column=column,
     corpus_size=len(documents),
     topic_count=bertopic_count_topics(intermediate.model)
   )
-  visualization_embeddings = umap_model.fit_transform(high_dimensional_embeddings)
-  task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {umap_model.embedding_path}.")
-  return umap_model.separate_embeddings(visualization_embeddings)
+  cached_visualization_embeddings = vis_umap_model.load_cached_embeddings()
+  if cached_visualization_embeddings is not None:
+    return vis_umap_model.separate_embeddings(cached_visualization_embeddings)
+
+  topic_embeddings = bertopic_extract_topic_embeddings(model)
+  high_dimensional_embeddings = np.vstack([embeddings, topic_embeddings])
+  visualization_embeddings = vis_umap_model.fit_transform(high_dimensional_embeddings)
+  task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {vis_umap_model.embedding_path}.")
+  return vis_umap_model.separate_embeddings(visualization_embeddings)
 
 class __HierarchicalClusteringGraphNodeData(pydantic.BaseModel):
   diff: float
@@ -71,7 +64,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
 
   # Classic hierarchical clustering
-  topic_embeddings: np.ndarray = cast(np.ndarray, model.topic_embeddings_)
+  topic_embeddings: np.ndarray = bertopic_extract_topic_embeddings(model)
   intertopic_distances = sklearn.metrics.pairwise.cosine_distances(topic_embeddings)
   condensed_intertopic_distances = scipy.spatial.distance.squareform(intertopic_distances)
 
@@ -98,23 +91,26 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       explore_hierarchy(G, node.right)
 
   # Simplified hierarchical clustering
-  def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float, is_root: bool):
+  def simplify_dendrogram(G: nx.DiGraph, node: int, threshold: float):
     raw_ndata = G.nodes.get(node)
     ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
     successors = list(G.successors(node))
 
     if ndata is None or ndata.diff == 0:
       return
-    if ndata.diff <= threshold and not is_root:
+    
+    for successor in successors:
+      simplify_dendrogram(G, successor, threshold)
+
+    if ndata.diff <= threshold:
+      updated_successors = list(G.successors(node))
       predecessors = list(G.predecessors(node))
       if len(predecessors) != 0:
         parent = predecessors[0]
-        for successor in successors:
+        for successor in updated_successors:
           G.add_edge(parent, successor)
         G.remove_node(node)
     
-    for successor in successors:
-      simplify_dendrogram(G, successor, threshold, is_root=False)
 
   explore_hierarchy(
     G=dendrogram,
@@ -124,8 +120,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   simplify_dendrogram(
     G=simplified_dendrogram,
     node=hierarchy_root,
-    threshold=1 + intermediate.column.topic_modeling.super_topic_similarity,
-    is_root=True
+    threshold=max(0.0, min(1.0, 1-intermediate.column.topic_modeling.super_topic_similarity)),
   )
 
   # Update node IDs with new hierarcchy
@@ -138,7 +133,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       continue
     node_relabel_mapping[node] = new_node_label
     new_node_label += 1
-  nx.relabel_nodes(simplified_dendrogram, node_relabel_mapping)
+  nx.relabel_nodes(simplified_dendrogram, node_relabel_mapping, copy=False)
   hierarchy_root = node_relabel_mapping[hierarchy_root]
 
   # Initialize base BOWs
@@ -188,14 +183,24 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   def build_topic_hierarchy(G: nx.DiGraph, node: int):
     children: list[TopicHierarchyModel] = []
     for successor in G.successors(node):
-      children.append(successor)
+      children.append(build_topic_hierarchy(G, successor))
     try:
       frequency = cast(int, model.get_topic_freq(node))
     except KeyError:
       frequency = functools.reduce(lambda acc, cur: acc + cur.frequency, children, 0)
+
+    label = ', '.join(itertools.islice(map(
+      lambda x: x[0],
+      filter(
+        lambda x: len(x[0]) > 0 and x[1] > 0,
+        representation_results[node].words
+      )
+    ), 3))
+
     return TopicHierarchyModel(
       id=node,
       frequency=frequency,
+      label=label,
       words=representation_results[node].words,
       children=children,
     )
@@ -214,27 +219,26 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnInter
   task.log_pending(f"Applying post-processing on the topics of \"{intermediate.column.name}\"...")
 
   # Set topic assignments
-  document_topic_mapping_column = pd.Series(np.full(len(intermediate.embedding_documents), -1), dtype=np.int32)
+  document_topic_mapping_column = pd.Series(np.full(len(df), -1), dtype=np.int32)
   document_topic_mapping_column[intermediate.mask] = model.topics_
+  document_topic_mapping_column[~intermediate.mask] = pd.NA
   df[column.topic_column.name] = document_topic_mapping_column
+
+  # Set topic labels
+  topics = bertopic_extract_topics(model)
 
   # Perform hierarchical clustering
   hierarchy = bertopic_hierarchical_clustering(intermediate)
 
   # Embed document/topics
-  visualization_topic_embeddings = bertopic_visualization_embeddings(intermediate).topic_embeddings
-  
-  # Set topic labels
-  topics = bertopic_extract_topics(
-    model,
-    visualization_topic_embeddings
-  )
+  bertopic_visualization_embeddings(intermediate).topic_embeddings
 
   # Create topic result
   topic_modeling_result = TopicModelingResultModel(
     project_id=intermediate.config.project_id,
     topics=topics,
-    hierarchy=hierarchy
+    hierarchy=hierarchy,
+    frequency=len(intermediate.documents),
   )
 
   task.log_success(f"Finished appling post-processing on the topics of \"{intermediate.column.name}\".")

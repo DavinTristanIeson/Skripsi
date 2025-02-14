@@ -1,10 +1,8 @@
 import abc
-import datetime
 from enum import Enum
 import functools
-import json
 import math
-from typing import Annotated, Iterable, Literal, Optional, Sequence, Union, cast
+from typing import Annotated, Literal, Optional, Sequence, Union, cast
 
 import numpy as np
 import pydantic
@@ -260,11 +258,13 @@ class BaseMultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel, abc
   is_json: bool = True
 
   def _convert_string_to_tags_list(self, data: Sequence[str])->list[list[str]]:
+    import orjson
+
     rows: list[list[str]] = []
     for row in data:
       row_categories: list[str]
       if self.is_json:
-        row_categories = list(json.loads(row))
+        row_categories = list(orjson.loads(row))
       else:
         row_categories = list(map(
           lambda category: category.strip(),
@@ -274,8 +274,9 @@ class BaseMultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel, abc
     return rows
   
   def _convert_tags_list_to_json(self, tags_list: Sequence[Sequence[str]]):
+    import orjson
     return list(map(
-      lambda tags: json.dumps(tags),
+      lambda tags: orjson.dumps(tags),
       tags_list
     ))
 

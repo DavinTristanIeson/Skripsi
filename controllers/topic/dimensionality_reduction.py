@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
-  paths: ProjectPathManager
+  project_id: str
   column: TextualSchemaColumn
   
   @property
@@ -42,7 +42,8 @@ class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin)
 class BERTopicCachedUMAP(CachedUMAP):
   @property
   def embedding_path(self):
-    return self.paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
 
   @functools.cached_property
   def __model(self):
@@ -73,7 +74,8 @@ class VisualizationCachedUMAP(CachedUMAP):
   topic_count: int
   @property
   def embedding_path(self):
-    return self.paths.full_path(ProjectPaths.VisualizationEmbeddings(self.column.name))
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.VisualizationEmbeddings(self.column.name))
 
   @functools.cached_property
   def __model(self):

@@ -60,9 +60,16 @@ class BERTopicInterpreter:
     return tuned_ctfidf
 
   def get_weighted_words(self, ctfidf: np.ndarray)->list[tuple[str, float]]:
-    top_word_indices = np.argsort(ctfidf)[:self.top_n_words] # type: ignore
-    words = self.vocabulary[top_word_indices]
-    weights = ctfidf[top_word_indices]
+    # Very odd logic but trust me this works. This gets the last n elements from argsort.
+    top_word_indices = np.argsort(ctfidf)[:self.top_n_words+1:-1]
+
+    # Don't get words where the C-TF-IDF is 0.
+    valid_top_word_indices = top_word_indices[ctfidf[top_word_indices] > 0]
+    if len(valid_top_word_indices) == 0:
+      return []
+
+    words = self.vocabulary[valid_top_word_indices]
+    weights = ctfidf[valid_top_word_indices]
     return list(zip(words, weights))
   
   def get_words(self, ctfidf: np.ndarray)->list[str]:
@@ -87,7 +94,6 @@ class BERTopicInterpreter:
 
 def bertopic_extract_topics(
   model: "BERTopic",
-  visualization_topic_embeddings: np.ndarray
 )->list[TopicModel]:
   if model.topic_embeddings_ is None:
     raise ApiError(
@@ -102,10 +108,6 @@ def bertopic_extract_topics(
       continue
     topic_words = cast(list[tuple[str, float]], raw_topic_words)
     topic_words = list(filter(lambda x: len(x[0]) > 0, topic_words))
-    topic_embedding = model.topic_embeddings_[key] # type: ignore
-    pythonic_topic_embedding = list(map(float, topic_embedding))
-    visualization_topic_embedding = visualization_topic_embeddings[key]
-    pythonic_visualization_topic_embedding = list(map(float, visualization_topic_embedding))
 
     representative_topic_words = list(itertools.islice(map(
       lambda el: el[0],
@@ -122,7 +124,6 @@ def bertopic_extract_topics(
       label=topic_label,
       words=topic_words,
       frequency=topic_frequency,
-      visualization_embedding=pythonic_visualization_topic_embedding,
     )
     topics.append(topic)
 
@@ -130,3 +131,6 @@ def bertopic_extract_topics(
 
 def bertopic_count_topics(model: "BERTopic")->int:
   return len(model.get_topics().keys()) - model._outliers
+
+def bertopic_extract_topic_embeddings(model: "BERTopic")->np.ndarray:
+  return model.topic_embeddings_[model._outliers:] # type: ignore

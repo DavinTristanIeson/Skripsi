@@ -43,17 +43,15 @@ class BERTopicModelBuilder:
   corpus_size: int
 
   def build_embedding_model(self)->"SupportedBERTopicEmbeddingModels":
-    paths = ProjectPathManager(project_id=self.project_id)
     column = self.column
     return BERTopicEmbeddingModelFactory(
-      paths=paths,
+      project_id=self.project_id,
       column=column
     ).build()
 
   def build_umap_model(self)->"UMAP":
-    paths = ProjectPathManager(project_id=self.project_id)
     return BERTopicCachedUMAP(
-      paths=paths,
+      project_id=self.project_id,
       column=self.column,
     ) # type: ignore
   

@@ -1,16 +1,13 @@
 import concurrent.futures
-import queue
 import threading
 import traceback
-from typing import Any, Optional, cast
+from typing import Optional
 
-from pydantic import ValidationError
 
 from common.logger import RegisteredLogger, TimeLogger
-from common.models.api import ApiError
 from common.models.metaclass import Singleton
 from .requests import TaskRequest, TaskRequestType
-from .executor import IntentionalThreadExit, TaskHandlerFn, TaskPayload
+from .executor import TaskHandlerFn, TaskPayload
 from .responses import TaskLog, TaskResponse, TaskStatusEnum
 
 logger = RegisteredLogger().provision("Task")
@@ -42,8 +39,6 @@ class TaskServer(metaclass=Singleton):
             request=message
           ),
         )
-      except IntentionalThreadExit:
-        pass
       except Exception as e:
         logger.error(f"An error has occurred during the execution of task {message.id}. Error: {traceback.print_exception(e)}")
         with self.lock:

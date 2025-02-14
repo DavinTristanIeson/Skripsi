@@ -1,7 +1,6 @@
 from typing import Any, Optional, cast
 import pandas as pd
 import pydantic
-import json
 import os
 
 from common.logger import RegisteredLogger
@@ -34,6 +33,8 @@ class Config(pydantic.BaseModel):
 
   @staticmethod
   def from_project(project_id: str)->"Config":
+    import json
+
     data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
     source = os.path.join(data_directory, project_id, "config.json")
     if not os.path.exists(source):
@@ -43,6 +44,8 @@ class Config(pydantic.BaseModel):
       return Config.model_validate(contents)
 
   def save_to_json(self):
+    import json
+
     config_file = os.path.join(self.paths.project_path, "config.json")
     with open(config_file, 'w', encoding='utf-8') as f:
       json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
