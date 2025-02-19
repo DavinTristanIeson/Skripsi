@@ -1,15 +1,13 @@
 from dataclasses import dataclass
-import functools
 import http
-from typing import Annotated, Callable, Optional, Sequence, cast
+from typing import Annotated, Optional, Sequence, cast
 
 import pandas as pd
 import pydantic
 
 from common.logger import RegisteredLogger, TimeLogger
 from common.models.api import ApiError
-from models.config.source import DataSource
-from .schema import CategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
+from .schema import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
 
 logger = RegisteredLogger().provision("Config")
 
@@ -95,6 +93,9 @@ class SchemaManager(pydantic.BaseModel):
   
   def categorical(self)->list[CategoricalSchemaColumn]:
     return cast(list[CategoricalSchemaColumn], self.of_type(SchemaColumnTypeEnum.Categorical))
+  
+  def ordered_categorical(self)->list[CategoricalSchemaColumn]:
+    return cast(list[CategoricalSchemaColumn], self.of_type(SchemaColumnTypeEnum.OrderedCategorical))
   
   def temporal(self)->list[TemporalSchemaColumn]:
     return cast(list[TemporalSchemaColumn], self.of_type(SchemaColumnTypeEnum.Temporal))

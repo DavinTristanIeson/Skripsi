@@ -37,7 +37,7 @@ class TableEngine:
   def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
     if filter is None:
       return df
-    with TimeLogger("TableFilter", title="Applying filter to dataset..."):
+    with TimeLogger("TableEngine", title="Applying filter to dataset..."):
       mask = filter.apply(TableFilterParams(
         config=self.config,
         data=df
@@ -47,7 +47,7 @@ class TableEngine:
   def sort(self, df: pd.DataFrame, sort: Optional[TableSort])->pd.DataFrame:
     if sort is None:
       return df
-    with TimeLogger("TableFilter", title="Applying sort to dataset..."):
+    with TimeLogger("TableEngine", title="Applying sort to dataset..."):
       return df.sort_values(by=sort.name, ascending=sort.asc)
     
   def reorder(self, df: pd.DataFrame):

@@ -17,6 +17,7 @@ from .textual import TextPreprocessingConfig, TopicModelingConfig
 class SchemaColumnTypeEnum(str, Enum):
   Continuous = "continuous"
   Categorical = "categorical"
+  OrderedCategorical = "ordered-categorical"
   MultiCategorical = "multi-categorical"
   Temporal = "temporal"
   Textual = "textual"
@@ -54,8 +55,8 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
   @functools.cached_property
   def bins_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return OrderedCategoricalSchemaColumn(
+      type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Bins)",
       internal=True,
       alphanumeric_order=True
@@ -104,8 +105,20 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
   type: Literal[SchemaColumnTypeEnum.Categorical]
+  def fit(self, df):
+    raw_data = df[self.name]
+    if raw_data.dtype == 'category':
+      data = pd.Categorical(raw_data)
+    else:  
+      data = pd.Categorical(raw_data.astype(str))
+    df[self.name] = data
+  
+class OrderedCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+  model_config = CommonModelConfig
+  type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
   alphanumeric_order: bool = False
+
   def fit(self, df):
     raw_data = df[self.name]
     if raw_data.dtype == 'category':
@@ -137,10 +150,13 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       )
     df[self.name] = data
 
+# Topic column are special because they contain the topic IDs rather than the topic names.
+# Topic ID will be mapped by FE with the topic information.
+# This makes relabeling or recalculating topic representation much easier.
 class TopicSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Topic]
   def fit(self, df):
-    pass
+    df[self.name] = df[self.name].astype(np.int32)
 
 class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   model_config = CommonModelConfig
@@ -183,8 +199,8 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
   @functools.cached_property
   def year_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return OrderedCategoricalSchemaColumn(
+      type=SchemaColumnTypeEnum.OrderedCategorical,
       alphanumeric_order=True,
       name=f"{self.name} (Year)",
       internal=True
@@ -192,8 +208,8 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   
   @functools.cached_property
   def month_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return OrderedCategoricalSchemaColumn(
+      type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Month)",
       category_order=MONTHS,
       internal=True
@@ -201,8 +217,8 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
   @functools.cached_property
   def day_of_week_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return OrderedCategoricalSchemaColumn(
+      type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Day of Week)",
       category_order=DAYS_OF_WEEK,
       internal=True
@@ -210,8 +226,8 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
   
   @functools.cached_property
   def hour_column(self):
-    return CategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.Categorical,
+    return OrderedCategoricalSchemaColumn(
+      type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Hour)",
       internal=True,
       alphanumeric_order=True,
@@ -323,6 +339,7 @@ SchemaColumn = Annotated[
   Union[
     UniqueSchemaColumn,
     CategoricalSchemaColumn,
+    OrderedCategoricalSchemaColumn,
     TextualSchemaColumn,
     ContinuousSchemaColumn,
     TemporalSchemaColumn,
@@ -341,6 +358,7 @@ __all__ = [
   "TextualSchemaColumn",
   "UniqueSchemaColumn",
   "ImageSchemaColumn",
+  "OrderedCategoricalSchemaColumn",
   "CategoricalSchemaColumn",
   "MultiCategoricalSchemaColumn",
   "ContinuousSchemaColumn",

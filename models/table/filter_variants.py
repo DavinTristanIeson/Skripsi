@@ -11,7 +11,7 @@ from common.models.validators import CommonModelConfig, DiscriminatedUnionValida
 from common.logger import RegisteredLogger
 import pandas as pd
 
-logger = RegisteredLogger().provision("Filter Controller")
+logger = RegisteredLogger().provision("TableEngine")
 
 def access_series(filter: BaseTableFilter, params: TableFilterParams)->pd.Series:
   if filter.target not in params.data.columns:
