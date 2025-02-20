@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from modules.topic.procedure.utils import BERTopicColumnIntermediateResult
+from modules.topic.procedure.utils import _BERTopicColumnIntermediateResult
 
 from ..bertopic_ext import SupportedBERTopicEmbeddingModels, BERTopicEmbeddingModelPreprocessingPreference
 if TYPE_CHECKING:
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 def bertopic_embedding(
   embedding_model: SupportedBERTopicEmbeddingModels,
-  intermediate: BERTopicColumnIntermediateResult
+  intermediate: _BERTopicColumnIntermediateResult
 ):
   column = intermediate.column
   task = intermediate.task

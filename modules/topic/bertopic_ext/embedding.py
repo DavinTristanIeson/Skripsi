@@ -15,7 +15,7 @@ from modules.config import TextualSchemaColumn, ProjectPathManager, ProjectPaths
 from modules.config.schema.textual import DocumentEmbeddingMethodEnum
 from modules.logger import ProvisionedLogger, TimeLogger
 
-from .cache import CachedEmbeddingModel
+from .cache import _CachedEmbeddingModel
 
 if TYPE_CHECKING:
   from gensim.models import Doc2Vec
@@ -28,7 +28,7 @@ class BERTopicEmbeddingModelPreprocessingPreference(str, Enum):
   Heavy = "heavy"
 
 @dataclass
-class BaseBertopicEmbeddingModel(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
+class __BaseBertopicEmbeddingModel(_CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
   project_id: str
   column: TextualSchemaColumn
 
@@ -48,7 +48,7 @@ class BaseBertopicEmbeddingModel(CachedEmbeddingModel, abc.ABC, BaseEstimator, T
 
 
 @dataclass
-class Doc2VecEmbeddingModel(BaseBertopicEmbeddingModel):
+class Doc2VecEmbeddingModel(__BaseBertopicEmbeddingModel):
   __pre_trained = False
 
   @classmethod
@@ -111,7 +111,7 @@ class Doc2VecEmbeddingModel(BaseBertopicEmbeddingModel):
       ))
     self.save_embeddings(embeddings)
 
-class SbertEmbeddingModel(BaseBertopicEmbeddingModel):
+class SbertEmbeddingModel(__BaseBertopicEmbeddingModel):
   @classmethod
   def preference(cls):
     return BERTopicEmbeddingModelPreprocessingPreference.Light
@@ -141,7 +141,7 @@ class SbertEmbeddingModel(BaseBertopicEmbeddingModel):
     return embeddings
 
 @dataclass
-class LsaEmbeddingModel(BaseBertopicEmbeddingModel):
+class LsaEmbeddingModel(__BaseBertopicEmbeddingModel):
   __pre_trained = False
 
   @classmethod
@@ -222,3 +222,9 @@ class BERTopicEmbeddingModelFactory:
       raise ApiError(f"Invalid document embedding method: {self.column.topic_modeling.embedding_method}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
  
 SupportedBERTopicEmbeddingModels = Union[SbertEmbeddingModel, Doc2VecEmbeddingModel, LsaEmbeddingModel]
+
+__all__ = [
+  "SupportedBERTopicEmbeddingModels",
+  "BERTopicEmbeddingModelFactory",
+  "BERTopicEmbeddingModelPreprocessingPreference"
+]

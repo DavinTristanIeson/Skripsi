@@ -30,14 +30,12 @@ class GeospatialRoleEnum(str, Enum):
 
 ExposedEnum().register(GeospatialRoleEnum)
 
-
-
-class BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
+class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
   name: str
   internal: bool = pydantic.Field(default=False, exclude=True)
   active: bool = True
 
-  def get_internal_columns(self)->Sequence["BaseSchemaColumn"]:
+  def get_internal_columns(self)->Sequence["_BaseSchemaColumn"]:
     return []
 
   @abc.abstractmethod

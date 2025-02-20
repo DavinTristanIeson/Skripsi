@@ -1,1 +1,2 @@
-from .procedure import bertopic_topic_modeling
+from .procedure import *
+from .utils import *

@@ -7,7 +7,7 @@ from modules.config import SchemaColumnTypeEnum
 
 from .filter import TableFilterTypeEnum
 
-class TableFilterError(SimpleNamespace):
+class _TableFilterError(SimpleNamespace):
   def WrongColumnType(*, filter_type: TableFilterTypeEnum, column_type: SchemaColumnTypeEnum, target: str):
     return ApiError(
       f"Filter of type {filter_type} is not compatible with \"{target}\" ({column_type} column)",
@@ -26,6 +26,3 @@ class TableFilterError(SimpleNamespace):
       http.HTTPStatus.UNPROCESSABLE_ENTITY
     )
   
-__all__ = [
-  "TableFilterError"
-]

@@ -1,17 +1,30 @@
 from dataclasses import dataclass
 import pandas as pd
+import pydantic
 
 from modules.config import Config, SchemaColumn
 from modules.table import TableEngine, NamedTableFilter
 
 from modules.logger import ProvisionedLogger
-from .api import TableComparisonGroupInfoResource, TableComparisonResource
-from .base import StatisticTestValidityModel
+from .base import _StatisticTestValidityModel, SignificanceResult, EffectSizeResult
 from .effect_size import EffectSizeFactory, EffectSizeMethodEnum
 from .statistic_test import StatisticTestFactory, StatisticTestMethodEnum
 
 
 logger = ProvisionedLogger().provision("TableComparisonEngine")
+
+
+class TableComparisonGroupInfo(pydantic.BaseModel):
+  name: str
+  sample_size: int
+  invalid_size: int
+
+class TableComparisonResult(pydantic.BaseModel):
+  warnings: list[str]
+  groups: list[TableComparisonGroupInfo]
+  significance: SignificanceResult
+  effect_size: EffectSizeResult
+
 
 @dataclass
 class TableComparisonEngine:
@@ -24,19 +37,19 @@ class TableComparisonEngine:
     self.config = config
     self.engine = TableEngine(config)
 
-  def _are_samples_large_enough(self, groups: list[pd.Series])->StatisticTestValidityModel:
+  def _are_samples_large_enough(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     warnings = []
     for gidx, group in enumerate(groups):
       if len(group) <= 10:
         warnings.append(f"\"{group.name}\" only has {len(group)} observations; this might not be enough to make definitive conclusions.")
 
-    return StatisticTestValidityModel(
+    return _StatisticTestValidityModel(
       warnings=warnings
     )
   
-  def _are_compared_groups_overlapping(self, groups: list[pd.Series])->StatisticTestValidityModel:
+  def _are_compared_groups_overlapping(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     if len(groups) == 0:
-      return StatisticTestValidityModel()
+      return _StatisticTestValidityModel()
     
     warnings: list[str] = []
     for i in range(len(groups)):
@@ -47,7 +60,7 @@ class TableComparisonEngine:
         if not overlap.empty:
           warnings.append(f"There are overlapping rows in \"{groups[i].name}\" and \"{groups[j].name}\". This may cause the statistic test to be unreliable. Considering adjusting the filter so that both groups are mutually exclusive.")
           
-    return StatisticTestValidityModel(
+    return _StatisticTestValidityModel(
       warnings=warnings
     )
 
@@ -70,9 +83,9 @@ class TableComparisonEngine:
       invalid_count.append(len(data) - notna_mask.count())
     return invalid_count
   
-  def get_groups_info(self, groups: list[pd.Series])->list[TableComparisonGroupInfoResource]:
+  def get_groups_info(self, groups: list[pd.Series])->list[TableComparisonGroupInfo]:
     return list(map(
-      lambda group: TableComparisonGroupInfoResource(
+      lambda group: TableComparisonGroupInfo(
         name=str(group.name),
         invalid_size=group.isna().sum(),
         sample_size=len(group),
@@ -80,7 +93,7 @@ class TableComparisonEngine:
       groups
     ))
       
-  def check_is_valid(self, groups: list[pd.Series])->StatisticTestValidityModel:
+  def check_is_valid(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     validity1 = self._are_compared_groups_overlapping(groups)
     validity2 = self._are_samples_large_enough(groups)
     return validity1.merge(validity2)
@@ -126,7 +139,7 @@ class TableComparisonEngine:
 
     group_info = self.get_groups_info(groups)
 
-    return TableComparisonResource(
+    return TableComparisonResult(
       effect_size=effect_size,
       significance=significance,
       groups=group_info,
@@ -134,5 +147,7 @@ class TableComparisonEngine:
     )
 
 __all__ = [
-  "TableComparisonEngine"
+  "TableComparisonEngine",
+  "TableComparisonResult",
+  "TableComparisonGroupInfo"
 ]

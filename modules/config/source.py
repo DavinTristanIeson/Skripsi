@@ -16,7 +16,7 @@ class DataSourceTypeEnum(str, Enum):
 
 ExposedEnum().register(DataSourceTypeEnum)
 
-class BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
+class _BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
   path: FilePathField
 
   @abc.abstractmethod
@@ -25,7 +25,7 @@ class BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
 
 logger = ProvisionedLogger().provision("Config")
 
-class CSVDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
+class CSVDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.CSV]
   delimiter: str = ','
 
@@ -34,14 +34,14 @@ class CSVDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
     logger.info(f"Loaded data source from {self.path}")
     return df
 
-class ParquetDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
+class ParquetDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.Parquet]
   def load(self)->pd.DataFrame:
     df = pd.read_parquet(self.path)
     logger.info(f"Loaded data source from {self.path}")
     return df
   
-class ExcelDataSource(BaseDataSource, pydantic.BaseModel, frozen=True):
+class ExcelDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.Excel]
   sheet_name: Optional[str]
   
@@ -59,5 +59,6 @@ __all__ = [
   "DataSourceTypeEnum",
   "ExcelDataSource",
   "CSVDataSource",
+  "ParquetDataSource",
   "DataSource",
 ]

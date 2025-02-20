@@ -14,7 +14,13 @@ class PaginationMeta(PaginationParams, pydantic.BaseModel):
   total: int
 
 T = TypeVar("T")
-class PaginatedApiModel(pydantic.BaseModel, Generic[T], ):
+class PaginatedApiResult(pydantic.BaseModel, Generic[T], ):
   data: list[T]
   message: Optional[str]
   meta: PaginationMeta
+
+__all__ = [
+  "PaginatedApiResult",
+  "PaginationMeta",
+  "PaginationParams"
+]

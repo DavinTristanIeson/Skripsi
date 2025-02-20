@@ -19,3 +19,7 @@ class ExposedEnum(metaclass=Singleton):
         field[enum_member.name] = enum_member.value
       members[name] = field
     return members
+
+__all__ = [
+  "ExposedEnum"
+]

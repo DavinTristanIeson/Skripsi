@@ -93,5 +93,6 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
     self._cleanup(directories, files)
 
 __all__ = [
-  "ProjectPathManager"
+  "ProjectPathManager",
+  "ProjectPaths",
 ]

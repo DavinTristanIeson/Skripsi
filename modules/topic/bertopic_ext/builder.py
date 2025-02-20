@@ -134,3 +134,8 @@ class BERTopicModelBuilder:
     model.hdbscan_model = self.build_hdbscan_model()
 
     return model
+  
+__all__ = [
+  "BERTopicIndividualModels",
+  "BERTopicModelBuilder"
+]

@@ -65,3 +65,7 @@ def register_error_handlers(app: FastAPI):
     default_exception_handler
   )
 
+
+__all__ = [
+  "register_error_handlers"
+]

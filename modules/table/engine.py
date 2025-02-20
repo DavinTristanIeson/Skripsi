@@ -8,7 +8,7 @@ from modules.storage import CacheItem
 from modules.config import Config, ProjectCacheManager
 
 from .pagination import PaginationParams
-from .filter import TableFilterParams, TableSort
+from .filter import _TableFilterParams, TableSort
 from .filter_variants import TableFilter
 
 @dataclass
@@ -37,7 +37,7 @@ class TableEngine:
     if filter is None:
       return df
     with TimeLogger("TableEngine", title="Applying filter to dataset..."):
-      mask = filter.apply(TableFilterParams(
+      mask = filter.apply(_TableFilterParams(
         config=self.config,
         data=df
       ))
@@ -83,3 +83,6 @@ class TableEngine:
 
     return self.reorder(df)
     
+__all__ = [
+  "TableEngine"
+]

@@ -8,7 +8,7 @@ import scipy.stats
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 
-from .base import BaseEffectSize, EffectSizeResult, SignificanceResult, StatisticTestValidityModel
+from .base import _BaseEffectSize, EffectSizeResult, SignificanceResult, _StatisticTestValidityModel
 from .statistic_test import StatisticTestMethodEnum
 
 class EffectSizeMethodEnum(str, Enum):
@@ -21,7 +21,7 @@ class EffectSizeMethodEnum(str, Enum):
 
 ExposedEnum().register(EffectSizeMethodEnum)
 
-class MeanDifferenceEffectSize(BaseEffectSize):
+class MeanDifferenceEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
     return "Difference of Means"
@@ -31,7 +31,7 @@ class MeanDifferenceEffectSize(BaseEffectSize):
     return [SchemaColumnTypeEnum.Continuous]
   
   def _check_is_valid(self):
-    return StatisticTestValidityModel()
+    return _StatisticTestValidityModel()
 
   def effect_size(self):
     X = self.groups[0]
@@ -42,7 +42,7 @@ class MeanDifferenceEffectSize(BaseEffectSize):
       value=effect,
     )
 
-class MedianDifferenceEffectSize(BaseEffectSize):
+class MedianDifferenceEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
     return "Difference of Medians"
@@ -52,7 +52,7 @@ class MedianDifferenceEffectSize(BaseEffectSize):
     return [SchemaColumnTypeEnum.Continuous]
   
   def _check_is_valid(self):
-    return StatisticTestValidityModel()
+    return _StatisticTestValidityModel()
   
   def effect_size(self):
     X = self.groups[0]
@@ -63,7 +63,7 @@ class MedianDifferenceEffectSize(BaseEffectSize):
       value=effect,
     )
 
-class CohenDEffectSize(BaseEffectSize):
+class CohenDEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
     return "Cohen's D"
@@ -77,7 +77,7 @@ class CohenDEffectSize(BaseEffectSize):
       *self.check_normality(self.groups[0]),
       *self.check_normality(self.groups[1]),
     ]
-    return StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(warnings=warnings)
   
   def effect_size(self):
     X = self.groups[0]
@@ -96,7 +96,7 @@ class CohenDEffectSize(BaseEffectSize):
       value=cohen_d,
     )
 
-class RankBiserialEffectSize(BaseEffectSize):
+class RankBiserialEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
     return "Rank Biserial Correlation"
@@ -106,7 +106,7 @@ class RankBiserialEffectSize(BaseEffectSize):
     return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous]
   
   def _check_is_valid(self):
-    return StatisticTestValidityModel()
+    return _StatisticTestValidityModel()
 
   def effect_size(self):
     X = self.groups[0]
@@ -124,7 +124,7 @@ class RankBiserialEffectSize(BaseEffectSize):
       value=rb,
     )
   
-class CramerVEffectSize(BaseEffectSize):
+class CramerVEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
     return "Cramer's V"
@@ -134,7 +134,7 @@ class CramerVEffectSize(BaseEffectSize):
     return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Topic]
   
   def _check_is_valid(self):
-    return StatisticTestValidityModel()
+    return _StatisticTestValidityModel()
   
   
   def contingency_table(self):
@@ -159,7 +159,7 @@ class EffectSizeFactory:
   column: SchemaColumn
   groups: list[pd.Series]
   preference: EffectSizeMethodEnum
-  def build(self, result: SignificanceResult)->BaseEffectSize:
+  def build(self, result: SignificanceResult)->_BaseEffectSize:
     mean_difference = MeanDifferenceEffectSize(column=self.column, groups=self.groups)
     median_difference = MedianDifferenceEffectSize(column=self.column, groups=self.groups)
     cohens_d = CohenDEffectSize(column=self.column, groups=self.groups)
@@ -187,5 +187,6 @@ class EffectSizeFactory:
       raise ValueError(f"Column of type \"{self.column.type}\" cannot be compared.")
     
 __all__ = [
-  "EffectSizeFactory"
+  "EffectSizeFactory",
+  "EffectSizeMethodEnum"
 ]

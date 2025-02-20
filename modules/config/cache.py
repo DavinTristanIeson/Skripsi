@@ -60,7 +60,7 @@ class ProjectCacheManager(metaclass=Singleton):
     with self.lock:
       self.projects.pop(project_id, None)
 
-def get_cached_project(project_id: str):
+def __get_cached_project(project_id: str):
   return ProjectCacheManager().get(project_id)
 
 @functools.lru_cache(2)
@@ -68,7 +68,7 @@ def get_cached_data_source(source: DataSource):
   logger.info(f"Loaded data source from {source}")
   return source.load()
 
-ProjectCacheDependency = Annotated[ProjectCache, Depends(get_cached_project)]
+ProjectCacheDependency = Annotated[ProjectCache, Depends(__get_cached_project)]
 
 __all__ = [
   "ProjectCacheManager",

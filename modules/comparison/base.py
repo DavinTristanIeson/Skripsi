@@ -1,8 +1,6 @@
 import abc
 from dataclasses import dataclass, field
-from enum import Enum
 import http
-from typing import Any, Optional, cast
 
 import pydantic
 import pandas as pd
@@ -10,13 +8,12 @@ import scipy.stats
 
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
-from modules.config import CategoricalSchemaColumn, SchemaColumn, SchemaColumnTypeEnum
-from modules.table import TableFilter
+from modules.config import SchemaColumn, SchemaColumnTypeEnum
 
 @dataclass
-class StatisticTestValidityModel:
+class _StatisticTestValidityModel:
   warnings: list[str] = field(default_factory=lambda: [])
-  def merge(self, validity: "StatisticTestValidityModel"):
+  def merge(self, validity: "_StatisticTestValidityModel"):
     self.warnings.extend(validity.warnings)
     return self
   
@@ -32,7 +29,7 @@ class SignificanceResult(pydantic.BaseModel):
   p_value: float
 
 @dataclass
-class BaseValidatedComparison(abc.ABC):
+class _BaseValidatedComparison(abc.ABC):
   column: SchemaColumn
   groups: list[pd.Series]
 
@@ -55,10 +52,10 @@ class BaseValidatedComparison(abc.ABC):
     return warnings
 
   @abc.abstractmethod
-  def _check_is_valid(self)->StatisticTestValidityModel:
+  def _check_is_valid(self)->_StatisticTestValidityModel:
     ...
 
-  def check_is_valid(self)->StatisticTestValidityModel:
+  def check_is_valid(self)->_StatisticTestValidityModel:
     # For now we only support comparing two groups
     if len(self.groups) != 2:
       raise ApiError(f"{self.get_name()} can only be used to compare two groups.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
@@ -67,20 +64,17 @@ class BaseValidatedComparison(abc.ABC):
       raise ApiError(f"{self.get_name()} can only be used to compare columns of type {', '.join(supported_types)}, but received \"{self.column.type}\" instead.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     return self._check_is_valid()
 
-class BaseEffectSize(BaseValidatedComparison, abc.ABC):
+class _BaseEffectSize(_BaseValidatedComparison, abc.ABC):
   @abc.abstractmethod
   def effect_size(self)->EffectSizeResult:
     ...
 
-class BaseStatisticTest(BaseValidatedComparison, abc.ABC):
+class _BaseStatisticTest(_BaseValidatedComparison, abc.ABC):
   @abc.abstractmethod
   def significance(self)->SignificanceResult:
     ...
 
 __all__ = [
-  "BaseStatisticTest",
-  "BaseEffectSize",
   "SignificanceResult",
   "EffectSizeResult",
-  "StatisticTestValidityModel"
 ]

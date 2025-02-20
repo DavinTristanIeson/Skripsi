@@ -8,7 +8,7 @@ import pandas as pd
 import pydantic
 
 from modules.api import ExposedEnum
-from modules.config import Config, SchemaColumn, SchemaColumnTypeEnum
+from modules.config import Config, SchemaColumnTypeEnum
 
 class TableFilterTypeEnum(str, Enum):
   # Special
@@ -38,37 +38,37 @@ class TableFilterTypeEnum(str, Enum):
 
 ExposedEnum().register(TableFilterTypeEnum)
 
-ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS = [
+__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS = [
   TableFilterTypeEnum.Empty,
   TableFilterTypeEnum.NotEmpty,
   TableFilterTypeEnum.EqualTo,
   TableFilterTypeEnum.IsOneOf,
 ]
-ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS = [
-  *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
+__ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS = [
+  *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
   TableFilterTypeEnum.GreaterThan,
   TableFilterTypeEnum.GreaterThanOrEqualTo,
   TableFilterTypeEnum.LessThan,
   TableFilterTypeEnum.LessThanOrEqualTo,
 ]
-ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS = [
-  *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
+__ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS = [
+  *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
   TableFilterTypeEnum.HasText,
 ]
 ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
-  SchemaColumnTypeEnum.Categorical: ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
+  SchemaColumnTypeEnum.Categorical: __ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
   SchemaColumnTypeEnum.OrderedCategorical: [
-    *ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
-    *ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+    *__ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
+    *__ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   ],
-  SchemaColumnTypeEnum.Textual: ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
-  SchemaColumnTypeEnum.Unique: ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
-  SchemaColumnTypeEnum.Image: ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
-  SchemaColumnTypeEnum.Continuous: ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
-  SchemaColumnTypeEnum.Geospatial: ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
-  SchemaColumnTypeEnum.Temporal: ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Textual: __ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
+  SchemaColumnTypeEnum.Unique: __ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
+  SchemaColumnTypeEnum.Image: __ALLOWED_FILTER_TYPES_FOR_TEXTUAL_COLUMNS,
+  SchemaColumnTypeEnum.Continuous: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Geospatial: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.MultiCategorical: [
-    *ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
+    *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
     TableFilterTypeEnum.Excludes,
     TableFilterTypeEnum.Includes,
     TableFilterTypeEnum.Only,
@@ -76,29 +76,30 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
 }
 
 @dataclass
-class TableFilterParams:
+class _TableFilterParams:
   data: pd.DataFrame
   config: Config
   
-class BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
+class _BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   target: str
   type: Any
  
   @abc.abstractmethod
-  def apply(self, params: TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
     pass
 
-class BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
+class _BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   @abc.abstractmethod
-  def apply(self, params: TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
     pass
 
 class TableSort(pydantic.BaseModel, abc.ABC, frozen=True):
   name: str
   asc: bool
 
-  def apply(self, params: TableFilterParams):
-    pass
 
-
-
+__all__ = [
+  "TableSort",
+  "TableFilterTypeEnum",
+  "ALLOWED_FILTER_TYPES_FOR_COLUMNS"
+]

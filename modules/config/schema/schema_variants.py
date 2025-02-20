@@ -9,11 +9,11 @@ import pandas as pd
 
 from modules.validation import FilenameField, DiscriminatedUnionValidator
 
-from .base import BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
+from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 
-class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Continuous]
   bins: Optional[int] = None
 
@@ -66,7 +66,7 @@ class ContinuousSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 
     df[self.bins_column.name] = categorical_bins
   
-class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Categorical]
   def fit(self, df):
     raw_data = df[self.name]
@@ -76,7 +76,7 @@ class CategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
       data = pd.Categorical(raw_data.astype(str))
     df[self.name] = data
   
-class OrderedCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
   alphanumeric_order: bool = False
@@ -115,12 +115,12 @@ class OrderedCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
 # Topic column are special because they contain the topic IDs rather than the topic names.
 # Topic ID will be mapped by FE with the topic information.
 # This makes relabeling or recalculating topic representation much easier.
-class TopicSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Topic]
   def fit(self, df):
     df[self.name] = df[self.name].astype(np.int32)
 
-class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   name: FilenameField
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
@@ -153,7 +153,7 @@ class TextualSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     df[self.name] = data
 
 
-class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Temporal]
   datetime_format: Optional[str]
 
@@ -233,7 +233,7 @@ class TemporalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
     df[self.hour_column.name] = hour_column
 
-class BaseMultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel, abc.ABC):
+class __BaseMultiCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, abc.ABC):
   delimiter: str = ","
   is_json: bool = True
 
@@ -260,7 +260,7 @@ class BaseMultiCategoricalSchemaColumn(BaseSchemaColumn, pydantic.BaseModel, abc
       tags_list
     ))
 
-class MultiCategoricalSchemaColumn(BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
+class MultiCategoricalSchemaColumn(__BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
   delimiter: str = ","
   is_json: bool = True
@@ -271,7 +271,7 @@ class MultiCategoricalSchemaColumn(BaseMultiCategoricalSchemaColumn, pydantic.Ba
     json_strings = self._convert_tags_list_to_json(tags_list)
     df[self.name] = pd.Series(json_strings)
   
-class GeospatialSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Geospatial]
   role: GeospatialRoleEnum
 
@@ -279,13 +279,13 @@ class GeospatialSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
     data = df[self.name].astype(np.float64)
     df[self.name] = data
 
-class UniqueSchemaColumn(BaseSchemaColumn, pydantic.BaseModel):
+class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Unique]
 
   def fit(self, df):
     df[self.name] = df[self.name].astype(str)
   
-class ImageSchemaColumn(BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
+class ImageSchemaColumn(__BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Image]
   
   def fit(self, df):

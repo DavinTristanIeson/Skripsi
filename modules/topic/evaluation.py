@@ -1,8 +1,6 @@
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import pydantic
-from gensim.models.coherencemodel import CoherenceModel
-from gensim.corpora import Dictionary
 
 class ColumnTopicsEvaluationResult(pydantic.BaseModel):
   column: str
@@ -27,6 +25,9 @@ def topic_diversity(topics: Sequence[Sequence[str]]):
   return td
 
 def cv_coherence(topic_words: Sequence[Sequence[str]], corpus: Sequence[Sequence[str]])->tuple[float, Sequence[float]]:
+  from gensim.models.coherencemodel import CoherenceModel
+  from gensim.corpora import Dictionary
+
   dictionary = Dictionary()
   dictionary.add_documents(corpus)
   cv_coherence = CoherenceModel(
@@ -42,3 +43,10 @@ def cv_coherence(topic_words: Sequence[Sequence[str]], corpus: Sequence[Sequence
   )
 
   return cv_score, cv_scores_per_topic
+
+__all__ = [
+  "ColumnTopicsEvaluationResult",
+  "ProjectTopicsEvaluationResult",
+  "topic_diversity",
+  "cv_coherence"
+]

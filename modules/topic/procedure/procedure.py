@@ -2,22 +2,21 @@
 import os
 
 import numpy as np
-import pandas as pd
 
 from modules.logger import ProvisionedLogger, TimeLogger
-from modules.task import TaskPayload, TaskResponseData, TaskStatusEnum
+from modules.task import TaskPayload, TaskResponseData
 from modules.config import ProjectPaths, ProjectCacheManager
 
 from ..bertopic_ext import BERTopicIndividualModels, BERTopicModelBuilder
 from .embedding import bertopic_embedding
 from .postprocess import bertopic_post_processing
 from .preprocess import bertopic_preprocessing
-from .utils import BERTopicColumnIntermediateResult, assert_valid_workspace_for_topic_modeling
+from .utils import _BERTopicColumnIntermediateResult, assert_valid_workspace_for_topic_modeling
 
 logger = ProvisionedLogger().provision("Topic Modeling")
 
 def bertopic_find_topics(
-  intermediate: BERTopicColumnIntermediateResult,
+  intermediate: _BERTopicColumnIntermediateResult,
 ):
   from bertopic import BERTopic
   column = intermediate.column
@@ -88,8 +87,8 @@ def bertopic_topic_modeling(task: TaskPayload):
   )
 
   textual_columns = config.data_schema.textual()
-  intermediates: list[BERTopicColumnIntermediateResult] = list(map(
-    lambda column: BERTopicColumnIntermediateResult.initialize(
+  intermediates: list[_BERTopicColumnIntermediateResult] = list(map(
+    lambda column: _BERTopicColumnIntermediateResult.initialize(
       column=column,
       config=config,
       task=task
@@ -143,3 +142,7 @@ def bertopic_topic_modeling(task: TaskPayload):
   task.success(TaskResponseData.Empty())
 
   cache.workspaces.clear()
+
+__all__ = [
+  "bertopic_topic_modeling",
+]

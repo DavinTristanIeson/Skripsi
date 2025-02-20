@@ -1,21 +1,16 @@
 from dataclasses import dataclass
 from enum import Enum
-import http
 import itertools
-from typing import Literal, cast
+from typing import Literal
 
 import numpy as np
 import pandas as pd
-
-from common.logger import ProvisionedLogger
-from common.models.api import ApiError
-from common.models.enum import ExposedEnum
-from models.comparison.base import BaseStatisticTest, SignificanceResult, StatisticTestValidityModel
-
 import scipy.stats
 
-from models.comparison.effect_size import CohenDEffectSize
-from models.config.schema import CategoricalSchemaColumn, SchemaColumn, SchemaColumnTypeEnum
+from modules.logger import ProvisionedLogger
+from modules.api import ExposedEnum
+from modules.config import SchemaColumn, SchemaColumnTypeEnum
+from .base import _BaseStatisticTest, SignificanceResult, _StatisticTestValidityModel
 
 logger = ProvisionedLogger().provision("TableComparisonEngine")
 
@@ -27,7 +22,7 @@ class StatisticTestMethodEnum(str, Enum):
 
 ExposedEnum().register(StatisticTestMethodEnum)
 
-class TStatisticTest(BaseStatisticTest):
+class TStatisticTest(_BaseStatisticTest):
   @classmethod
   def get_name(cls):
     return "T-Test"
@@ -43,7 +38,7 @@ class TStatisticTest(BaseStatisticTest):
       *self.check_normality(A),
       *self.check_normality(B),
     ]
-    return StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(warnings=warnings)
 
   def significance(self):
     A = self.groups[0]
@@ -55,7 +50,7 @@ class TStatisticTest(BaseStatisticTest):
       p_value=p_value # type: ignore
     )
   
-class MannWhitneyUStatisticTest(BaseStatisticTest):
+class MannWhitneyUStatisticTest(_BaseStatisticTest):
   @classmethod
   def get_name(cls):
     return "Mann-Whitney U Test"
@@ -84,7 +79,7 @@ class MannWhitneyUStatisticTest(BaseStatisticTest):
       *self.check_normality(B),
     ]
 
-    return StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(warnings=warnings)
 
   def significance(self):
     A = self.groups[0]
@@ -97,7 +92,7 @@ class MannWhitneyUStatisticTest(BaseStatisticTest):
       p_value=p_value
     ) # type: ignore
 
-class ChiSquaredStatisticTest(BaseStatisticTest):
+class ChiSquaredStatisticTest(_BaseStatisticTest):
   type: Literal[StatisticTestMethodEnum.ChiSquared]
 
   @classmethod
@@ -128,7 +123,7 @@ class ChiSquaredStatisticTest(BaseStatisticTest):
       observations = itertools.islice(map(lambda index: f"({contingency_table.index[index[0]]} x {contingency_table.columns[index[1]]}: {contingency_table.iloc[index]} obs.)", less_than_5_indices), 5)
       warnings.append(f"More than 20% of the contingency table has less than 5 observations: {', '.join(observations)}")
 
-    return StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(warnings=warnings)
   
   def significance(self):
     statistic, p_value = scipy.stats.chi2_contingency(
@@ -145,7 +140,7 @@ class StatisticTestFactory:
   column: SchemaColumn
   groups: list[pd.Series]
   preference: StatisticTestMethodEnum
-  def build(self)->BaseStatisticTest:
+  def build(self)->_BaseStatisticTest:
     t = TStatisticTest(column=self.column, groups=self.groups)
     mann_whitney_u = MannWhitneyUStatisticTest(column=self.column, groups=self.groups)
     chi_squared = ChiSquaredStatisticTest(column=self.column, groups=self.groups)
@@ -181,5 +176,6 @@ class StatisticTestFactory:
       raise ValueError(f"Column of type \"{self.column.type}\" cannot be compared.")
 
 __all__ = [
-  "StatisticTestFactory"
+  "StatisticTestFactory",
+  "StatisticTestMethodEnum"
 ]

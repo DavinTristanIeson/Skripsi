@@ -5,16 +5,17 @@ from typing import TYPE_CHECKING, cast
 import abc
 
 import numpy as np
-
-from common.models.api import ApiError
-from controllers.topic.cache import CachedEmbeddingModel
-from models.config import ProjectPathManager, TextualSchemaColumn, ProjectPaths
 from sklearn.base import BaseEstimator, TransformerMixin
+
+from modules.api import ApiError
+from modules.config import ProjectPathManager, TextualSchemaColumn, ProjectPaths
+
+from .cache import _CachedEmbeddingModel
 if TYPE_CHECKING:
   from umap import UMAP
 
 @dataclass
-class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
+class __CachedUMAP(_CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
   project_id: str
   column: TextualSchemaColumn
   
@@ -39,7 +40,7 @@ class CachedUMAP(CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin)
     self.save_embeddings(embeddings)
     return embeddings
 
-class BERTopicCachedUMAP(CachedUMAP):
+class BERTopicCachedUMAP(__CachedUMAP):
   @property
   def embedding_path(self):
     paths = ProjectPathManager(project_id=self.project_id)
@@ -69,7 +70,7 @@ class VisualizationCachedUMAPResult:
   topic_embeddings: np.ndarray
 
 @dataclass
-class VisualizationCachedUMAP(CachedUMAP):
+class VisualizationCachedUMAP(__CachedUMAP):
   corpus_size: int
   topic_count: int
   @property
@@ -105,3 +106,9 @@ class VisualizationCachedUMAP(CachedUMAP):
       document_embeddings=embeddings[:self.corpus_size],
       topic_embeddings=embeddings[self.corpus_size:],
     )
+  
+__all__ = [
+  "BERTopicCachedUMAP",
+  "VisualizationCachedUMAPResult",
+  "VisualizationCachedUMAP",
+]

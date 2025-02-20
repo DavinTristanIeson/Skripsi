@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import http
 import itertools
@@ -9,20 +10,27 @@ import pydantic
 from modules.api import ApiError
 
 from ..bertopic_ext import (
-  BERTopicIndividualModels, BERTopicCTFIDFRepresentationResult,
+  BERTopicIndividualModels,
   BERTopicInterpreter, bertopic_count_topics, bertopic_extract_topics,
   bertopic_extract_topic_embeddings,
   VisualizationCachedUMAP, VisualizationCachedUMAPResult
 )
 
-from .utils import BERTopicColumnIntermediateResult
-from ..model import TopicHierarchyModel, TopicModelingResultModel, TopicModel
+@dataclass
+class __BERTopicCTFIDFRepresentationResult:
+  ctfidf: np.ndarray
+  bow: np.ndarray
+  words: list[tuple[str, float]]
+
+
+from .utils import _BERTopicColumnIntermediateResult
+from ..model import TopicHierarchy, TopicModelingResult, Topic
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
 
 def bertopic_visualization_embeddings(
-  intermediate: BERTopicColumnIntermediateResult
+  intermediate: _BERTopicColumnIntermediateResult
 )->VisualizationCachedUMAPResult:
   task = intermediate.task
   config = intermediate.config
@@ -52,7 +60,7 @@ class __HierarchicalClusteringGraphNodeData(pydantic.BaseModel):
   diff: float
   is_base: bool
 
-def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateResult)->TopicHierarchyModel:
+def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateResult)->TopicHierarchy:
   import sklearn.metrics
   import scipy.spatial.distance
   import scipy.cluster.hierarchy
@@ -148,7 +156,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
     vectorizer_model=model.vectorizer_model,
   )
   documents = intermediate.documents
-  representation_results: dict[int, BERTopicCTFIDFRepresentationResult] = dict()
+  representation_results: dict[int, __BERTopicCTFIDFRepresentationResult] = dict()
   
   for node, raw_ndata in simplified_dendrogram.nodes(data=True):
     ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
@@ -157,7 +165,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
     documents_in_this_node = cast(Sequence[str], documents[document_topic_assignments == node])
     meta_document_bow = interpreter.represent_as_bow(documents_in_this_node)
     meta_document_ctfidf = interpreter.represent_as_ctfidf(meta_document_bow)
-    representation = BERTopicCTFIDFRepresentationResult(
+    representation = __BERTopicCTFIDFRepresentationResult(
       bow=meta_document_bow,
       ctfidf=meta_document_ctfidf,
       words=interpreter.get_weighted_words(meta_document_ctfidf)
@@ -175,7 +183,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
     agglomerated_ctfidf = interpreter.represent_as_ctfidf(agglomerated_bow)
     agglomerated_words = interpreter.get_weighted_words(agglomerated_ctfidf)
 
-    representation_results[node] = BERTopicCTFIDFRepresentationResult(
+    representation_results[node] = __BERTopicCTFIDFRepresentationResult(
       ctfidf=agglomerated_ctfidf,
       bow=agglomerated_bow,
       words=agglomerated_words,
@@ -185,7 +193,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   label_dendrogram(simplified_dendrogram, hierarchy_root)
 
   def build_topic_hierarchy(G: nx.DiGraph, node: int):
-    children: list[TopicHierarchyModel] = []
+    children: list[TopicHierarchy] = []
     for successor in G.successors(node):
       children.append(build_topic_hierarchy(G, successor))
     try:
@@ -201,7 +209,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
       )
     ), 3))
 
-    return TopicHierarchyModel(
+    return TopicHierarchy(
       id=node,
       frequency=frequency,
       label=label,
@@ -215,7 +223,7 @@ def bertopic_hierarchical_clustering(intermediate: BERTopicColumnIntermediateRes
   return topic_hierarchy
 
 
-def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnIntermediateResult)->TopicModelingResultModel:
+def bertopic_post_processing(df: pd.DataFrame, intermediate: _BERTopicColumnIntermediateResult)->TopicModelingResult:
   column = intermediate.column
   model = intermediate.model
   task = intermediate.task
@@ -238,7 +246,7 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: BERTopicColumnInter
   bertopic_visualization_embeddings(intermediate).topic_embeddings
 
   # Create topic result
-  topic_modeling_result = TopicModelingResultModel(
+  topic_modeling_result = TopicModelingResult(
     project_id=intermediate.config.project_id,
     topics=topics,
     hierarchy=hierarchy,

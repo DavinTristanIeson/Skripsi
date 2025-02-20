@@ -7,7 +7,7 @@ from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 from modules.validation import FilenameField
 
-from .schema_manager import SchemaManager
+from .schema import SchemaManager
 from .source import DataSource
 from .paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 

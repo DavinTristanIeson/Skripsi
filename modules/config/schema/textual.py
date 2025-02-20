@@ -54,7 +54,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   
     return nlp
 
-  def preprocess_sbert(self, raw_documents: Sequence[str])->list[str]:
+  def preprocess_light(self, raw_documents: Sequence[str])->list[str]:
     nlp = self.load_nlp()
     sbert_corpus: list[str] = []
     spacy_docs = nlp.pipe(raw_documents)
@@ -75,7 +75,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       sbert_corpus.append(' '.join(sbert_tokens))
     return sbert_corpus
 
-  def preprocess_topic_keywords(self, raw_documents: Sequence[str])->list[str]:
+  def preprocess_heavy(self, raw_documents: Sequence[str])->list[str]:
     from gensim.corpora import Dictionary
     
     nlp = self.load_nlp()
@@ -161,3 +161,10 @@ class TopicModelingConfig(pydantic.BaseModel):
 
   no_outliers: bool = False
   represent_outliers: bool = False
+
+__all__ = [
+  "TextPreprocessingConfig",
+  "TopicModelingConfig",
+  "DocumentEmbeddingMethodEnum",
+  "DocumentPreprocessingMethodEnum"
+]

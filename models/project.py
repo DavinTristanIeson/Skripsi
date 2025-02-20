@@ -5,10 +5,10 @@ from typing import Annotated, Any, Hashable, Optional, Sequence
 import numpy as np
 import pandas as pd
 import pydantic
-from common.models.api import ApiError
-from common.models.validators import FilenameField, CommonModelConfig
 
-from ..config import Config, SchemaColumnTypeEnum, DataSource
+from modules.api import ApiError
+from modules.validation import FilenameField
+from modules.config import Config, SchemaColumnTypeEnum, DataSource
 
 # Resource
 class ProjectLiteResource(pydantic.BaseModel):
@@ -88,7 +88,6 @@ class CheckDatasetSchema(pydantic.RootModel):
   root: DataSourceField
 
 class CheckDatasetColumnSchema(pydantic.BaseModel):
-  model_config = CommonModelConfig
   source: DataSourceField
   column: str
   dtype: SchemaColumnTypeEnum

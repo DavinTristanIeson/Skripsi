@@ -10,20 +10,20 @@ from modules.config import MultiCategoricalSchemaColumn, SchemaColumn, SchemaCol
 from modules.validation import DiscriminatedUnionValidator
 from modules.logger import ProvisionedLogger
 
-from .filter import BaseCompoundTableFilter, BaseTableFilter, TableFilterParams, TableFilterTypeEnum
-from .errors import TableFilterError
+from .filter import _BaseCompoundTableFilter, _BaseTableFilter, _TableFilterParams, TableFilterTypeEnum
+from .errors import _TableFilterError
 
 logger = ProvisionedLogger().provision("TableEngine")
 
-def access_series(filter: BaseTableFilter, params: TableFilterParams)->pd.Series:
+def access_series(filter: _BaseTableFilter, params: _TableFilterParams)->pd.Series:
   if filter.target not in params.data.columns:
-    raise TableFilterError.ColumnNotFound(
+    raise _TableFilterError.ColumnNotFound(
       target=filter.target,
       project_id=params.config.project_id
     )
   return params.data[filter.target]
 
-def parse_value(filter: BaseTableFilter, params: TableFilterParams, *, value: Any, operand: str)->Any: 
+def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: Any, operand: str)->Any: 
   column = params.config.data_schema.assert_exists(filter.target)
   ERROR_PAYLOAD = dict(
     type=filter.type,
@@ -37,25 +37,25 @@ def parse_value(filter: BaseTableFilter, params: TableFilterParams, *, value: An
     try:
       return float(value) # type: ignore
     except ValueError:
-      raise TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="numeric_value")
+      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="numeric_value")
   elif pd.api.types.is_datetime64_any_dtype(data.dtype):
     try:
       return datetime.datetime.fromisoformat(value) # type: ignore
     except ValueError:
-      raise TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="datetime string in ISO format")
+      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="datetime string in ISO format")
   elif data.dtype == 'category':
     value = str(value)
     if str(value) not in data.cat.categories:
-      raise TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="valid category")
+      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="valid category")
     return value
   elif value is None:
     return None
   else:
     return str(value)
   
-class AndTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
+class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.And]
-  operands: list[BaseTableFilter] = pydantic.Field(min_length=1)
+  operands: list[_BaseTableFilter] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -67,9 +67,9 @@ class AndTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
       self.operands, np.full(len(params.data), 1, dtype=np.bool_)
     )
   
-class OrTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
+class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.Or]
-  operands: list[BaseTableFilter] = pydantic.Field(min_length=1)
+  operands: list[_BaseTableFilter] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -83,9 +83,9 @@ class OrTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
       mask |= self.operands[i].apply(params)
     return mask
 
-class NotTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
+class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.Not]
-  operand: BaseTableFilter
+  operand: _BaseTableFilter
   def __hash__(self):
     return hash(' '.join([
       hex(hash(self.type)),
@@ -95,17 +95,17 @@ class NotTableFilter(BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   def apply(self, params):
     return ~self.operand.apply(params)
   
-class EmptyTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class EmptyTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.Empty]
   def apply(self, params):
     return access_series(self, params).isna()
 
-class NotEmptyTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class NotEmptyTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.NotEmpty]
   def apply(self, params):
     return access_series(self, params).notna()
 
-class EqualToTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.EqualTo]
   value: str
   def apply(self, params):
@@ -113,7 +113,7 @@ class EqualToTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
     value = parse_value(self, params, value=self.value, operand="value")
     return data == value
 
-class IsOneOfTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.IsOneOf]
   values: list[str]
   def apply(self, params):
@@ -124,7 +124,7 @@ class IsOneOfTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
       values, np.full(len(data), 1, dtype=np.bool_)
     )
 
-class GreaterThanTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.GreaterThan]
   value: str
   def apply(self, params):
@@ -132,7 +132,7 @@ class GreaterThanTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
     value = parse_value(self, params, value=self.value, operand="value")
     return data > value
   
-class LessThanTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.LessThan]
   value: str
   def apply(self, params):
@@ -140,7 +140,7 @@ class LessThanTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
     value = parse_value(self, params, value=self.value, operand="value")
     return data < value
   
-class GreaterThanOrEqualToTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.GreaterThanOrEqualTo]
   value: str
   def apply(self, params):
@@ -148,7 +148,7 @@ class GreaterThanOrEqualToTableFilter(BaseTableFilter, pydantic.BaseModel, froze
     value = parse_value(self, params, value=self.value, operand="value")
     return data >= value
   
-class LessThanOrEqualToTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.LessThanOrEqualTo]
   value: str
   def apply(self, params):
@@ -156,27 +156,27 @@ class LessThanOrEqualToTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=T
     value = parse_value(self, params, value=self.value, operand="value")
     return data <= value
 
-class HasTextTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
+class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.HasText]
   value: str
   def apply(self, params):
     data = access_series(self, params)
     column = params.config.data_schema.assert_exists(self.target)
     if column.type != SchemaColumnTypeEnum.Textual:
-      raise TableFilterError.WrongColumnType(
+      raise _TableFilterError.WrongColumnType(
         filter_type=self.type,
         column_type=column.type,
         target=self.target
       )
     return data.str.contains(self.value)
 
-class BaseMulticategoricalTableFilter(BaseTableFilter, pydantic.BaseModel, frozen=True):
-  def iterate(self, params: TableFilterParams):
+class BaseMulticategoricalTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
+  def iterate(self, params: _TableFilterParams):
     import orjson
 
     column = params.config.data_schema.assert_exists(self.target)
     if column.type != SchemaColumnTypeEnum.MultiCategorical:
-      raise TableFilterError.WrongColumnType(
+      raise _TableFilterError.WrongColumnType(
         filter_type=self.type,
         column_type=column.type,
         target=self.target

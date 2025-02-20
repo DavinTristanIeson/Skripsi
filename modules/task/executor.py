@@ -60,3 +60,7 @@ class TaskPayload:
     self.check_stop()
 
 TaskHandlerFn = Callable[[TaskPayload], None]
+
+__all__ = [
+  "TaskPayload"
+]

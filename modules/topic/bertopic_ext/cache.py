@@ -8,7 +8,7 @@ from modules.config import ProjectPathManager
 
 logger = ProvisionedLogger().provision("Topic Modeling")
 
-class CachedEmbeddingModel(abc.ABC):
+class _CachedEmbeddingModel(abc.ABC):
   @property
   @abc.abstractmethod
   def embedding_path(self)->str:

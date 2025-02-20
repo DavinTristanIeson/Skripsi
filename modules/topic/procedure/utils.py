@@ -12,7 +12,7 @@ if TYPE_CHECKING:
   from bertopic import BERTopic
 
 @dataclass
-class BERTopicColumnIntermediateResult:
+class _BERTopicColumnIntermediateResult:
   config: Config
   embedding_documents: list[str]
   documents: pd.Series
@@ -30,8 +30,8 @@ class BERTopicColumnIntermediateResult:
     column: TextualSchemaColumn,
     config: Config,
     task: TaskPayload,
-  )->"BERTopicColumnIntermediateResult":
-    return BERTopicColumnIntermediateResult(
+  )->"_BERTopicColumnIntermediateResult":
+    return _BERTopicColumnIntermediateResult(
       column=column,
       config=config,
       task=task,
@@ -49,3 +49,7 @@ def assert_valid_workspace_for_topic_modeling(df: pd.DataFrame, task: TaskPayloa
   non_existent_columns = list(map(str, filter(lambda x: x.name not in df.columns, textual_columns)))
   if len(non_existent_columns) > 0:
     raise ApiError(f"{', '.join(non_existent_columns)} doesn't exist in the workspace. Please check your data source or column configuration to make sure that the column is present. Alternatively, delete \"{workspace_path}\" to fix any corrupted cached data.", 404)
+
+__all__ = [
+  "assert_valid_workspace_for_topic_modeling"
+]

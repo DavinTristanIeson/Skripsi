@@ -9,18 +9,12 @@ import numpy as np
 from modules.api import ApiError
 
 from .builder import BERTopicIndividualModels
-from ..model import TopicModel
+from ..model import Topic
 
 if TYPE_CHECKING:
   from bertopic import BERTopic
   from sklearn.feature_extraction.text import CountVectorizer
   from bertopic.vectorizers import ClassTfidfTransformer
-
-@dataclass
-class BERTopicCTFIDFRepresentationResult:
-  ctfidf: np.ndarray
-  bow: np.ndarray
-  words: list[tuple[str, float]]
 
 @dataclass
 class BERTopicInterpreter:
@@ -95,14 +89,14 @@ class BERTopicInterpreter:
 
 def bertopic_extract_topics(
   model: "BERTopic",
-)->list[TopicModel]:
+)->list[Topic]:
   if model.topic_embeddings_ is None:
     raise ApiError(
       "BERTopic model has not been fitted yet! This might be a developer oversight.",
       http.HTTPStatus.INTERNAL_SERVER_ERROR
     )
   topic_words_mapping = model.get_topics()
-  topics: list[TopicModel] = []
+  topics: list[Topic] = []
   for raw_key, raw_topic_words in topic_words_mapping.items():
     key = int(raw_key)
     if key == -1:
@@ -120,7 +114,7 @@ def bertopic_extract_topics(
       topic_label = ', '.join(representative_topic_words)
     topic_frequency = cast(int, model.get_topic_freq(int(key)))
 
-    topic = TopicModel(
+    topic = Topic(
       id=key,
       label=topic_label,
       words=topic_words,
@@ -135,3 +129,10 @@ def bertopic_count_topics(model: "BERTopic")->int:
 
 def bertopic_extract_topic_embeddings(model: "BERTopic")->np.ndarray:
   return model.topic_embeddings_[model._outliers:] # type: ignore
+
+__all__ = [
+  "BERTopicInterpreter",
+  "bertopic_extract_topic_embeddings",
+  "bertopic_count_topics",
+  "bertopic_extract_topics",
+]

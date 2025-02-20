@@ -1,2 +1,3 @@
-from . import evaluation
-from . import model
+from .model import *
+from .evaluation import *
+from .procedure import bertopic_topic_modeling

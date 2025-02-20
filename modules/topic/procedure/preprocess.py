@@ -1,11 +1,11 @@
 import pandas as pd
 from typing import Sequence
 
-from .utils import BERTopicColumnIntermediateResult
+from .utils import _BERTopicColumnIntermediateResult
 
 def bertopic_preprocessing(
   df: pd.DataFrame,
-  intermediate: BERTopicColumnIntermediateResult
+  intermediate: _BERTopicColumnIntermediateResult
 ):
   column = intermediate.column
   preprocess_name = column.preprocess_column.name
@@ -22,7 +22,7 @@ def bertopic_preprocessing(
 
     intermediate.task.log_pending(f"Preprocessing the documents in column \"{column.name}\". Text preprocessing may take some time...")
     # preprocess_topic_keywords set NA for invalid documents, so we need to recompute mask
-    df.loc[original_mask, preprocess_name] = column.preprocessing.preprocess_topic_keywords(original_documents) # type: ignore
+    df.loc[original_mask, preprocess_name] = column.preprocessing.preprocess_heavy(original_documents) # type: ignore
     mask = df[preprocess_name].notna()
     preprocess_documents = df.loc[mask, preprocess_name]
     intermediate.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
@@ -34,7 +34,7 @@ def bertopic_preprocessing(
   original_documents: Sequence[str] = raw_documents[mask] # type: ignore
   # Light preprocessing for SBERT
   intermediate.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
-  sbert_documents = column.preprocessing.preprocess_sbert(original_documents)
+  sbert_documents = column.preprocessing.preprocess_light(original_documents)
   intermediate.task.log_pending(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
 
   intermediate.embedding_documents = sbert_documents
