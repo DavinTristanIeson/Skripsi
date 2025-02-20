@@ -95,4 +95,5 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
 __all__ = [
   "ProjectPathManager",
   "ProjectPaths",
+  "DATA_DIRECTORY"
 ]

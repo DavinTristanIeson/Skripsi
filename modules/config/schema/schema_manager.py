@@ -69,7 +69,7 @@ SchemaColumnListField = Annotated[
 ]
 
 @dataclass
-class __SchemaColumnDiff:
+class _SchemaColumnDiff:
   previous: SchemaColumn
   current: SchemaColumn
 
@@ -144,7 +144,7 @@ class SchemaManager(pydantic.BaseModel):
     reordered_df = self.reorder(df, all=True)
     return reordered_df
   
-  def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[__SchemaColumnDiff]:
+  def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[_SchemaColumnDiff]:
     current = self.columns
     prev_columns = set(map(lambda x: x.name, previous))
     current_columns = set(map(lambda x: x.name, current))
@@ -156,9 +156,9 @@ class SchemaManager(pydantic.BaseModel):
     non_internal_columns = filter(lambda col: not col.internal, self.columns)
     different_columns = filter(lambda col: col != previous_column_map[col.name], non_internal_columns)
     
-    column_diffs: list[__SchemaColumnDiff] = []
+    column_diffs: list[_SchemaColumnDiff] = []
     for col in different_columns:
-      column_diffs.append(__SchemaColumnDiff(
+      column_diffs.append(_SchemaColumnDiff(
         previous=previous_column_map[col.name],
         current=col
       ))

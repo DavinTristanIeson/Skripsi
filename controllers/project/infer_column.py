@@ -1,22 +1,13 @@
-import http
-import os
-from typing import Annotated, Optional
+from typing import Optional
 
-from fastapi import Depends, Query
 import pandas as pd
-from common.logger import ProvisionedLogger
-from common.models.api import ApiError
 
-from models.config import Config, SchemaColumn, SchemaColumnTypeEnum, ProjectPathManager, ProjectPaths
-from models.project import InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource, ProjectCacheDependency, ProjectCacheManager
+from modules.api import ApiResult
+from modules.config.cache import get_cached_data_source
+from modules.logger import ProvisionedLogger
+from modules.config import SchemaColumnTypeEnum
 
-
-def get_data_column(cache: ProjectCacheDependency, column: str = Query()):
-  try:
-    return cache.config.data_schema.assert_exists(column)
-  except KeyError:
-    raise ApiError(f"Column {column} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
-SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(get_data_column)]
+from models.project import CheckDatasetColumnSchema, CheckDatasetResource, CheckDatasetSchema, InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource
 
 logger = ProvisionedLogger().provision("Project Controller")
 
@@ -27,7 +18,7 @@ def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeE
   if dtype == SchemaColumnTypeEnum.Textual:
     data = data.astype(str)
     document_lengths = InferDatasetDescriptiveStatisticsResource.from_series(data.str.len())
-  elif dtype == SchemaColumnTypeEnum.Categorical:
+  elif dtype == SchemaColumnTypeEnum.OrderedCategorical:
     data = data.astype(str)
     categories = sorted(set(map(str, data.unique())))
 
@@ -76,17 +67,33 @@ def infer_column_without_type(column: str, df: pd.DataFrame)->InferDatasetColumn
   logger.warning(f"Unable to infer any autofill values for column {column} as it doesn't fulfill any of the conditions.")
   return infer_column_by_type(column, df, SchemaColumnTypeEnum.Unique)
 
-def assert_project_id_doesnt_exist(project_id: str):
-  paths = ProjectPathManager(project_id=project_id)
-  if os.path.exists(paths.project_path):
-    raise ApiError(f"Project \"{project_id}\" already exists. Please try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
 
-# This is not cached
-ProjectExistsDependency = Annotated[Config, Depends(Config.from_project)]
+def infer_columns_from_dataset(body: CheckDatasetSchema):
+  df = get_cached_data_source(body.root)
+  columns: list[InferDatasetColumnResource] = []
+  for column in df.columns:
+    inferred = infer_column_without_type(column, df)
+    columns.append(inferred)
+  return ApiResult(
+    data=CheckDatasetResource(
+      columns=columns,
+      dataset_columns=list(df.columns),
+      total_rows=len(df),
+      preview_rows=df.head(5).to_dict(orient="records")
+    ),
+    message=f"We have inferred the columns from the dataset at {body.root.path}. Next, please configure how you would like to process the individual columns."
+  )
+
+def infer_column_from_dataset(body: CheckDatasetColumnSchema):
+  df = get_cached_data_source(body.source)
+  inferred = infer_column_by_type(body.column, df, body.dtype)
+
+  return ApiResult(
+    data=inferred,
+    message=None
+  )
 
 __all__ = [
-  "SchemaColumnExistsDependency",
-  "infer_column_without_type",
-  "assert_project_id_doesnt_exist",
-  "ProjectExistsDependency"
+  "infer_columns_from_dataset",
+  "infer_column_from_dataset",
 ]

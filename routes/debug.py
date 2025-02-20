@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from common.task import TaskServer, TaskResponse
-from common.models.api import ApiResult
+from modules.task import TaskEngine, TaskResponse
+from modules.api import ApiResult
 
 
 router = APIRouter(
@@ -10,17 +10,16 @@ router = APIRouter(
 
 @router.post('/sanity-check')
 def post__sanity_check(id: str):
-  server = TaskServer()
+  server = TaskEngine()
   sanity = TaskResponse.Idle(id)
   with server.lock:
     server.results[id] = sanity
   return ApiResult(data=server.result(id), message=None)
 
-
 @router.get('/task-state')
 def get__task_state():
-  return ApiResult(data=TaskServer().results, message=None)
+  return ApiResult(data=TaskEngine().results, message=None)
 
 @router.get('/result/{id}')
 def get__result(id: str):
-  return ApiResult(data=TaskServer().result(id), message=None)
+  return ApiResult(data=TaskEngine().result(id), message=None)

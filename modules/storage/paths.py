@@ -22,8 +22,14 @@ class AbstractPathManager(abc.ABC):
   def assert_path(self, path: str)->str:
     path = self.full_path(path)
     if not os.path.exists(path):
-      raise ApiError(f"{path} does not exist. Perhaps the file has not been created yet.", 404)
+      raise ApiError(f"The file \"{path}\" does not exist. Perhaps the file has not been created yet.", 404)
     return path
+  
+  def allocate_base_path(self)->str:
+    dirpath = os.path.dirname(self.base_path)
+    if not os.path.exists(dirpath):
+      os.makedirs(dirpath, exist_ok=True)
+    return self.base_path
   
   def allocate_path(self, path: str)->str:
     full_path = self.full_path(path)

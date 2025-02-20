@@ -7,16 +7,16 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-import controllers
 import routes
 
-from common.logger import ProvisionedLogger
-from common import task
+from modules.logger import ProvisionedLogger
+from modules.task import TaskEngine
+from modules.api import register_error_handlers
 
-task_server = task.TaskServer()
+task_server = TaskEngine()
 task_server.initialize(
   handlers={},
-  pool=concurrent.futures.ThreadPoolExecutor(16)
+  pool=concurrent.futures.ThreadPoolExecutor(2)
 )
 
 @asynccontextmanager
@@ -48,7 +48,7 @@ api_app = FastAPI(lifespan=lifespan)
 api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.debug.router, prefix="/debug")
-controllers.exceptions.register_error_handlers(api_app)
+register_error_handlers(api_app)
 
 app.mount('/api', api_app)
 

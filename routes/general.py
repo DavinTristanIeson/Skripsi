@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
-from common.models.api import ApiResult
-from common.models.enum import ExposedEnum
+from modules.api import ApiResult, ExposedEnum
 
-
-router = APIRouter()
+router = APIRouter(
+  tags=["General"]
+)
 
 @router.get('/enums')
 def get__enums():
