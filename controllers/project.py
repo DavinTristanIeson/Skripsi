@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 
 from fastapi import Depends, Query
 import pandas as pd
-from common.logger import RegisteredLogger
+from common.logger import ProvisionedLogger
 from common.models.api import ApiError
 
 from models.config import Config, SchemaColumn, SchemaColumnTypeEnum, ProjectPathManager, ProjectPaths
@@ -18,7 +18,7 @@ def get_data_column(cache: ProjectCacheDependency, column: str = Query()):
     raise ApiError(f"Column {column} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", 404)
 SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(get_data_column)]
 
-logger = RegisteredLogger().provision("Project Controller")
+logger = ProvisionedLogger().provision("Project Controller")
 
 def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeEnum):
   data = df[column]

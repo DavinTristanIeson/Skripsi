@@ -3,7 +3,7 @@ import os
 from fastapi import APIRouter
 from common.models.api import ApiResult, ApiError
 from common.task.server import TaskServer
-from common.logger import RegisteredLogger
+from common.logger import ProvisionedLogger
 import controllers
 import controllers.project
 from models.project import (
@@ -25,7 +25,7 @@ router = APIRouter(
   tags=['Projects']
 )
 
-logger = RegisteredLogger().provision("Project Controller")
+logger = ProvisionedLogger().provision("Project Controller")
 
 @router.post(
   "/check-project-id", 

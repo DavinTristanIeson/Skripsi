@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import controllers
 import routes
 
-from common.logger import RegisteredLogger
+from common.logger import ProvisionedLogger
 from common import task
 
 task_server = task.TaskServer()
@@ -39,7 +39,7 @@ app.add_middleware(
 
 
 is_app = os.getenv("APP")
-RegisteredLogger().configure(
+ProvisionedLogger().configure(
   level=logging.WARNING if is_app else logging.DEBUG,
   terminal=True
 )
