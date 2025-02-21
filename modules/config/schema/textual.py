@@ -20,6 +20,8 @@ class DocumentPreprocessingMethodEnum(str, Enum):
 ExposedEnum().register(DocumentPreprocessingMethodEnum)
 
 class TextPreprocessingConfig(pydantic.BaseModel):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
+
   pipeline_type: DocumentPreprocessingMethodEnum = DocumentPreprocessingMethodEnum.English
   ignore_tokens: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
   stopwords: Sequence[str] = pydantic.Field(default_factory=lambda: tuple())
@@ -129,6 +131,9 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   
 
 class TopicModelingConfig(pydantic.BaseModel):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
+
+
   low_memory: bool = False
 
   # https://stackoverflow.com/questions/67898039/hdbscan-difference-between-parameters

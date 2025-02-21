@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import functools
+from math import ceil
 from typing import Optional
 import pandas as pd
 
@@ -7,7 +8,7 @@ from modules.logger import TimeLogger
 from modules.storage import CacheItem
 from modules.config import Config, ProjectCacheManager
 
-from .pagination import PaginationParams
+from .pagination import PaginationMeta, PaginationParams
 from .filter import _TableFilterParams, TableSort
 from .filter_variants import TableFilter
 
@@ -51,6 +52,18 @@ class TableEngine:
     
   def reorder(self, df: pd.DataFrame):
     return self.config.data_schema.reorder(df, all=False)
+  
+  def get_meta(self, df: pd.DataFrame, params: PaginationParams)->PaginationMeta:
+    if params.limit is None:
+      return PaginationMeta(
+        pages=1,
+        total=len(df)
+      )
+    pages = ceil(len(df) / params.limit)
+    return PaginationMeta(
+      pages=pages,
+      total=len(df)
+    )
     
   def paginate(self, df: pd.DataFrame, params: PaginationParams):
     active_columns = filter(lambda x: x.active, self.config.data_schema.columns)

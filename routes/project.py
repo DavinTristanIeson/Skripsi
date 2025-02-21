@@ -29,17 +29,15 @@ router = APIRouter(
   tags=['Projects']
 )
 
-logger = ProvisionedLogger().provision("Project Controller")
-
 @router.post(
   "/check-project-id", 
   status_code=http.HTTPStatus.OK,
 )
-def post__check_project_id(body: CheckProjectIdSchema):
+async def post__check_project_id(body: CheckProjectIdSchema):
   return check_if_project_exists(body)
 
 @router.post("/check-dataset")
-def post__check_dataset(body: CheckDatasetSchema):
+async def post__check_dataset(body: CheckDatasetSchema):
   return infer_columns_from_dataset(body)
   
 
@@ -64,7 +62,7 @@ async def get__project(cache: ProjectCacheDependency):
   )
 
 @router.post('/')
-def create__project(config: Config):
+async def create__project(config: Config):
   return create_project(config)
   
 @router.patch('/{project_id}/update-project-id')

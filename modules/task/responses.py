@@ -31,6 +31,8 @@ class TaskLog(pydantic.BaseModel):
     default_factory=lambda: datetime.datetime.now()
   )
 class TaskResponse(pydantic.BaseModel):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
+  
   id: str
   data: TaskResponseData.DiscriminatedUnion
   logs: list[TaskLog]

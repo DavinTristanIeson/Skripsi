@@ -83,6 +83,7 @@ class _TableFilterParams:
 class _BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   target: str
   type: Any
+  model_config = pydantic.ConfigDict(use_enum_values=True)
  
   @abc.abstractmethod
   def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:

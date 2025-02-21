@@ -48,6 +48,7 @@ api_app = FastAPI(lifespan=lifespan)
 api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.debug.router, prefix="/debug")
+api_app.include_router(routes.table.router, prefix="/table/{project_id}")
 register_error_handlers(api_app)
 
 app.mount('/api', api_app)
