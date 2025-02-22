@@ -1,7 +1,7 @@
 import abc
 import functools
 import math
-from typing import Annotated, ClassVar, Literal, Optional, Sequence, Union
+from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, Union
 
 import numpy as np
 import pydantic
@@ -9,7 +9,7 @@ import pandas as pd
 
 from modules.validation import FilenameField, DiscriminatedUnionValidator
 
-from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
+from .base import _BaseMultiCategoricalSchemaColumn, _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 
@@ -233,42 +233,15 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
     df[self.hour_column.name] = hour_column
 
-class __BaseMultiCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, abc.ABC):
-  delimiter: str = ","
-  is_json: bool = True
-
-  def _convert_string_to_tags_list(self, data: Sequence[str])->list[list[str]]:
-    import orjson
-
-    rows: list[list[str]] = []
-    for row in data:
-      row_categories: list[str]
-      if self.is_json:
-        row_categories = list(orjson.loads(row))
-      else:
-        row_categories = list(map(
-          lambda category: category.strip(),
-          str(row).split(self.delimiter)
-        ))
-      rows.append(row_categories)
-    return rows
-  
-  def _convert_tags_list_to_json(self, tags_list: Sequence[Sequence[str]]):
-    import orjson
-    return list(map(
-      lambda tags: orjson.dumps(tags),
-      tags_list
-    ))
-
-class MultiCategoricalSchemaColumn(__BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
+class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
   delimiter: str = ","
   is_json: bool = True
 
   def fit(self, df):
     data: Sequence[str] = df[self.name].astype(str) # type: ignore
-    tags_list = self._convert_string_to_tags_list(data)
-    json_strings = self._convert_tags_list_to_json(tags_list)
+    tags_list = self.json2list(data)
+    json_strings = self.list2json(tags_list)
     df[self.name] = pd.Series(json_strings)
   
 class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
@@ -285,13 +258,13 @@ class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   def fit(self, df):
     df[self.name] = df[self.name].astype(str)
   
-class ImageSchemaColumn(__BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
+class ImageSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Image]
   
   def fit(self, df):
     data: Sequence[str] = df[self.name].astype(str) # type: ignore
-    tags_list = self._convert_string_to_tags_list(data)
-    json_strings = self._convert_tags_list_to_json(tags_list)
+    tags_list = self.json2list(data)
+    json_strings = self.list2json(tags_list)
     df[self.name] = pd.Series(json_strings)
 
   

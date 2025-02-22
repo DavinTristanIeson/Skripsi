@@ -1,2 +1,2 @@
 from .filter import *
-from .dependency import *
+from .statistic_test import *

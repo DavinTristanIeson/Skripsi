@@ -1,8 +1,15 @@
+from typing import cast
 import pandas as pd
 from modules.api import ApiResult
-from models.table import GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnCountsResource, TableColumnFrequencyDistributionResource, TableColumnGeographicalPointsResource, TableColumnValuesResource
-from modules.config import ProjectCache
-from modules.config.schema.base import SchemaColumnTypeEnum
+from models.table import (
+  GetTableGeographicalColumnSchema, GetTableColumnSchema,
+  TableColumnCountsResource, TableColumnFrequencyDistributionResource,
+  TableColumnGeographicalPointsResource, TableColumnValuesResource
+)
+from modules.config import (
+  ProjectCache, SchemaColumnTypeEnum,
+  MultiCategoricalSchemaColumn
+)
 from modules.table import TableEngine, PaginatedApiResult, PaginationParams
 
 def paginate_table(params: PaginationParams, cache: ProjectCache)->PaginatedApiResult:
@@ -33,17 +40,47 @@ def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
     message=None
   )
 
+def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
+  config = cache.config
+  df = cache.load_workspace()
+  column = config.data_schema.assert_exists(params.column)
+
+  engine = TableEngine(config=config)
+  filtered_df = engine.filter(df, params.filter)
+  data = filtered_df[params.column]
+  data.dropna(inplace=True)
+
+  unique_values = data.unique()
+
+  return ApiResult(
+    data=TableColumnValuesResource(
+      column=column,
+      values=unique_values.tolist()
+    ),
+    message=None
+  )
+
+
 def get_column_frequency_distribution(params: GetTableColumnSchema, cache: ProjectCache):
   df = cache.load_workspace()
   config = cache.config
-  column = config.data_schema.assert_exists(params.column)
+  column = config.data_schema.assert_of_type(params.column, [
+    SchemaColumnTypeEnum.Categorical,
+    SchemaColumnTypeEnum.OrderedCategorical,
+    SchemaColumnTypeEnum.Topic,
+    SchemaColumnTypeEnum.MultiCategorical,
+  ])
 
   engine = TableEngine(config=config)
   filtered_df = engine.filter(df, params.filter)
   data = filtered_df[column.name]
   data.dropna(inplace=True)
 
-  freqdist = data.value_counts()
+  if column.type == SchemaColumnTypeEnum.MultiCategorical:
+    _column = cast(MultiCategoricalSchemaColumn, column)
+    freqdist = pd.Series(_column.count_categories(data))
+  else:
+    freqdist = data.value_counts()
 
   return ApiResult(
     data=TableColumnFrequencyDistributionResource(
@@ -128,5 +165,6 @@ __all__ = [
   "get_column_values",
   "get_column_frequency_distribution",
   "get_column_geographical_points",
-  "get_column_counts"
+  "get_column_counts",
+  "get_column_unique_values",
 ]

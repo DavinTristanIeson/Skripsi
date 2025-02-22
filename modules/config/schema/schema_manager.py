@@ -115,7 +115,13 @@ class SchemaManager(pydantic.BaseModel):
       if col.name == name:
         column = col
     if column is None:
-      raise ApiError(f"Column {name} doesn't exist in the schema", http.HTTPStatus.NOT_FOUND)
+      raise ApiError(f"Column \"{name}\" doesn't exist in the schema", http.HTTPStatus.NOT_FOUND)
+    return column
+  
+  def assert_of_type(self, name: str, types: list[SchemaColumnTypeEnum])->SchemaColumn:
+    column = self.assert_exists(name)
+    if column.type not in types:
+      raise ApiError(f"This procedure requires that column \"{name}\" be one of these types: {', '.join(types)}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     return column
   
   def reorder(self, df: pd.DataFrame, *, all: bool = False):

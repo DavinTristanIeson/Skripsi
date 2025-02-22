@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 import pandas as pd
 import pydantic
+from typing import cast
 
-from modules.config import Config, SchemaColumn
+from modules.config import Config, SchemaColumn, SchemaColumnTypeEnum, MultiCategoricalSchemaColumn
 from modules.table import TableEngine, NamedTableFilter
-
 from modules.logger import ProvisionedLogger
+
 from .base import _StatisticTestValidityModel, SignificanceResult, EffectSizeResult
 from .effect_size import EffectSizeFactory, EffectSizeMethodEnum
 from .statistic_test import StatisticTestFactory, StatisticTestMethodEnum
@@ -32,10 +33,6 @@ class TableComparisonEngine:
   engine: TableEngine
   groups: list[NamedTableFilter]
   exclude_overlapping_rows: bool = True
-
-  def __init__(self, config: Config) -> None:
-    self.config = config
-    self.engine = TableEngine(config)
 
   def _are_samples_large_enough(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     warnings = []
@@ -98,10 +95,14 @@ class TableComparisonEngine:
     validity2 = self._are_samples_large_enough(groups)
     return validity1.merge(validity2)
 
-  def preprocess(self, groups: list[pd.Series])->None:
+  def preprocess(self, groups: list[pd.Series], column: SchemaColumn)->None:
     self._exclude_na_rows(groups)
     if self.exclude_overlapping_rows:
       self._exclude_overlapping_rows(groups)
+    if column.type == SchemaColumnTypeEnum.MultiCategorical:
+      column = cast(MultiCategoricalSchemaColumn, column)
+      for i in range(len(groups)):
+        groups[i] = column.flatten(column.json2list(groups[i]))
 
   def load(self, df: pd.DataFrame, column: SchemaColumn)->list[pd.Series]:
     data_groups: list[pd.Series] = []
@@ -115,7 +116,7 @@ class TableComparisonEngine:
   def compare(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: StatisticTestMethodEnum = StatisticTestMethodEnum.Auto, effect_size_preference: EffectSizeMethodEnum = EffectSizeMethodEnum.Auto):
     column = self.config.data_schema.assert_exists(column_name)
     groups = self.load(df, column)
-    self.preprocess(groups)
+    self.preprocess(groups, column)
     validity = self.check_is_valid(groups)
 
     statistic_test_method = StatisticTestFactory(

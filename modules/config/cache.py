@@ -8,6 +8,7 @@ from fastapi import Depends
 from modules.logger import ProvisionedLogger
 from modules.baseclass import Singleton
 from modules.storage.cache import CacheClient, CacheItem
+from modules.topic.model import TopicModelingResult
 
 from .config import Config
 from .source import DataSource
@@ -17,11 +18,29 @@ logger = ProvisionedLogger().provision("CacheClient")
 @dataclass
 class ProjectCache:
   id: str
-  config: Config
   workspaces: CacheClient[pd.DataFrame] = field(
     default_factory=lambda: CacheClient(name="Workspace", maxsize=5, ttl=10 * 60),
     init=False,
   )
+  topics: CacheClient[TopicModelingResult] = field(
+    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=None),
+    init=False,
+  )
+
+  @functools.cached_property
+  def config(self):
+    return Config.from_project(self.id)
+  
+  def load_topic(self, column: str):
+    cached_topic = self.topics.get(column)
+    if cached_topic is None:
+      topic_result = TopicModelingResult.load(self.id, column)
+      self.topics.set(CacheItem(
+        key=column,
+        value=topic_result,
+      ))
+    else:
+      return cached_topic
 
   def load_workspace(self)->pd.DataFrame:
     empty_key = ''
@@ -51,7 +70,6 @@ class ProjectCacheManager(metaclass=Singleton):
       if cache is None:
         cache = ProjectCache(
           id=project_id,
-          config=Config.from_project(project_id)
         )
         self.projects[project_id] = cache
       return cache

@@ -27,8 +27,8 @@ class CacheItem(Generic[T]):
 @dataclass
 class CacheClient(Generic[T]):
   name: str
-  maxsize: int
-  ttl: int
+  maxsize: Optional[int]
+  ttl: Optional[int]
   lock: threading.Lock = field(default_factory=lambda: threading.Lock(), init=False)
   records: OrderedDict[str, CacheItem[T]] = field(default_factory=lambda: OrderedDict(), init=False)
 
@@ -38,7 +38,7 @@ class CacheClient(Generic[T]):
       if value is None:
         logger.debug(f"[{self.name}] GET {key} (CACHE MISS)")
         return None
-      if value.is_stale(self.ttl):
+      if self.ttl is not None and value.is_stale(self.ttl):
         logger.debug(f"[{self.name}] GET {key} (CACHE STALE)")
         self.records.pop(key, None)
         return None
@@ -54,6 +54,8 @@ class CacheClient(Generic[T]):
     return value
   
   def pop_lru(self):
+    if self.maxsize is None:
+      return
     total_count = len(self.records)
     if total_count <= self.maxsize:
       return
@@ -74,8 +76,7 @@ class CacheClient(Generic[T]):
     logger.debug(f"[{self.name}] SET {value.key}")
     if len(self.records) == 0:
       return
-    if len(self.records) > self.maxsize:
-      self.pop_lru()
+    self.pop_lru()
 
   def invalidate(self, *, key: Optional[str] = None, prefix: Optional[str] = None):
     with self.lock:

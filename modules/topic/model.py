@@ -39,7 +39,7 @@ class TopicModelingResult(pydantic.BaseModel):
     import orjson
 
     paths = ProjectPathManager(project_id=project_id)
-    topics_path = paths.allocate_path(ProjectPaths.Topics(column))
+    topics_path = paths.assert_path(ProjectPaths.Topics(column))
     with open(topics_path, 'r', encoding='utf-8') as f:
       return TopicModelingResult.model_validate(
         orjson.loads(f.read())

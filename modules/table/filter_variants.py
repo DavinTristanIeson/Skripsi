@@ -1,6 +1,6 @@
 import functools
 import itertools
-from typing import Annotated, Any, Literal, Optional, Union, cast
+from typing import Annotated, Any, Literal, Optional, Sequence, Union, cast
 
 import pandas as pd
 import numpy as np
@@ -172,8 +172,6 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
 
 class BaseMulticategoricalTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   def iterate(self, params: _TableFilterParams):
-    import orjson
-
     column = params.config.data_schema.assert_exists(self.target)
     if column.type != SchemaColumnTypeEnum.MultiCategorical:
       raise _TableFilterError.WrongColumnType(
@@ -181,11 +179,12 @@ class BaseMulticategoricalTableFilter(_BaseTableFilter, pydantic.BaseModel, froz
         column_type=column.type,
         target=self.target
       )
-    data = access_series(self, params)
+    
+    column = cast(MultiCategoricalSchemaColumn, column)
+    data = cast(Sequence[str], access_series(self, params))
     mask = np.full(len(data), 1, dtype=np.bool_)
     yield mask
-    for idx, json_tags in data:
-      tags = orjson.loads(json_tags)
+    for idx, tags in column.json2list(data):
       mask[idx] = yield set(tags)
 
 class IncludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, frozen=True):

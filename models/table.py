@@ -1,8 +1,9 @@
 from typing import Any, Optional
 import pydantic
-from modules.config.schema.base import SchemaColumnTypeEnum
-from modules.config.schema.schema_variants import SchemaColumn
-from modules.table.filter_variants import TableFilter
+from modules.comparison.effect_size import EffectSizeMethodEnum
+from modules.comparison.statistic_test import StatisticTestMethodEnum
+from modules.config import SchemaColumn
+from modules.table import NamedTableFilter, TableFilter
 
 # Schema
 class GetTableColumnSchema(pydantic.BaseModel):
@@ -13,6 +14,15 @@ class GetTableGeographicalColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
   latitude: str
   longitude: str
+
+class TableColumnsStatisticTestSchema(pydantic.BaseModel):
+  group1: NamedTableFilter
+  group2: NamedTableFilter
+  column: str
+
+  statistic_test_preference: StatisticTestMethodEnum
+  effect_size_preference: EffectSizeMethodEnum
+  exclude_overlapping_rows: bool
 
 # Resources
 
