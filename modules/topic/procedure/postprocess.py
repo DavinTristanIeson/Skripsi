@@ -10,10 +10,9 @@ import pydantic
 from modules.api import ApiError
 
 from ..bertopic_ext import (
-  BERTopicIndividualModels,
-  BERTopicInterpreter, bertopic_count_topics, bertopic_extract_topics,
-  bertopic_extract_topic_embeddings,
-  VisualizationCachedUMAP, VisualizationCachedUMAPResult
+  BERTopicInterpreter,
+  VisualizationCachedUMAP,
+  VisualizationCachedUMAPResult
 )
 
 @dataclass
@@ -39,18 +38,20 @@ def bertopic_visualization_embeddings(
   documents = intermediate.documents
   embeddings = intermediate.embeddings    
 
+  interpreter = BERTopicInterpreter(intermediate.model)
+
   task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
   vis_umap_model = VisualizationCachedUMAP(
     project_id=config.project_id,
     column=column,
     corpus_size=len(documents),
-    topic_count=bertopic_count_topics(intermediate.model)
+    topic_count=interpreter.topic_count,
   )
   cached_visualization_embeddings = vis_umap_model.load_cached_embeddings()
   if cached_visualization_embeddings is not None:
     return vis_umap_model.separate_embeddings(cached_visualization_embeddings)
 
-  topic_embeddings = bertopic_extract_topic_embeddings(model)
+  topic_embeddings = interpreter.topic_embeddings
   high_dimensional_embeddings = np.vstack([embeddings, topic_embeddings])
   visualization_embeddings = vis_umap_model.fit_transform(high_dimensional_embeddings)
   task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {vis_umap_model.embedding_path}.")
@@ -76,7 +77,8 @@ def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateRe
   task.log_pending(f"Performing hierarchical clustering on the topics of \"{intermediate.column.name}\" to create a topic hierarchy...")
 
   # Classic hierarchical clustering
-  topic_embeddings: np.ndarray = bertopic_extract_topic_embeddings(model)
+  interpreter = BERTopicInterpreter(intermediate.model)
+  topic_embeddings: np.ndarray = interpreter.topic_embeddings
   intertopic_distances = sklearn.metrics.pairwise.cosine_distances(topic_embeddings)
   condensed_intertopic_distances = scipy.spatial.distance.squareform(intertopic_distances)
 
@@ -137,7 +139,7 @@ def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateRe
 
   # Update node IDs with new hierarcchy
   node_relabel_mapping = dict()
-  new_node_label = bertopic_count_topics(model)
+  new_node_label = interpreter.topic_count
   for node, raw_ndata in sorted(simplified_dendrogram.nodes(data=True)):
     ndata = __HierarchicalClusteringGraphNodeData.model_validate(raw_ndata)
     if ndata.is_base:
@@ -149,12 +151,6 @@ def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateRe
   hierarchy_root = node_relabel_mapping[hierarchy_root]
 
   # Initialize base BOWs
-  interpreter = BERTopicInterpreter(
-    topic_ctfidf=model.c_tf_idf_, # type: ignore
-    ctfidf_model=model.ctfidf_model, # type: ignore
-    top_n_words=column.topic_modeling.top_n_words,
-    vectorizer_model=model.vectorizer_model,
-  )
   documents = intermediate.documents
   representation_results: dict[int, __BERTopicCTFIDFRepresentationResult] = dict()
   
@@ -227,6 +223,7 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: _BERTopicColumnInte
   column = intermediate.column
   model = intermediate.model
   task = intermediate.task
+  interpreter = BERTopicInterpreter(intermediate.model)
 
   task.log_pending(f"Applying post-processing on the topics of \"{intermediate.column.name}\"...")
 
@@ -237,7 +234,7 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: _BERTopicColumnInte
   df[column.topic_column.name] = document_topic_mapping_column
 
   # Set topic labels
-  topics = bertopic_extract_topics(model)
+  topics = interpreter.extract_topics()
 
   # Perform hierarchical clustering
   hierarchy = bertopic_hierarchical_clustering(intermediate)

@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
-from models.table import GetTableColumnSchema, GetTableGeographicalColumnSchema, TableColumnsStatisticTestSchema
+from controllers.table.comparison import compare_group_words
+from controllers.table.filter import get_column_topic_words, get_column_word_frequencies
+from models.table import ComparisonGroupWordsSchema, GetTableColumnSchema, GetTableGeographicalColumnSchema, ComparisonStatisticTestSchema
 from modules.table import PaginationParams
 
 from controllers.project import ProjectCacheDependency
@@ -40,6 +42,18 @@ async def post__get_table_column__geographical(body: GetTableGeographicalColumnS
 async def post__get_table_column__unique(body: GetTableColumnSchema, cache: ProjectCacheDependency):
   return get_column_unique_values(body, cache)
 
+@router.post("/column/word-frequencies")
+async def post__get_table_column__word_frequencies(body: GetTableColumnSchema, cache: ProjectCacheDependency):
+  return get_column_word_frequencies(body, cache)
+
+@router.post("/column/topic-words")
+async def post__get_table_column__topic_words(body: GetTableColumnSchema, cache: ProjectCacheDependency):
+  return get_column_topic_words(body, cache)
+
 @router.post("/statistic-test")
-async def post__statistic_test(body: TableColumnsStatisticTestSchema, cache: ProjectCacheDependency):
+async def post__statistic_test(body: ComparisonStatisticTestSchema, cache: ProjectCacheDependency):
   return statistic_test(body, cache)
+
+@router.post("/compare-group-words")
+async def post__compare_group_words(body: ComparisonGroupWordsSchema, cache: ProjectCacheDependency):
+  return compare_group_words(body, cache)

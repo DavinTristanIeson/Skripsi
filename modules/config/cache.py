@@ -1,19 +1,23 @@
 from dataclasses import dataclass, field
 import functools
 import threading
-from typing import Annotated
+from typing import TYPE_CHECKING, cast
 import pandas as pd
 
-from fastapi import Depends
+from modules.config import ProjectPaths, SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.logger import ProvisionedLogger
 from modules.baseclass import Singleton
-from modules.storage.cache import CacheClient, CacheItem
-from modules.topic.model import TopicModelingResult
+from modules.storage import CacheClient, CacheItem
+from modules.topic import TopicModelingResult
 
 from .config import Config
 from .source import DataSource
 
+if TYPE_CHECKING:
+  from bertopic import BERTopic
+
 logger = ProvisionedLogger().provision("CacheClient")
+
 
 @dataclass
 class ProjectCache:
@@ -23,6 +27,10 @@ class ProjectCache:
     init=False,
   )
   topics: CacheClient[TopicModelingResult] = field(
+    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=None),
+    init=False,
+  )
+  bertopic_models: CacheClient["BERTopic"] = field(
     default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=None),
     init=False,
   )
@@ -39,6 +47,7 @@ class ProjectCache:
         key=column,
         value=topic_result,
       ))
+      return topic_result
     else:
       return cached_topic
 
@@ -55,6 +64,24 @@ class ProjectCache:
       persistent=True
     ))
     return df
+  
+  def load_bertopic(self, column: str)->"BERTopic":
+    from bertopic import BERTopic
+    from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
+
+    cached_model = self.bertopic_models.get(column)
+    textual_column = cast(TextualSchemaColumn, self.config.data_schema.assert_of_type(column, [SchemaColumnTypeEnum.Textual]))
+    if cached_model is None:
+      model_path = self.config.paths.assert_path(ProjectPaths.BERTopic(column))
+      embedding_model = BERTopicModelBuilder(self.id, textual_column, corpus_size=0).build_embedding_model()
+      bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)
+      self.bertopic_models.set(CacheItem(
+        key=column,
+        value=bertopic_model,
+      ))
+      return bertopic_model
+    else:
+      return cached_model
   
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]
