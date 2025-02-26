@@ -65,6 +65,16 @@ class ProjectCache:
     ))
     return df
   
+  def save_workspace(self, df: pd.DataFrame):
+    self.config.save_workspace(df)
+    self.workspaces.clear()
+    # reinitialize cache
+    self.workspaces.set(CacheItem(
+      key='',
+      persistent=True,
+      value=df
+    ))
+  
   def load_bertopic(self, column: str)->"BERTopic":
     from bertopic import BERTopic
     from modules.topic.bertopic_ext.builder import BERTopicModelBuilder

@@ -108,7 +108,7 @@ def bertopic_topic_modeling(task: TaskPayload):
     )
   
   if preprocess_count > 0:  
-    df.to_parquet(workspace_path)
+    config.save_workspace(df)
     task.log_success(f"Saved preprocessed documents to {workspace_path}.")
 
   # MODEL CREATION
@@ -137,7 +137,7 @@ def bertopic_topic_modeling(task: TaskPayload):
     task.log_success(f"Saving topics of \"{intermediate.column.name}\" in \"{topics_path}\"")
     result.save_as_json(intermediate.column.name)
 
-  df.to_parquet(workspace_path)
+  config.save_workspace(df)
   task.log_success(f"Finished discovering topics in Project \"{task.request.project_id}\" (data sourced from {config.source.path})")
   task.success(TaskResponseData.Empty())
 

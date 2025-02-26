@@ -23,6 +23,7 @@ def access_series(filter: _BaseTableFilter, params: _TableFilterParams)->pd.Seri
     )
   return params.data[filter.target]
 
+ValueType = str | int | float
 def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: Any, operand: str)->Any: 
   column = params.config.data_schema.assert_exists(filter.target)
   ERROR_PAYLOAD = dict(
@@ -107,7 +108,7 @@ class NotEmptyTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
 
 class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.EqualTo]
-  value: str
+  value: ValueType
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
@@ -115,7 +116,7 @@ class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
 
 class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.IsOneOf]
-  values: list[str]
+  values: list[ValueType]
   def apply(self, params):
     data = access_series(self, params)
     values = list(map(lambda value: parse_value(self, params, value=value, operand="values"), self.values))
@@ -126,7 +127,7 @@ class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
 
 class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.GreaterThan]
-  value: str
+  value: ValueType
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
@@ -134,7 +135,7 @@ class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   
 class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.LessThan]
-  value: str
+  value: ValueType
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
@@ -142,7 +143,7 @@ class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   
 class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.GreaterThanOrEqualTo]
-  value: str
+  value: ValueType
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
@@ -150,7 +151,7 @@ class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, froz
   
 class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.LessThanOrEqualTo]
-  value: str
+  value: ValueType
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")

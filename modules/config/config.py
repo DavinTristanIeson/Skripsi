@@ -46,8 +46,9 @@ class Config(pydantic.BaseModel):
   def save_to_json(self):
     import json
 
-    config_file = os.path.join(self.paths.project_path, "config.json")
-    with open(config_file, 'w', encoding='utf-8') as f:
+    config_path = self.paths.full_path(ProjectPaths.Config)
+    logger.info(f"Saving config file in \"{config_path}\"")
+    with open(config_path, 'w', encoding='utf-8') as f:
       json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
     return
   
@@ -63,6 +64,11 @@ class Config(pydantic.BaseModel):
       # Set ordered categories
       col.fit(df) # type: ignore
     return df
+  
+  def save_workspace(self, df: pd.DataFrame):
+    workspace_path = self.paths.full_path(ProjectPaths.Workspace)
+    logger.info(f"Saving workspace file in \"{workspace_path}\"")
+    df.to_parquet(workspace_path)
       
 __all__ = [
   "Config",

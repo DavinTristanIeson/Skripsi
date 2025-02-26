@@ -52,7 +52,7 @@ def create_project(config: Config):
   
   workspace_path = config.paths.full_path(ProjectPaths.Workspace)
   logger.info(f"Saving fitted dataset in {workspace_path}")
-  df.to_parquet(workspace_path)
+  config.save_workspace(df)
 
   return ApiResult(
     data=ProjectResource(
@@ -87,14 +87,10 @@ def update_project(old_config: Config, new_config: Config):
   logger.info(f"Resolving differences in the configurations of \"{new_config.project_id}\"")
   df = new_config.data_schema.resolve_difference(old_config.data_schema, df)
   logger.info(f"Successfully resolved the differences in the column configurations of \"{new_config.project_id}\"")
-  workspace_path = new_config.paths.full_path(ProjectPaths.Workspace)
 
   # Commit changes
-  logger.info(f"Saving configuration to {new_config.paths.config_path}")
   new_config.save_to_json()
-
-  logger.info(f"Saving resolved dataset in {workspace_path}")
-  df.to_parquet(workspace_path)
+  new_config.save_workspace(df)
 
   # Invalidate cache
   ProjectCacheManager().invalidate(old_config.project_id)
