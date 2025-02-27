@@ -12,23 +12,13 @@ class Topic(pydantic.BaseModel):
   words: list[tuple[str, float]]
   label: str
   frequency: int
+  children: Optional[list["Topic"]] = None
 
-class TopicHierarchy(pydantic.BaseModel):
-  id: int
-  words: list[tuple[str, float]]
-  label: str
-  frequency: int
-  children: Optional[list["TopicHierarchy"]] = None
-
-  def as_topic(self)->Topic:
-    return Topic(
-      id=self.id,
-      words=self.words,
-      label=self.label,
-      frequency=self.frequency,
-    )
+  @property
+  def is_base(self):
+    return self.children is None
   
-  def find(self, topic_id: int)->Optional["TopicHierarchy"]:
+  def find(self, topic_id: int)->Optional["Topic"]:
     if self.id == topic_id:
       return self
     
@@ -49,28 +39,38 @@ class TopicHierarchy(pydantic.BaseModel):
       self.reindex(new_id)
     self.children = sorted(self.children, key=lambda topic: topic.id)
   
-  def iterate_topics(self):
+  def iterate_topics_dfs(self):
     if self.children is None:
-      yield self.as_topic()
+      yield self
       return
-    topics: list[Topic] = []
     for child in self.children:
-      yield from child.iterate_topics()
-    return topics    
+      yield from child.iterate_topics_dfs()
+
+  def iterate_topics_bfs(self):
+    bfsq: list[Topic] = [self]
+    yield self
+    while len(bfsq) > 0:
+      current = bfsq.pop(0)
+      if not current.children:
+        continue
+      for child in current.children:
+        yield child
+        bfsq.append(child)
+    
 
 class TopicModelingResult(pydantic.BaseModel):
   project_id: str
-  topics: list[Topic]
-  hierarchy: TopicHierarchy
-  frequency: int
+  topics: Topic
+  valid_count: int
+  outlier_count: int
+  invalid_count: int
+  total_count: int
   created_at: datetime.datetime = pydantic.Field(
     default_factory=lambda: datetime.datetime.now()
   )
 
   def iterate_topics(self):
-    for topic in self.topics:
-      yield topic
-    yield from self.hierarchy.iterate_topics()
+    yield from self.topics
 
   def save_as_json(self, column: str):
     paths = ProjectPathManager(project_id=self.project_id)
@@ -90,24 +90,19 @@ class TopicModelingResult(pydantic.BaseModel):
       )
     
   def find(self, topic_id: int)->list[Topic]:
-    for topic in self.topics:
-      if topic.id == topic_id:
-        return [topic]
-    hierarchy_base = self.hierarchy.find(topic_id)
-    if hierarchy_base is None:
+    hierarchy_start = self.topics.find(topic_id)
+    if hierarchy_start is None:
       return []
-    return list(hierarchy_base.iterate_topics())
-
+    return list(hierarchy_start.iterate_topics_dfs())
+  
   def reindex(self):
-    topics = sorted(self.topics, key=lambda topic: topic.id)
+    all_topics = reversed(list(self.topics.iterate_topics_bfs()))
     new_topic_id = 0
-    for topic in topics:
+    for topic in all_topics:
       topic.id = new_topic_id
       new_topic_id += 1
-    self.hierarchy.reindex(ValueCarrier(new_topic_id))
 
 __all__ = [
   "Topic",
-  "TopicHierarchy",
   "TopicModelingResult"
 ]
