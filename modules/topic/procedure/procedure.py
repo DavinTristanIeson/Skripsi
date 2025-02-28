@@ -26,6 +26,8 @@ def bertopic_find_topics(
   task = intermediate.task
   model = intermediate.model
 
+  cache = ProjectCacheManager().get(project_id=config.project_id)
+
   bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic(column.name)))
 
   if os.path.exists(bertopic_path):
@@ -67,7 +69,7 @@ def bertopic_find_topics(
   intermediate.document_topic_assignments = np.array(topics, dtype=np.int32)
 
   task.log_success(f"Saved BERTopic model in \"{bertopic_path}\".")
-  model.save(bertopic_path, "safetensors", save_ctfidf=True)
+  cache.save_bertopic(model, column.name)
 
 
 def bertopic_topic_modeling(task: TaskPayload):

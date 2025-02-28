@@ -1,8 +1,8 @@
-from dataclasses import dataclass
 import functools
 from typing import TYPE_CHECKING, Sequence, cast
 
 import numpy as np
+import pandas as pd
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic
 from modules.topic.procedure.utils import _BERTopicColumnIntermediateResult
@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateResult)->nx.DiGraph:
   import sklearn.metrics.pairwise
   import networkx as nx
-  from scipy.sparse import csr_array
 
   interpreter = BERTopicInterpreter(intermediate.model)
 
@@ -84,10 +83,32 @@ def bertopic_hierarchical_clustering(intermediate: _BERTopicColumnIntermediateRe
   return hierarchy
 
 
-def get_leaf_nodes(G: nx.DiGraph):
-  return list(filter(lambda node: len(list(G.successors(node))) == 0, G.nodes))
+def calculate_weighted_words_for_topic_scopes(
+  topic_scopes: dict[int, list[int]],
+  documents: pd.Series,
+  document_topics: pd.Series | np.ndarray,
+  interpreter: BERTopicInterpreter,
+)->dict[int, list[tuple[str, float]]]:
+  raw_base_bows = []
+  for topic in interpreter.extract_topics():
+    documents_in_this_node = cast(Sequence[str], documents[document_topics == topic.id]) 
+    bow = interpreter.represent_as_bow(documents_in_this_node)
+    raw_base_bows.append(bow)
+  base_bows = np.array(raw_base_bows)
+  
+  weighted_words: dict[int, list[tuple[str, float]]] = dict()
+  for topic, scopes in topic_scopes.items():
+    supertopic_bow = base_bows[scopes].sum()
+    supertopic_ctfidf = interpreter.represent_as_ctfidf(supertopic_bow)
+    weighted_words[topic] = interpreter.get_weighted_words(supertopic_ctfidf)
+  return weighted_words
+  
+  
+def __get_leaf_nodes(G: nx.DiGraph, node: int)->list[int]:
+  return list(filter(lambda node: len(list(G.successors(node))) == 0, nx.dfs_successors(G, node)))
   
 def bertopic_topic_hierarchy(intermediate: _BERTopicColumnIntermediateResult)->Topic:
+  import networkx as nx
   interpreter = BERTopicInterpreter(intermediate.model)
   new_node_label = interpreter.topic_count
   hierarchy = bertopic_hierarchical_clustering(intermediate)
@@ -107,34 +128,30 @@ def bertopic_topic_hierarchy(intermediate: _BERTopicColumnIntermediateResult)->T
   documents = intermediate.documents
   document_topics = intermediate.model.topics_
 
-  base_topics = interpreter.extract_topics()
-  base_ctfidf = interpreter.topic_ctfidf
-
-  raw_base_bows = []
-  for topic in base_topics:
-    documents_in_this_node = cast(Sequence[str], documents[document_topics == topic.id])
-    meta_document_bow = interpreter.represent_as_bow(documents_in_this_node)
-    raw_base_bows.append(meta_document_bow)
-  base_bows = np.array(raw_base_bows)
-
-  merged_topic_hierarchy = hierarchy.copy()
-  leaf_nodes = get_leaf_nodes(hierarchy)
+  merged_topic_hierarchy = cast(nx.DiGraph, hierarchy.copy())
+  leaf_nodes = __get_leaf_nodes(hierarchy, hierarchy_root)
   merged_topic_hierarchy.remove_nodes_from(leaf_nodes)
   
-  merged_topics: list[Topic] = []
-  for node in nx.bfs_successors(merged_topic_hierarchy, hierarchy_root):
-    topic_indices = get_leaf_nodes(node)
-    merged_bows = base_bows[topic_indices].sum()
-    ctfidf = interpreter.represent_as_ctfidf(merged_bows)
-    label = interpreter.get_label(ctfidf) or f'Topic #{node}'
-    words = interpreter.get_weighted_words(ctfidf)
+  topic_scopes: dict[int, list[int]] = {}
+  for node in merged_topic_hierarchy.nodes:
+    topic_scopes[node] = __get_leaf_nodes(merged_topic_hierarchy, node)
 
+  base_topics = interpreter.extract_topics()
+  merged_topics: list[Topic] = []
+
+  merged_topic_weighted_words = calculate_weighted_words_for_topic_scopes(
+    topic_scopes=topic_scopes,
+    documents=documents,
+    document_topics=document_topics, # type: ignore
+    interpreter=interpreter
+  )
+  for topic_id, topic_words in merged_topic_weighted_words.items():
     merged_topic = Topic(
-      id=node.id,
+      id=topic_id,
       children=[],
       frequency=0,
-      label=label,
-      words=words
+      label=None,
+      words=topic_words
     )
     merged_topics.append(merged_topic)
 
@@ -145,12 +162,14 @@ def bertopic_topic_hierarchy(intermediate: _BERTopicColumnIntermediateResult)->T
     topics_locker[topic.id] = topic
   
   topic_hierarchy = topics_locker[hierarchy_root]
-  topic_hierarchy_layers = list(nx.bfs_layers(hierarchy, hierarchy_root))[1:]
+  topic_hierarchy_layers = list(nx.bfs_layers(hierarchy, hierarchy_root))[:-1]
   for layer in topic_hierarchy_layers:
-    for node in layer:
-      parent = list(hierarchy.predecessors(node))[0]
-      if topics_locker[parent].children is None:
-        topics_locker[parent].children = []
-      topics_locker[parent].children.append(topics_locker[node]) # type: ignore
+    for parent in layer:
+      for child in hierarchy.successors(parent):
+        if topics_locker[parent].children is None:
+          topics_locker[parent].children = []
+        topics_locker[parent].children.append(topics_locker[child]) # type: ignore
+
+  topic_hierarchy.recalculate_frequency()
 
   return topic_hierarchy

@@ -17,12 +17,11 @@ class DocumentTopicMappingUpdateSchema(pydantic.BaseModel):
 
 class TopicUpdateSchema(pydantic.BaseModel):
   id: int
-  label: str
+  label: Optional[str]
   children: Optional[list["TopicUpdateSchema"]]
 
-
 class RefineTopicsSchema(pydantic.BaseModel):
-  topics: list[TopicUpdateSchema]
+  topics: TopicUpdateSchema
   document_topics: list[DocumentTopicMappingUpdateSchema]
 
 # Resource

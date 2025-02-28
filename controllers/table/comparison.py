@@ -1,12 +1,17 @@
 from typing import Sequence, cast
+
+import pandas as pd
 from modules.api.wrapper import ApiResult
 from modules.comparison import TableComparisonEngine
-from modules.config import ProjectCache
-from modules.config.schema.base import SchemaColumnTypeEnum
-from modules.table import TableEngine
+from modules.config import ProjectCache, SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.table import TableEngine, AndTableFilter, NotEmptyTableFilter
+from modules.topic.bertopic_ext import BERTopicModelBuilder, BERTopicInterpreter
 
-from models.table import ComparisonStatisticTestSchema, ComparisonGroupWordsSchema, TableTopicsResource
-from modules.topic.model import Topic
+from models.table import (
+  ComparisonStatisticTestSchema,
+  ComparisonGroupWordsSchema,
+  TableTopicsResource
+)
 
 def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
   config = cache.config
@@ -38,31 +43,46 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
 
 
 def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache):
-  from modules.topic import BERTopicInterpreter
+  from bertopic import BERTopic
+
   config = cache.config
-  column = config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual])
+  column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
   df = cache.load_workspace()
   engine = TableEngine(config=config)
 
-  bertopic_model = cache.load_bertopic(column.name)
+  builder = BERTopicModelBuilder(
+    project_id=config.project_id,
+    column=column,
+    corpus_size=None
+  )
+  bertopic_model = BERTopic()
+
+  document_batches: list[pd.Series] = []
+  document_topics: list[int] = []
+  for group_id, group in enumerate(params.groups):
+    group_df = engine.filter(df, AndTableFilter(
+      operands=[
+        group.filter,
+        NotEmptyTableFilter(
+          target=column.preprocess_column.name,
+        )
+      ]
+    ))
+    subcorpus = cast(Sequence[str], group_df)
+    document_batches.append(group_df[column.preprocess_column.name])
+    document_topics.extend([group_id] * len(subcorpus))
+  documents = pd.concat(document_batches, axis=0)
+
+  bertopic_model.update_topics(
+    docs=cast(list[str], documents),
+    topics=document_topics,
+    ctfidf_model=builder.build_ctfidf_model(),
+    vectorizer_model=builder.build_vectorizer_model()
+  )
   interpreter = BERTopicInterpreter(bertopic_model)
 
-  topics: list[Topic] = []
-  for group_id, group in enumerate(params.groups):
-    group_df = engine.filter(df, group.filter)
-    subcorpus = cast(Sequence[str], group_df)
-    bow = interpreter.represent_as_bow(subcorpus)
-    ctfidf = interpreter.represent_as_ctfidf(bow)
-    group_words = interpreter.get_weighted_words(ctfidf)
-    group_label = interpreter.get_label(ctfidf) or f"Topic {group_id}"
+  topics = interpreter.extract_topics()
 
-    topics.append(Topic(
-      id=group_id,
-      frequency=len(group_df),
-      label=group_label,
-      words=group_words,
-    ))
-  
   return TableTopicsResource(
     column=column,
     topics=topics,

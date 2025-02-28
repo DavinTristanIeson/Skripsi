@@ -1,10 +1,17 @@
+import functools
 from typing import Optional, Sequence, cast
-from models.topic import DocumentPerTopicResource, RefineTopicsSchema
+
+import numpy as np
+from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicUpdateSchema
+from modules.api.wrapper import ApiResult
+from modules.baseclass import ValueCarrier
 from modules.config import ProjectCache, TextualSchemaColumn
 from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, PaginatedApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.model import Topic, TopicModelingResult
+from modules.topic.procedure.hierarchy import calculate_weighted_words_for_topic_scopes
 
 
 def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->PaginatedApiResult[DocumentPerTopicResource]:
@@ -44,10 +51,27 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
     message=None,
   )
 
+def __reconstruct_topic_hierarchy(new_hierarchy: TopicUpdateSchema):
+  children: list[Topic] = []
+  if new_hierarchy.children is not None:
+    for child in new_hierarchy.children:
+      children.append(__reconstruct_topic_hierarchy(child))
+
+  return Topic(
+    id=new_hierarchy.id,
+    children=children,
+    label=new_hierarchy.label,
+    # These two will be updated later.
+    frequency=0,
+    words=[],
+  )
+
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
+  import copy
   df = cache.load_workspace()
   config = cache.config
-  bertopic_model = cache.load_bertopic(column.name)
+  # This could mutate the cached model, which we want to avoid. Always load from disk.
+  bertopic_model = cache.load_bertopic(column.name, no_cache=True)
 
   from modules.topic.bertopic_ext import BERTopicInterpreter, BERTopicIndividualModels
 
@@ -57,36 +81,67 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
   df.loc[document_indices, column.topic_column.name] = new_topics
 
   documents = df[column.preprocess_column.name]
-  documents = cast(list[str], documents[documents.notna()])
+  document_topics = df[column.topic_column.name]
+  mask = documents.notna()
+  documents = documents[mask]
+  document_topics = document_topics[mask]
 
-  individual_models = BERTopicIndividualModels.cast(bertopic_model)
-  bertopic_model.update_topics(
-    documents,
-    top_n_words=bertopic_model.top_n_words,
-    vectorizer_model=individual_models.vectorizer_model,
-    ctfidf_model=individual_models.ctfidf_model
+  model_builder = BERTopicModelBuilder(
+    project_id=config.project_id,
+    column=column,
+    corpus_size=len(documents)
   )
-  cache.bertopic_models.invalidate(key=column.name)
 
-  interpreter = BERTopicInterpreter(bertopic_model)
-  topics = interpreter.extract_topics()
+  # Update c-TF-IDF
+  bertopic_model.update_topics(
+    docs=cast(list[str], documents),
+    top_n_words=bertopic_model.top_n_words,
+    vectorizer_model=model_builder.build_vectorizer_model(),
+    ctfidf_model=model_builder.build_ctfidf_model(),
+    topics=cast(list[int], document_topics)
+  )
 
+  interpreter = BERTopicInterpreter(bertopic_model)  
+
+  new_topics = __reconstruct_topic_hierarchy(body.topics)
+
+  topic_scopes = new_topics.get_topic_scopes()
+  new_weighted_words = calculate_weighted_words_for_topic_scopes(
+    topic_scopes=topic_scopes,
+    document_topics=document_topics,
+    documents=documents,
+    interpreter=interpreter,
+  )
+
+  base_topics_mapping = {topic.id: topic for topic in interpreter.extract_topics()}
+  for topic in new_topics.iterate_base_topics():
+    topic.words = base_topics_mapping[topic.id].words
+    topic.frequency = base_topics_mapping[topic.id].frequency
   # Resolve differences
-  topic_label_mapping = {topic.id: topic.label for topic in body.topics}
-  for topic in topics:
-    topic.label = topic_label_mapping.get(topic.id, topic.label)
+  for topic in new_topics.iterate_all_topics():
+    if topic.is_base:
+      continue
+    topic.words = new_weighted_words[topic.id]
+  new_topics.recalculate_frequency()
+  new_topics.reindex(ValueCarrier(0))
 
-  # Resolve hierarchy updates
-  for topic in topics:
-    pass
+  new_tm_result = TopicModelingResult.infer_from(
+    project_id=config.project_id,
+    document_topics=document_topics,
+    topics=new_topics,
+  )
 
-  # Update topic modeling result
-  
-  tm_result.hierarchy = body.hierarchy
-  tm_result.reindex()
+  # Save model
+  cache.save_bertopic(bertopic_model, column.name)
+  cache.save_topic(new_tm_result, column.name)
+  cache.save_workspace(df)
 
-
+  return ApiResult(
+    data="The topics have been successfully updated to your specifications.",
+    message=None,
+  )
 
 __all__ = [
-  "paginate_documents_per_topic"
+  "paginate_documents_per_topic",
+  "refine_topics"
 ]

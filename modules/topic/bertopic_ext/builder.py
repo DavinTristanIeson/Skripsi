@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from modules.logger import ProvisionedLogger
 from modules.config import ProjectPathManager, ProjectPaths, TextualSchemaColumn
@@ -42,7 +42,7 @@ class BERTopicIndividualModels:
 class BERTopicModelBuilder:
   project_id: str
   column: TextualSchemaColumn
-  corpus_size: int
+  corpus_size: Optional[int]
 
   def build_embedding_model(self)->"SupportedBERTopicEmbeddingModels":
     column = self.column
@@ -60,20 +60,24 @@ class BERTopicModelBuilder:
   def build_hdbscan_model(self)->"HDBSCAN":
     from hdbscan import HDBSCAN
     column = self.column
-    max_cluster_size = int(column.topic_modeling.max_topic_size * self.corpus_size)
-
-    if column.topic_modeling.min_topic_size >= max_cluster_size:
-      raise ValueError("Min. topic size should not be greater than max. topic size. Please set a higher max topic size. Note: This can also happen if you have too few valid documents to analyze.")
-    
+    max_cluster_size = self.corpus_size and int(column.topic_modeling.max_topic_size * self.corpus_size)
     min_cluster_size = max(2, column.topic_modeling.min_topic_size)
     min_samples = max(2, int(column.topic_modeling.clustering_conservativeness * column.topic_modeling.min_topic_size))
 
+    params = dict()
+    if max_cluster_size is not None:
+      if min_cluster_size >= max_cluster_size:
+        raise ValueError("Min. topic size should not be greater than max. topic size. Please set a higher max topic size. Note: This can also happen if you have too few valid documents to analyze.")
+      
+      params["max_cluster_size"] = max_cluster_size
+
+
     hdbscan_model = HDBSCAN(
       min_cluster_size=min_cluster_size,
-      max_cluster_size=max_cluster_size,
       min_samples=min_samples,
       metric="euclidean",
       cluster_selection_method="eom", # following BERTopic arguments
+      **params,
     )
     return hdbscan_model
   

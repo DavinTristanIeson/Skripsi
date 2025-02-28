@@ -230,7 +230,7 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
     tuned_topics.append(Topic(
       id=topic_id,
       frequency=(topics == topic_id).sum(),
-      label=interpreter.get_label(topic_ctfidfs) or f'Topic {topic_id}',
+      label=None,
       words=words
     ))
 

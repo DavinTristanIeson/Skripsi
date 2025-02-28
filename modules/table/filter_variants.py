@@ -54,9 +54,10 @@ def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: 
   else:
     return str(value)
   
+_AnyTableFilter = _BaseTableFilter | _BaseCompoundTableFilter
 class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.And]
-  operands: list[_BaseTableFilter] = pydantic.Field(min_length=1)
+  type: Literal[TableFilterTypeEnum.And] = TableFilterTypeEnum.And
+  operands: list[_AnyTableFilter] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -69,8 +70,8 @@ class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
     )
   
 class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Or]
-  operands: list[_BaseTableFilter] = pydantic.Field(min_length=1)
+  type: Literal[TableFilterTypeEnum.Or] = TableFilterTypeEnum.Or
+  operands: list[_AnyTableFilter] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -85,8 +86,8 @@ class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
     return mask
 
 class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Not]
-  operand: _BaseTableFilter
+  type: Literal[TableFilterTypeEnum.Not] = TableFilterTypeEnum.Not
+  operand: _AnyTableFilter
   def __hash__(self):
     return hash(' '.join([
       hex(hash(self.type)),
@@ -97,17 +98,17 @@ class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
     return ~self.operand.apply(params)
   
 class EmptyTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Empty]
+  type: Literal[TableFilterTypeEnum.Empty] = TableFilterTypeEnum.Empty
   def apply(self, params):
     return access_series(self, params).isna()
 
 class NotEmptyTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.NotEmpty]
+  type: Literal[TableFilterTypeEnum.NotEmpty] = TableFilterTypeEnum.NotEmpty
   def apply(self, params):
     return access_series(self, params).notna()
 
 class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.EqualTo]
+  type: Literal[TableFilterTypeEnum.EqualTo] = TableFilterTypeEnum.EqualTo
   value: ValueType
   def apply(self, params):
     data = access_series(self, params)
@@ -115,7 +116,7 @@ class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
     return data == value
 
 class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.IsOneOf]
+  type: Literal[TableFilterTypeEnum.IsOneOf] = TableFilterTypeEnum.IsOneOf
   values: list[ValueType]
   def apply(self, params):
     data = access_series(self, params)
@@ -126,7 +127,7 @@ class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
     )
 
 class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.GreaterThan]
+  type: Literal[TableFilterTypeEnum.GreaterThan] = TableFilterTypeEnum.GreaterThan
   value: ValueType
   def apply(self, params):
     data = access_series(self, params)
@@ -134,7 +135,7 @@ class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
     return data > value
   
 class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.LessThan]
+  type: Literal[TableFilterTypeEnum.LessThan] = TableFilterTypeEnum.LessThan
   value: ValueType
   def apply(self, params):
     data = access_series(self, params)
@@ -142,7 +143,7 @@ class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
     return data < value
   
 class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.GreaterThanOrEqualTo]
+  type: Literal[TableFilterTypeEnum.GreaterThanOrEqualTo] = TableFilterTypeEnum.GreaterThanOrEqualTo
   value: ValueType
   def apply(self, params):
     data = access_series(self, params)
@@ -150,7 +151,7 @@ class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, froz
     return data >= value
   
 class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.LessThanOrEqualTo]
+  type: Literal[TableFilterTypeEnum.LessThanOrEqualTo] = TableFilterTypeEnum.LessThanOrEqualTo
   value: ValueType
   def apply(self, params):
     data = access_series(self, params)
@@ -158,7 +159,7 @@ class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=
     return data <= value
 
 class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.HasText]
+  type: Literal[TableFilterTypeEnum.HasText] = TableFilterTypeEnum.HasText
   value: str
   def apply(self, params):
     data = access_series(self, params)
@@ -189,7 +190,7 @@ class BaseMulticategoricalTableFilter(_BaseTableFilter, pydantic.BaseModel, froz
       mask[idx] = yield set(tags)
 
 class IncludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Includes]
+  type: Literal[TableFilterTypeEnum.Includes] = TableFilterTypeEnum.Includes
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)
@@ -201,7 +202,7 @@ class IncludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, f
     return mask
 
 class ExcludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Excludes]
+  type: Literal[TableFilterTypeEnum.Excludes] = TableFilterTypeEnum.Excludes
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)
@@ -213,7 +214,7 @@ class ExcludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, f
     return mask
 
 class OnlyTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel, frozen=True):
-  type: Literal[TableFilterTypeEnum.Only]
+  type: Literal[TableFilterTypeEnum.Only] = TableFilterTypeEnum.Only
   values: list[str]
   def apply(self, params):
     coroutine = self.iterate(params)

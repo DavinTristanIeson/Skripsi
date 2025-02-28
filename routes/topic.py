@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from controllers.topic.crud import refine_topics
 from modules.api.wrapper import ApiResult
 from modules.table import PaginationParams
 
@@ -33,7 +34,12 @@ def get__topics(topic_modeling_result: TopicModelingResultDependency):
 
 @router.get("/{column}/topics/refine")
 def refine__topics(body: RefineTopicsSchema, cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, topic_modeling_result: TopicModelingResultDependency):
-  pass
+  return refine_topics(
+    cache=cache,
+    body=body,
+    tm_result=topic_modeling_result,
+    column=column,
+  )
 
 @router.get("/{column}/documents/{topic}")
 def get__documents_per_topic(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, params: PaginationParams, topics: TopicExistsDependency):

@@ -54,15 +54,15 @@ class BERTopicInterpreter:
     words = self.vocabulary[valid_top_word_indices]
     weights = ctfidf[valid_top_word_indices]
     return list(zip(words, weights))
-  
-  def get_words(self, ctfidf: np.ndarray)->list[str]:
-    return list(map(lambda x: x[0], self.get_weighted_words(ctfidf)))
 
-  def get_label(self, ctfidf: np.ndarray)->Optional[str]:
-    representative_labels = list(filter(bool, self.get_words(ctfidf)))
+  def unweigh_words(self, weighted_words: list[tuple[str, float]])->list[str]:
+    return list(map(lambda x: x[0], weighted_words))
+
+  def get_label(self, weighted_words: list[tuple[str,float]])->Optional[str]:
+    representative_labels = list(filter(bool, self.unweigh_words(weighted_words)))[:3]
     if len(representative_labels) == 0:
       return None
-    return ', '.join(ctfidf)
+    return ', '.join(representative_labels)
   
   def tokenize(self, documents: Sequence[str])->Iterable[Sequence[str]]:
     analyzer = self.vectorizer_model.build_analyzer()
