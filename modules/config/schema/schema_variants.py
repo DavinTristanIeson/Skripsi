@@ -1,7 +1,6 @@
-import abc
 import functools
 import math
-from typing import Annotated, ClassVar, Iterable, Literal, Optional, Sequence, Union
+from typing import Annotated, ClassVar, Literal, Optional, Sequence, Union
 
 import numpy as np
 import pydantic
@@ -15,7 +14,10 @@ from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Continuous]
-  bins: Optional[int] = None
+  # Note: bins contain the bin edges. So this should have length bin_count + 1
+  bins: Optional[list[float]] = None
+  bin_count: int = 3 
+
 
   @functools.cached_property
   def bins_column(self):
@@ -23,7 +25,6 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Bins)",
       internal=True,
-      alphanumeric_order=True
     )
   
   def get_internal_columns(self):
@@ -31,40 +32,51 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   
   def __format_3f(self, value: float)->str:
     return f"{value:.3f}".rstrip('0').rstrip('.')
+  
+  def __histogram(self, data: pd.Series):
+    # Get histogram edges
+    if self.bins is not None:
+      histogram_edges = np.array(self.bins)
+    else:
+      histogram_edges = np.histogram_bin_edges(data, self.bin_count)
+
+    # Split data to bins
+    bins = np.digitize(data, histogram_edges)
+    categorical_bins = pd.Categorical(bins, categories=np.arange(1, len(histogram_edges)+1), ordered=True)
+
+    # Name the bins so that it can be sorted alphanumerically.
+    digit_length = math.floor(math.log10(len(histogram_edges))) + 1
+
+    bin_categories = dict()
+    for category in range(1, len(histogram_edges)):
+      # Get the edges that define the bin
+      current_histogram_edge_str = self.__format_3f(histogram_edges[category]) # Right edge
+      prev_histogram_edge_str = self.__format_3f(histogram_edges[category - 1]) # Left edge 
+      hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})" # Range
+
+      # Give the bin an alphanumerically sortable prefix.
+      bin_name = str(category + 1).rjust(digit_length, '0')
+      bin_categories[category] = f"Bin {bin_name}: {hist_range}"
+    
+    # Handle the first bin and last bin cases.
+    first_histogram_edge_str = self.__format_3f(histogram_edges[0])
+    first_bin_id = str(1).rjust(digit_length, '0') 
+    bin_categories[0] = f"Bin {first_bin_id}: (-inf, {first_histogram_edge_str})"
+
+    last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
+    last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
+    bin_categories[len(histogram_edges)] = f"Bin {last_bin_id}: [{last_histogram_edge_str}, inf)"
+    
+    # Rename the categorical values
+    categorical_bins = categorical_bins.rename_categories(bin_categories)
+    categorical_bins = categorical_bins.set_categories(sorted(bin_categories.values()), ordered=True)
+
+    return categorical_bins
 
   def fit(self, df):
     data = df[self.name].astype(np.float64)
     df[self.name] = data
-
-    if self.bins is None:
-      histogram_edges = np.histogram_bin_edges(data, "auto")
-    else:
-      histogram_edges = np.histogram_bin_edges(data, self.bins)
-    bins = np.digitize(data, histogram_edges)
-    digit_length = math.floor(math.log10(len(histogram_edges))) + 1
-    categorical_bins = pd.Categorical(bins, categories=np.arange(1, len(histogram_edges)+1), ordered=True)
-
-    bin_categories = dict()
-    for category in range(1, len(histogram_edges)):
-      current_histogram_edge_str = self.__format_3f(histogram_edges[category])
-      prev_histogram_edge_str = self.__format_3f(histogram_edges[category - 1])
-      hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})"
-
-      bin_name = str(category + 1).rjust(digit_length, '0')
-      bin_categories[category] = f"BIN{bin_name}: {hist_range}"
-    
-    first_histogram_edge_str = self.__format_3f(histogram_edges[0])
-    first_bin_id = str(1).rjust(digit_length, '0') 
-    bin_categories[0] = f"BIN{first_bin_id}: (-inf, {first_histogram_edge_str})"
-
-    last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
-    last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
-    bin_categories[len(histogram_edges)] = f"BIN{last_bin_id}: [{last_histogram_edge_str}, inf)"
-    
-    categorical_bins = categorical_bins.rename_categories(bin_categories)
-    categorical_bins = categorical_bins.set_categories(sorted(bin_categories.values()), ordered=True)
-
-    df[self.bins_column.name] = categorical_bins
+    df[self.bins_column.name] = self.__histogram(data)
   
 class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Categorical]
@@ -79,7 +91,6 @@ class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
 class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
-  alphanumeric_order: bool = False
 
   def fit(self, df):
     raw_data = df[self.name]
@@ -91,7 +102,7 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     category_order: Optional[list[str]] = None  
     if self.category_order is not None:
       category_order = self.category_order
-    elif self.alphanumeric_order:
+    else:
       category_order = sorted(data.categories)
 
   
@@ -165,7 +176,6 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   def year_column(self):
     return OrderedCategoricalSchemaColumn(
       type=SchemaColumnTypeEnum.OrderedCategorical,
-      alphanumeric_order=True,
       name=f"{self.name} (Year)",
       internal=True
     )
@@ -194,7 +204,6 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Hour)",
       internal=True,
-      alphanumeric_order=True,
       category_order=self.HOURS,
     )
   
@@ -258,16 +267,6 @@ class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   def fit(self, df):
     df[self.name] = df[self.name].astype(str)
   
-class ImageSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
-  type: Literal[SchemaColumnTypeEnum.Image]
-  
-  def fit(self, df):
-    data: Sequence[str] = df[self.name].astype(str) # type: ignore
-    tags_list = self.json2list(data)
-    json_strings = self.list2json(tags_list)
-    df[self.name] = pd.Series(json_strings)
-
-  
 SchemaColumn = Annotated[
   Union[
     UniqueSchemaColumn,
@@ -278,7 +277,6 @@ SchemaColumn = Annotated[
     TemporalSchemaColumn,
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
-    ImageSchemaColumn,
     TopicSchemaColumn,
   ],
   pydantic.Field(discriminator="type"),
@@ -289,7 +287,6 @@ __all__ = [
   "SchemaColumn",
   "TextualSchemaColumn",
   "UniqueSchemaColumn",
-  "ImageSchemaColumn",
   "OrderedCategoricalSchemaColumn",
   "CategoricalSchemaColumn",
   "MultiCategoricalSchemaColumn",

@@ -7,7 +7,7 @@ import pydantic
 
 from modules.logger import ProvisionedLogger, TimeLogger
 from modules.api import ApiError
-from .schema_variants import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, ImageSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
+from .schema_variants import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
 
 logger = ProvisionedLogger().provision("Config")
 
@@ -30,7 +30,7 @@ def __validate_schema_manager_columns(value: list[SchemaColumn]):
   if not has_text_column:
     raise ValueError(f"There should be at least one textual column in the dataset.")
 
-  return list(filter(lambda x: x.active, value))
+  return list(value)
 
 def __extend_schema_manager_columns(value: list[SchemaColumn]):
   offset = 0
@@ -80,7 +80,7 @@ class SchemaManager(pydantic.BaseModel):
     return {col.name: col for col in self.columns}
 
   def of_type(self, type: SchemaColumnTypeEnum)->list[SchemaColumn]:
-    return list(filter(lambda x: x.type == type and x.active, self.columns))
+    return list(filter(lambda x: x.type == type, self.columns))
   
   def textual(self)->list[TextualSchemaColumn]:
     return cast(list[TextualSchemaColumn], self.of_type(SchemaColumnTypeEnum.Textual))
@@ -99,10 +99,7 @@ class SchemaManager(pydantic.BaseModel):
   
   def temporal(self)->list[TemporalSchemaColumn]:
     return cast(list[TemporalSchemaColumn], self.of_type(SchemaColumnTypeEnum.Temporal))
-  
-  def image(self)->list[ImageSchemaColumn]:
-    return cast(list[ImageSchemaColumn], self.of_type(SchemaColumnTypeEnum.Image))
-  
+
   def geospatial(self)->list[GeospatialSchemaColumn]:
     return cast(list[GeospatialSchemaColumn], self.of_type(SchemaColumnTypeEnum.Geospatial))
   
@@ -124,8 +121,8 @@ class SchemaManager(pydantic.BaseModel):
       raise ApiError(f"This procedure requires that column \"{name}\" be one of these types: {', '.join(types)}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     return column
   
-  def reorder(self, df: pd.DataFrame, *, all: bool = False):
-    return df.loc[:, [col.name for col in self.columns if col.name in df.columns and (all or col.active)]]
+  def reorder(self, df: pd.DataFrame):
+    return df.loc[:, [col.name for col in self.columns if col.name in df.columns]]
 
   def __fit_column(self, df: pd.DataFrame, col: SchemaColumn):
     if col.internal:
@@ -147,8 +144,7 @@ class SchemaManager(pydantic.BaseModel):
     
     for col in self.columns:
       self.__fit_column(df, col)
-    reordered_df = self.reorder(df, all=True)
-    return reordered_df
+    return df
   
   def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[_SchemaColumnDiff]:
     current = self.columns
