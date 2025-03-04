@@ -2,15 +2,17 @@ import http
 import os
 from typing import Annotated
 
-from fastapi import Body, Depends, Query
+from fastapi import Body, Depends, Path
 
 from modules.api import ApiError
-from modules.config import ProjectCacheManager, Config, ProjectCache, SchemaColumn, ProjectPathManager
+from modules.config import Config, SchemaColumn
+from modules.project.cache import ProjectCache, ProjectCacheManager
+from modules.project.paths import ProjectPathManager
 
-def __get_cached_project(project_id: Annotated[str, Query()]):
+def __get_cached_project(project_id: Annotated[str, Path()]):
   return ProjectCacheManager().get(project_id)
 
-def _assert_project_id_doesnt_exist(project_id: Annotated[str, Query()]):
+def _assert_project_id_doesnt_exist(project_id: Annotated[str, Path()]):
   paths = ProjectPathManager(project_id=project_id)
   if os.path.exists(paths.project_path):
     raise ApiError(f"Project \"{project_id}\" already exists. Please try another name.", http.HTTPStatus.UNPROCESSABLE_ENTITY)

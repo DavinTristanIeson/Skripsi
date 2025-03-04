@@ -12,6 +12,8 @@ from modules.task import (
   TaskLog, TaskResponse, TaskResponseData,
   TaskStatusEnum
 )
+from modules.task.requests import TaskRequestType
+from modules.topic.procedure.procedure import bertopic_topic_modeling
 
 
 logger = ProvisionedLogger().provision("Topic Controller")
@@ -116,6 +118,8 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
       engine.results[task_id] = response
   
   raise ApiError(f"No topic modeling task has been started for Project \"{config.project_id}\".", http.HTTPStatus.BAD_REQUEST)
+
+TaskEngine().register(TaskRequestType.TopicModeling, bertopic_topic_modeling)
 
 __all__ = [
   "start_topic_modeling",

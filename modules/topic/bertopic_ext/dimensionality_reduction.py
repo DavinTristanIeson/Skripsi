@@ -8,7 +8,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from modules.api import ApiError
-from modules.config import ProjectPathManager, TextualSchemaColumn, ProjectPaths
+from modules.project.paths import ProjectPathManager, ProjectPaths
+from modules.config import TextualSchemaColumn
 
 from .cache import _CachedEmbeddingModel
 if TYPE_CHECKING:

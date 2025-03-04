@@ -11,7 +11,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from modules.api.wrapper import ApiError
-from modules.config import TextualSchemaColumn, ProjectPathManager, ProjectPaths
+from modules.config import TextualSchemaColumn
+from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config.schema.textual import DocumentEmbeddingMethodEnum
 from modules.logger import ProvisionedLogger, TimeLogger
 

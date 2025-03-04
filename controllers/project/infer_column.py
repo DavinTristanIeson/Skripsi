@@ -3,7 +3,7 @@ from typing import Optional
 import pandas as pd
 
 from modules.api import ApiResult
-from modules.config.cache import get_cached_data_source
+from modules.project.cache import get_cached_data_source
 from modules.logger import ProvisionedLogger
 from modules.config import SchemaColumnTypeEnum
 

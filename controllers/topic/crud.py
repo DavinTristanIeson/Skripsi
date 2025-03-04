@@ -5,7 +5,8 @@ import numpy as np
 from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicUpdateSchema
 from modules.api.wrapper import ApiResult
 from modules.baseclass import ValueCarrier
-from modules.config import ProjectCache, TextualSchemaColumn
+from modules.config import TextualSchemaColumn
+from modules.project.cache import ProjectCache
 from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, PaginatedApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams

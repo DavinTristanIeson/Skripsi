@@ -9,8 +9,7 @@ from modules.validation import FilenameField
 
 from .schema import SchemaManager
 from .source import DataSource
-from .paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
-
+from ..project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
   
 logger = ProvisionedLogger().provision("Config")
 class Config(pydantic.BaseModel):
@@ -22,15 +21,10 @@ class Config(pydantic.BaseModel):
   # schema is taken by pydantic
   data_schema: SchemaManager
 
-  paths: ProjectPathManager = pydantic.Field(exclude=True)
+  @property
+  def paths(self):
+    return ProjectPathManager(project_id=self.project_id)
   
-  @pydantic.model_validator(mode="before")
-  @classmethod
-  def __validate__paths(cls, current: dict[str, Any]):
-    if "project_id" in current and isinstance(current["project_id"], str):
-      current["paths"] = ProjectPathManager(project_id=current["project_id"])
-    return current
-
   @staticmethod
   def from_project(project_id: str)->"Config":
     import json
@@ -46,7 +40,7 @@ class Config(pydantic.BaseModel):
   def save_to_json(self):
     import json
 
-    config_path = self.paths.full_path(ProjectPaths.Config)
+    config_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.Config)
     logger.info(f"Saving config file in \"{config_path}\"")
     with open(config_path, 'w', encoding='utf-8') as f:
       json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)

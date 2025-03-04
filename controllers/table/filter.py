@@ -10,9 +10,10 @@ from models.table import (
 )
 from modules.api.wrapper import ApiError
 from modules.config import (
-  ProjectCache, SchemaColumnTypeEnum,
+  SchemaColumnTypeEnum,
   MultiCategoricalSchemaColumn, GeospatialSchemaColumn
 )
+from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.config.schema.base import GeospatialRoleEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table import TableEngine, PaginatedApiResult, PaginationParams
@@ -191,7 +192,7 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
   )
 
 def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCache):
-  from modules.topic import BERTopicInterpreter
+  from modules.topic.bertopic_ext import BERTopicInterpreter
   data, df, column = _filter_table_textual(params, cache)
 
   bertopic_model = cache.load_bertopic(column.name)
@@ -214,7 +215,7 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   )
 
 def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
-  from modules.topic import BERTopicInterpreter
+  from modules.topic.bertopic_ext import BERTopicInterpreter
   data, topics, df, column = _filter_table_textual_with_topic(params, cache)
 
   bertopic_model = cache.load_bertopic(column.name)

@@ -3,7 +3,8 @@ from typing import Sequence, cast
 import pandas as pd
 from modules.api.wrapper import ApiResult
 from modules.comparison import TableComparisonEngine
-from modules.config import ProjectCache, SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.project.cache import ProjectCache
 from modules.table import TableEngine, AndTableFilter, NotEmptyTableFilter
 from modules.topic.bertopic_ext import BERTopicModelBuilder, BERTopicInterpreter
 

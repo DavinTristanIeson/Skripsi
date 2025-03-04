@@ -2,10 +2,10 @@ import http
 import os
 
 from modules.api import ApiResult, ApiError
-from modules.config import DATA_DIRECTORY, Config, ProjectPaths
+from modules.config import Config
 from models.project import ProjectLiteResource, ProjectResource, UpdateProjectIdSchema
-from modules.config.cache import ProjectCacheManager
-from modules.config.paths import ProjectPathManager
+from modules.project.cache import ProjectCacheManager
+from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.engine import TaskEngine
 
@@ -58,7 +58,7 @@ def create_project(config: Config):
     data=ProjectResource(
       id=config.project_id,
       config=config,
-      path=Config.paths.project_path
+      path=config.paths.project_path
     ),
     message=f"Your new project \"{config.project_id}\", has been successfully created."
   )
@@ -100,7 +100,7 @@ def update_project(old_config: Config, new_config: Config):
     data=ProjectResource(
       id=new_config.project_id,
       config=new_config,
-      path=Config.paths.project_path
+      path=new_config.paths.project_path
     ),
     message=f"Project \"{new_config.project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )

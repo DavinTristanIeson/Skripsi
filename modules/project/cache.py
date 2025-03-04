@@ -4,14 +4,14 @@ import threading
 from typing import TYPE_CHECKING, cast
 import pandas as pd
 
-from modules.config import ProjectPaths, SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.project.paths import ProjectPathManager, ProjectPaths
+
+from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn, Config, DataSource
+
 from modules.logger import ProvisionedLogger
 from modules.baseclass import Singleton
 from modules.storage import CacheClient, CacheItem
-from modules.topic import TopicModelingResult
-
-from .config import Config
-from .source import DataSource
+from modules.topic.model import TopicModelingResult
 
 if TYPE_CHECKING:
   from bertopic import BERTopic
@@ -134,7 +134,7 @@ class ProjectCacheManager(metaclass=Singleton):
       self.projects.pop(project_id, None)
 
 @functools.lru_cache(2)
-def get_cached_data_source(source: DataSource):
+def get_cached_data_source(source: "DataSource"):
   logger.info(f"Loaded data source from {source}")
   return source.load()
 

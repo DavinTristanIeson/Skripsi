@@ -2,7 +2,7 @@ import http
 import os
 from models.project import CheckProjectIdSchema
 from modules.api.wrapper import ApiError, ApiResult
-from modules.config.paths import ProjectPathManager
+from modules.project.paths import ProjectPathManager
 
 
 def check_if_project_exists(body: CheckProjectIdSchema):

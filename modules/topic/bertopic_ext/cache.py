@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 
 from modules.logger import ProvisionedLogger
-from modules.config import ProjectPathManager
+from modules.project.paths import ProjectPathManager
 
 logger = ProvisionedLogger().provision("Topic Modeling")
 

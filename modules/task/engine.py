@@ -98,12 +98,14 @@ class TaskEngine(metaclass=Singleton):
     self,
     *,
     pool: concurrent.futures.ThreadPoolExecutor,
-    handlers: dict[TaskRequestType, TaskHandlerFn],
   ):
     self.pool = pool
     self.results = {}
-    self.handlers = handlers
     logger.info("Initialized TaskEngine.")
+
+  def register(self, type: TaskRequestType, handler: TaskHandlerFn):
+    with self.lock:
+      self.handlers[type] = handler
 
 __all__ = [
   "TaskEngine"

@@ -15,7 +15,6 @@ from modules.api import register_error_handlers
 
 task_server = TaskEngine()
 task_server.initialize(
-  handlers={},
   pool=concurrent.futures.ThreadPoolExecutor(2)
 )
 

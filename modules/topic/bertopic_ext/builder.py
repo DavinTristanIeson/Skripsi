@@ -3,7 +3,8 @@ import os
 from typing import TYPE_CHECKING, Optional
 
 from modules.logger import ProvisionedLogger
-from modules.config import ProjectPathManager, ProjectPaths, TextualSchemaColumn
+from modules.config import TextualSchemaColumn
+from modules.project.paths import ProjectPathManager, ProjectPaths
 
 from .dimensionality_reduction import BERTopicCachedUMAP
 from .embedding import BERTopicEmbeddingModelFactory, SupportedBERTopicEmbeddingModels

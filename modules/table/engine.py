@@ -5,8 +5,9 @@ from typing import Optional
 import pandas as pd
 
 from modules.logger import TimeLogger
+from modules.project.cache import ProjectCacheManager
 from modules.storage import CacheItem
-from modules.config import Config, ProjectCacheManager
+from modules.config import Config
 
 from .pagination import PaginationMeta, PaginationParams
 from .filter import _TableFilterParams, TableSort
@@ -51,7 +52,7 @@ class TableEngine:
       return df.sort_values(by=sort.name, ascending=sort.asc)
     
   def reorder(self, df: pd.DataFrame):
-    return self.config.data_schema.reorder(df, all=False)
+    return self.config.data_schema.reorder(df)
   
   def get_meta(self, df: pd.DataFrame, params: PaginationParams)->PaginationMeta:
     if params.limit is None:
@@ -66,9 +67,8 @@ class TableEngine:
     )
     
   def paginate(self, df: pd.DataFrame, params: PaginationParams):
-    active_columns = filter(lambda x: x.active, self.config.data_schema.columns)
-    active_column_names = map(lambda x: x.name, active_columns)
-    existent_column_names = filter(lambda col: col in df.columns, active_column_names)
+    column_names = map(lambda x: x.name, self.config.data_schema.columns)
+    existent_column_names = filter(lambda col: col in df.columns, column_names)
     columns = list(existent_column_names)
 
     df = df.loc[:,columns]

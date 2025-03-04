@@ -5,7 +5,6 @@ from typing import Annotated
 from fastapi import Depends
 from controllers.project.dependency import ProjectCacheDependency
 from modules.api.wrapper import ApiError
-from modules.config.paths import ProjectPaths
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.topic.model import Topic, TopicModelingResult
