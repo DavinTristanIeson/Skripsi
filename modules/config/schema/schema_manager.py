@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import http
-from typing import Annotated, Optional, Sequence, cast
+from typing import Annotated, Callable, Optional, Sequence, cast
 
 import pandas as pd
 import pydantic
@@ -121,8 +121,10 @@ class SchemaManager(pydantic.BaseModel):
       raise ApiError(f"This procedure requires that column \"{name}\" be one of these types: {', '.join(types)}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     return column
   
-  def reorder(self, df: pd.DataFrame):
-    return df.loc[:, [col.name for col in self.columns if col.name in df.columns]]
+  def process_columns(self, df: pd.DataFrame):
+    reordered_df = df.loc[:, [col.name for col in self.columns if col.name in df.columns]]
+    reordered_df.columns = [col.alias or col.name for col in self.columns]
+    return reordered_df
 
   def __fit_column(self, df: pd.DataFrame, col: SchemaColumn):
     if col.internal:
@@ -166,24 +168,30 @@ class SchemaManager(pydantic.BaseModel):
       ))
     return column_diffs
     
-  def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame)->pd.DataFrame:
+  def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame, source_df: pd.DataFrame)->tuple[pd.DataFrame, list[_SchemaColumnDiff]]:
+    # Check if dataset has changed.
+    if len(source_df) != len(workspace_df):
+      # Dataset has DEFINITELY changed. Refit everything.
+      try:
+        df = self.fit(source_df)
+        column_diffs = list(map(lambda col: _SchemaColumnDiff(previous=col, current=None), self.columns)) # type: ignore
+        return df, column_diffs
+      except ApiError as e:
+        raise ApiError(f"{e.message}. This problem may be caused by changes to the columns of the source dataset. In which case, please create a new project instead.", http.HTTPStatus.NOT_FOUND)
+
     column_diffs = self.resolve_column_difference(prev.columns)
     df = workspace_df.copy()
     for diff in column_diffs:
-      logger.info(f"Fitting \"{diff.current.name}\" again since the column options has changed.")
-      self.__fit_column(df, diff.current)
-
-    for diff in column_diffs:
       internal_columns = diff.previous.get_internal_columns()
-      # cleanup previous column differences
       if diff.previous.type != diff.current.type:
         df.drop(
           list(map(lambda x: x.name, internal_columns)),
           axis=1, inplace=True
         )
-        
-    reordered_df = self.reorder(df)
-    return reordered_df
+    for diff in column_diffs:
+      logger.info(f"Fitting \"{diff.current.name}\" again since the column options has changed.")
+      self.__fit_column(df, diff.current)
+    return self.process_columns(df), column_diffs
     
 __all__ = [
   "SchemaManager",

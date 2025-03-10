@@ -7,6 +7,8 @@ import pandas as pd
 import pydantic
 
 from modules.api import ApiError
+from modules.config.schema.schema_manager import SchemaManager
+from modules.config.schema.schema_variants import SchemaColumn
 from modules.validation import FilenameField
 from modules.config import Config, SchemaColumnTypeEnum, DataSource
 
@@ -63,12 +65,12 @@ class InferDatasetColumnResource(pydantic.BaseModel):
 
   count: int
   categories: Optional[list[str]]
-  document_lengths: Optional[InferDatasetDescriptiveStatisticsResource]
+  descriptive_statistics: Optional[InferDatasetDescriptiveStatisticsResource]
   
 
 class CheckDatasetResource(pydantic.BaseModel):
   dataset_columns: list[str]
-  preview_rows: list[dict[Hashable, Any]]
+  preview_rows: list[dict[str, Any]]
   total_rows: int
   columns: list[InferDatasetColumnResource]
 
@@ -94,6 +96,9 @@ class CheckDatasetColumnSchema(pydantic.BaseModel):
 
 class UpdateProjectIdSchema(pydantic.BaseModel):
   project_id: str
+
+class UpdateProjectSchema(pydantic.BaseModel):
+  data_schema: SchemaManager
 
 __all__ = [
   "ProjectLiteResource",

@@ -277,6 +277,7 @@ SchemaColumn = Annotated[
     TemporalSchemaColumn,
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
+    MultiCategoricalSchemaColumn,
     TopicSchemaColumn,
   ],
   pydantic.Field(discriminator="type"),

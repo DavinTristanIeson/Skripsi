@@ -6,7 +6,7 @@ import numpy as np
 from modules.logger import ProvisionedLogger, TimeLogger
 from modules.project.cache import ProjectCacheManager
 from modules.task import TaskPayload, TaskResponseData
-from modules.config import ProjectPaths
+from modules.project.paths import ProjectPaths
 
 from ..bertopic_ext import BERTopicIndividualModels, BERTopicModelBuilder
 from .embedding import bertopic_embedding

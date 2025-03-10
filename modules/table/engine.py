@@ -52,7 +52,7 @@ class TableEngine:
       return df.sort_values(by=sort.name, ascending=sort.asc)
     
   def reorder(self, df: pd.DataFrame):
-    return self.config.data_schema.reorder(df)
+    return self.config.data_schema.process_columns(df)
   
   def get_meta(self, df: pd.DataFrame, params: PaginationParams)->PaginationMeta:
     if params.limit is None:

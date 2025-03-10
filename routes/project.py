@@ -1,5 +1,5 @@
 import http
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 
 from controllers.project.crud import get_all_projects
 from controllers.project.dependency import ProjectCacheDependency
@@ -18,11 +18,15 @@ from controllers.project import (
   delete_project,
 )
 from models.project import (
+  CheckDatasetResource,
   CheckDatasetSchema,
   CheckProjectIdSchema,
+  InferDatasetColumnResource,
+  ProjectLiteResource,
   ProjectResource,
   CheckDatasetColumnSchema,
-  UpdateProjectIdSchema
+  UpdateProjectIdSchema,
+  UpdateProjectSchema
 )
  
 router = APIRouter(
@@ -33,25 +37,25 @@ router = APIRouter(
   "/check-project-id", 
   status_code=http.HTTPStatus.OK,
 )
-async def post__check_project_id(body: CheckProjectIdSchema):
+async def post__check_project_id(body: CheckProjectIdSchema)->ApiResult[None]:
   return check_if_project_exists(body)
 
 @router.post("/check-dataset")
-async def post__check_dataset(body: CheckDatasetSchema):
+async def post__check_dataset(body: CheckDatasetSchema)->ApiResult[CheckDatasetResource]:
   return infer_columns_from_dataset(body)
   
 
 @router.post("/check-dataset-column")
-async def check_dataset_column(body: CheckDatasetColumnSchema):
+async def check_dataset_column(body: CheckDatasetColumnSchema)->ApiResult[InferDatasetColumnResource]:
   return infer_column_from_dataset(body)
 
 
 @router.get('/')
-async def get__projects():
+async def get__projects()->ApiResult[list[ProjectLiteResource]]:
   return get_all_projects()
 
 @router.get('/{project_id}')
-async def get__project(cache: ProjectCacheDependency):
+async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource]:
   return ApiResult(
     data=ProjectResource(
       id=cache.id,
@@ -62,18 +66,18 @@ async def get__project(cache: ProjectCacheDependency):
   )
 
 @router.post('/')
-async def create__project(config: Config):
+async def create__project(config: Config)->ApiResult[ProjectResource]:
   return create_project(config)
   
 @router.patch('/{project_id}/update-project-id')
-async def update__project_id(cache: ProjectCacheDependency, body: UpdateProjectIdSchema):
+async def update__project_id(cache: ProjectCacheDependency, body: UpdateProjectIdSchema)->ApiResult[None]:
   return update_project_id(cache.config, body)
   
 @router.put('/{project_id}')
-async def update__project(cache: ProjectCacheDependency, new_config: Config):
-  old_config = cache.config
-  return update_project(old_config, new_config)
+async def update__project(cache: ProjectCacheDependency, body: UpdateProjectSchema, background_task: BackgroundTasks)->ApiResult[ProjectResource]:
+  config = cache.config
+  return update_project(config, body, background_task)
 
 @router.delete('/{project_id}')
-async def delete__project(project_id: str):
+async def delete__project(project_id: str)->ApiResult[None]:
   return delete_project(project_id)

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import functools
 import http
 from typing import TYPE_CHECKING, cast
@@ -42,6 +42,7 @@ class __CachedUMAP(_CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMix
     return embeddings
 
 class BERTopicCachedUMAP(__CachedUMAP):
+  low_memory = True
   @property
   def embedding_path(self):
     paths = ProjectPathManager(project_id=self.project_id)
@@ -57,7 +58,7 @@ class BERTopicCachedUMAP(__CachedUMAP):
       # BERTopic uses 5 dimensions
       n_components=5,
       metric="euclidean",
-      low_memory=self.column.topic_modeling.low_memory
+      low_memory=self.low_memory
     )
   
   @property
@@ -72,6 +73,7 @@ class VisualizationCachedUMAPResult:
 
 @dataclass
 class VisualizationCachedUMAP(__CachedUMAP):
+  low_memory = True
   corpus_size: int
   topic_count: int
   @property
@@ -88,7 +90,7 @@ class VisualizationCachedUMAP(__CachedUMAP):
       min_dist=0.1,
       n_components=2,
       metric="euclidean",
-      low_memory=self.column.topic_modeling.low_memory
+      low_memory=self.low_memory
     )
   
   @property

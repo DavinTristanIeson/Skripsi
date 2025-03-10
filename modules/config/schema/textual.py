@@ -133,9 +133,6 @@ class TextPreprocessingConfig(pydantic.BaseModel):
 class TopicModelingConfig(pydantic.BaseModel):
   model_config = pydantic.ConfigDict(use_enum_values=True)
 
-
-  low_memory: bool = False
-
   # https://stackoverflow.com/questions/67898039/hdbscan-difference-between-parameters
 
   # Minimal number of topics
@@ -153,9 +150,7 @@ class TopicModelingConfig(pydantic.BaseModel):
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
   n_gram_range: tuple[int, int] = (1, 2)
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
-
-  # How similar should topics be to be grouped under the same super-topic
-  super_topic_similarity: float = pydantic.Field(default=0.7, gt=0.0, le=1.0)
+  
   top_n_words: int = pydantic.Field(default=50, ge=3)
 
   @pydantic.field_validator("n_gram_range", mode="after")

@@ -1,6 +1,6 @@
 import abc
 from enum import Enum
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 from collections import Counter
 
 import pandas as pd
@@ -18,7 +18,6 @@ class SchemaColumnTypeEnum(str, Enum):
   Textual = "textual"
   Unique = "unique"
   Geospatial = "geospatial"
-  Image = "image"
 
   # Internal
   Topic = "topic"
@@ -32,8 +31,9 @@ class GeospatialRoleEnum(str, Enum):
 ExposedEnum().register(GeospatialRoleEnum)
 
 class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
-  model_config = pydantic.ConfigDict(use_enum_values=True)
+  model_config = pydantic.ConfigDict(use_enum_values=True, frozen=True)
   name: str
+  alias: Optional[str] = None
   internal: bool = pydantic.Field(default=False, exclude=True)
 
   def get_internal_columns(self)->Sequence["_BaseSchemaColumn"]:

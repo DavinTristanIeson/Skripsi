@@ -44,6 +44,16 @@ class ProjectPaths(SimpleNamespace):
   @staticmethod
   def BERTopic(column: str):
     return os.path.join(ProjectPaths.BERTopicFolder, column)
+  
+  @staticmethod
+  def TopicModelingPaths(column: str):
+    return [
+      ProjectPaths.BERTopic(column),
+      ProjectPaths.DocumentEmbeddings(column),
+      ProjectPaths.VisualizationEmbeddings(column),
+      ProjectPaths.UMAPEmbeddings(column),
+      ProjectPaths.Topics(column),
+    ]
 
 logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 
