@@ -1,23 +1,27 @@
-from typing import Optional
+from typing import Any, Optional, cast
 
 import pandas as pd
+import numpy as np
 
 from modules.api import ApiResult
 from modules.project.cache import get_cached_data_source
 from modules.logger import ProvisionedLogger
 from modules.config import SchemaColumnTypeEnum
 
-from models.project import CheckDatasetColumnSchema, CheckDatasetResource, CheckDatasetSchema, InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource
+from models.project import CheckDatasetColumnSchema, CheckDatasetResource, CheckDatasetSchema, InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource, DatasetPreviewResource
 
 logger = ProvisionedLogger().provision("Project Controller")
 
 def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeEnum):
   data = df[column]
-  document_lengths: Optional[InferDatasetDescriptiveStatisticsResource] = None
+  descriptive_statistics: Optional[InferDatasetDescriptiveStatisticsResource] = None
   categories: Optional[list[str]] = None
   if dtype == SchemaColumnTypeEnum.Textual:
     data = data.astype(str)
-    document_lengths = InferDatasetDescriptiveStatisticsResource.from_series(data.str.len())
+    descriptive_statistics = InferDatasetDescriptiveStatisticsResource.from_series(data.str.len())
+  elif dtype == SchemaColumnTypeEnum.Continuous:
+    data = data.astype(np.float64)
+    descriptive_statistics = InferDatasetDescriptiveStatisticsResource.from_series(data)
   elif dtype == SchemaColumnTypeEnum.OrderedCategorical:
     data = data.astype(str)
     categories = sorted(set(map(str, data.unique())))
@@ -26,7 +30,7 @@ def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeE
   return InferDatasetColumnResource(
     name=column,
     type=dtype,
-    document_lengths=document_lengths,
+    descriptive_statistics=descriptive_statistics,
     categories=categories,
     count=data.count(),
   )
@@ -40,7 +44,7 @@ def infer_column_without_type(column: str, df: pd.DataFrame)->InferDatasetColumn
     return InferDatasetColumnResource(
       name=column,
       type=SchemaColumnTypeEnum.Unique,
-      document_lengths=None,
+      descriptive_statistics=None,
       categories=None,
       count=0,
     )
@@ -77,9 +81,6 @@ def infer_columns_from_dataset(body: CheckDatasetSchema):
   return ApiResult(
     data=CheckDatasetResource(
       columns=columns,
-      dataset_columns=list(df.columns),
-      total_rows=len(df),
-      preview_rows=df.head(5).to_dict(orient="records")
     ),
     message=f"We have inferred the columns from the dataset at {body.root.path}. Next, please configure how you would like to process the individual columns."
   )
@@ -93,7 +94,22 @@ def infer_column_from_dataset(body: CheckDatasetColumnSchema):
     message=None
   )
 
+def get_dataset_preview(body: CheckDatasetSchema):
+  df = get_cached_data_source(body.root)
+  dataset_columns=list(df.columns)
+  total_rows=len(df)
+  preview_rows=cast(list[dict[str, Any]], df.head(15).to_dict(orient="records"))
+  return ApiResult(
+    data=DatasetPreviewResource(
+      dataset_columns=dataset_columns,
+      total_rows=total_rows,
+      preview_rows=preview_rows,
+    ),
+    message=None
+  )
+
 __all__ = [
   "infer_columns_from_dataset",
   "infer_column_from_dataset",
+  "get_dataset_preview"
 ]

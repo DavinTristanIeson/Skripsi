@@ -6,7 +6,7 @@ import numpy as np
 import pydantic
 import pandas as pd
 
-from modules.validation import FilenameField, DiscriminatedUnionValidator
+from modules.validation import DiscriminatedUnionValidator
 
 from .base import _BaseMultiCategoricalSchemaColumn, _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
@@ -132,7 +132,6 @@ class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     df[self.name] = df[self.name].astype(np.int32)
 
 class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
-  name: FilenameField
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig

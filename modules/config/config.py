@@ -5,7 +5,6 @@ import os
 
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
-from modules.validation import FilenameField
 
 from .schema import SchemaManager
 from .source import DataSource
@@ -16,7 +15,7 @@ class Config(pydantic.BaseModel):
   model_config = pydantic.ConfigDict(use_enum_values=True)
 
   version: int = pydantic.Field(default=1)
-  project_id: FilenameField
+  project_id: str
   source: DataSource
   # schema is taken by pydantic
   data_schema: SchemaManager

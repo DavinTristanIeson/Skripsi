@@ -2,6 +2,7 @@ import os
 
 from fastapi import BackgroundTasks
 
+from controllers.project.project_checks import _assert_valid_project_id
 from modules.api import ApiResult, ApiError
 from modules.config import Config
 from models.project import ProjectLiteResource, ProjectResource, UpdateProjectIdSchema, UpdateProjectSchema
@@ -23,6 +24,8 @@ def get_all_projects():
     folders = [
       name for name in os.listdir(folder_name)
       if os.path.isdir(os.path.join(folder_name, name))
+      # has config.json
+      and os.path.exists(os.path.join(folder_name, name, ProjectPaths.Config))
       # don't include hidden folders
       and not folder_name.startswith('.')
     ]
@@ -39,6 +42,7 @@ def get_all_projects():
 def create_project(config: Config):
   # Condition checks
   _assert_project_id_doesnt_exist(config.project_id)
+  _assert_valid_project_id(config.project_id)
   os.makedirs(config.paths.project_path, exist_ok=True)
 
   # Create workspace
@@ -68,6 +72,7 @@ def create_project(config: Config):
 def update_project_id(config: Config, body: UpdateProjectIdSchema):
   # Condition checks
   _assert_project_id_doesnt_exist(body.project_id)
+  _assert_valid_project_id(body.project_id)
   new_paths = ProjectPathManager(project_id=body.project_id)
 
   # Action
@@ -79,7 +84,7 @@ def update_project_id(config: Config, body: UpdateProjectIdSchema):
 
   return ApiResult(message=f"Successfully update project ID from \"{config.project_id}\" to \"{body.project_id}\".", data=None)
 
-def update_project(config: Config, body: UpdateProjectSchema, background_tasks: BackgroundTasks):
+def update_project(config: Config, body: UpdateProjectSchema):
   # Resolve project differences
   df = config.load_workspace()
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
@@ -105,10 +110,7 @@ def update_project(config: Config, body: UpdateProjectSchema, background_tasks: 
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
   TaskEngine().clear_tasks(new_config.project_id)
-
-  background_tasks.add_task(
-    lambda: new_config.paths._cleanup([], cleanup_targets)
-  )
+  new_config.paths._cleanup([], cleanup_targets)
 
   return ApiResult(
     data=ProjectResource(

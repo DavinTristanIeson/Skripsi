@@ -3,7 +3,7 @@ As this module will include FastAPI dependency, it should be manually imported a
 """
 import traceback
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -16,6 +16,10 @@ logger = ProvisionedLogger().provision("FastAPI Error Handler")
 def api_error_exception_handler(request: Request, exc: ApiError):
   logger.error(f"API Error while handling {request.url}. Error: {exc.message}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
+
+def http_exception_handler(request: Request, exc: HTTPException):
+  logger.error(f"API Error while handling {request.url}. Error: {exc.detail}")
+  return JSONResponse(content=ApiErrorResult(message=exc.detail).model_dump(), status_code=exc.status_code)
 
 def default_exception_handler(request: Request, exc: Exception):
   logger.error(f"Error while handling {request.url}. Error: {exc} {traceback.print_exception(exc)}")
@@ -60,6 +64,9 @@ def register_error_handlers(app: FastAPI):
   )
   app.exception_handler(RequestValidationError)(
     validation_exception_handler
+  )
+  app.exception_handler(HTTPException)(
+    http_exception_handler
   )
   app.exception_handler(Exception)(
     default_exception_handler

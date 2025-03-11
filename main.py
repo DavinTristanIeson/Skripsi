@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import http
 import logging
 import os
 import concurrent.futures
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
+from modules.api.wrapper import ApiErrorResult
 import routes
 
 from modules.logger import ProvisionedLogger
@@ -43,7 +45,13 @@ ProvisionedLogger().configure(
   terminal=True
 )
 
-api_app = FastAPI(lifespan=lifespan)
+api_app = FastAPI(lifespan=lifespan, responses={
+  http.HTTPStatus.UNPROCESSABLE_ENTITY: dict(model=ApiErrorResult),
+  http.HTTPStatus.BAD_REQUEST: dict(model=ApiErrorResult),
+  http.HTTPStatus.NOT_FOUND: dict(model=ApiErrorResult),
+  http.HTTPStatus.INTERNAL_SERVER_ERROR: dict(model=ApiErrorResult),
+  http.HTTPStatus.FORBIDDEN: dict(model=ApiErrorResult),
+})
 api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.debug.router, prefix="/debug")

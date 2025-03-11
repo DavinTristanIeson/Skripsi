@@ -8,8 +8,6 @@ import pydantic
 
 from modules.api import ApiError
 from modules.config.schema.schema_manager import SchemaManager
-from modules.config.schema.schema_variants import SchemaColumn
-from modules.validation import FilenameField
 from modules.config import Config, SchemaColumnTypeEnum, DataSource
 
 # Resource
@@ -69,14 +67,16 @@ class InferDatasetColumnResource(pydantic.BaseModel):
   
 
 class CheckDatasetResource(pydantic.BaseModel):
+  columns: list[InferDatasetColumnResource]
+
+class DatasetPreviewResource(pydantic.BaseModel):
   dataset_columns: list[str]
   preview_rows: list[dict[str, Any]]
   total_rows: int
-  columns: list[InferDatasetColumnResource]
 
 # Schema
 class CheckProjectIdSchema(pydantic.BaseModel):
-  project_id: FilenameField
+  project_id: str
 
 def validate_file_path(data: DataSource):
   if not os.path.exists(data.path):

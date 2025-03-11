@@ -6,7 +6,7 @@ import pydantic
 import pandas as pd
 
 from modules.logger import ProvisionedLogger
-from modules.validation import DiscriminatedUnionValidator, FilePathField
+from modules.validation import DiscriminatedUnionValidator
 from modules.api import ExposedEnum
 
 class DataSourceTypeEnum(str, Enum):
@@ -17,7 +17,7 @@ class DataSourceTypeEnum(str, Enum):
 ExposedEnum().register(DataSourceTypeEnum)
 
 class _BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
-  path: FilePathField
+  path: str
 
   @abc.abstractmethod
   def load(self)->pd.DataFrame:

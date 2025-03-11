@@ -52,7 +52,7 @@ class BERTopicCachedUMAP(__CachedUMAP):
   def __model(self):
     from umap import UMAP
     return UMAP(
-      n_neighbors=self.column.topic_modeling.globality_consideration
+      n_neighbors=self.column.topic_modeling.reference_document_count
         or self.column.topic_modeling.min_topic_size,
       min_dist=0.1,
       # BERTopic uses 5 dimensions
@@ -85,7 +85,7 @@ class VisualizationCachedUMAP(__CachedUMAP):
   def __model(self):
     from umap import UMAP
     return UMAP(
-      n_neighbors=self.column.topic_modeling.globality_consideration
+      n_neighbors=self.column.topic_modeling.reference_document_count
         or self.column.topic_modeling.min_topic_size,
       min_dist=0.1,
       n_components=2,
