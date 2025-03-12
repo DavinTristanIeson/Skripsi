@@ -138,7 +138,7 @@ class TopicModelingConfig(pydantic.BaseModel):
   # Minimal number of topics
   min_topic_size: int = pydantic.Field(default=15, gt=1)
   # Maximum number of topics
-  max_topic_size: float = pydantic.Field(default=1 / 5, gt=0.0, le=1.0)
+  max_topic_size: Optional[float] = pydantic.Field(default=None, gt=0.0, le=1.0)
 
   # Higher value produces more outliers. Lower value might make outliers be included into the topics. This corresponds to HDBSCAN min_samples * min_cluster_size
   clustering_conservativeness: float = pydantic.Field(default=1, gt=0.0, le=1.0)

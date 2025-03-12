@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 import pandas as pd
 import pydantic
 import os
@@ -11,11 +11,17 @@ from .source import DataSource
 from ..project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
   
 logger = ProvisionedLogger().provision("Config")
+class ProjectMetadata(pydantic.BaseModel):
+  name: str
+  description: Optional[str]
+  tags: list[str]
+
 class Config(pydantic.BaseModel):
   model_config = pydantic.ConfigDict(use_enum_values=True)
 
   version: int = pydantic.Field(default=1)
   project_id: str
+  metadata: ProjectMetadata
   source: DataSource
   # schema is taken by pydantic
   data_schema: SchemaManager

@@ -11,36 +11,24 @@ from modules.logger import ProvisionedLogger
 from controllers.project import (
   infer_column_from_dataset,
   infer_columns_from_dataset,
-  check_if_project_exists,
   get_all_projects,
   create_project,
   update_project,
-  update_project_id,
   delete_project,
 )
 from models.project import (
   CheckDatasetResource,
   CheckDatasetSchema,
-  CheckProjectIdSchema,
+  ProjectMutationSchema,
   InferDatasetColumnResource,
   DatasetPreviewResource,
-  ProjectLiteResource,
   ProjectResource,
   CheckDatasetColumnSchema,
-  UpdateProjectIdSchema,
-  UpdateProjectSchema
 )
  
 router = APIRouter(
   tags=['Projects'],
 )
-
-@router.post(
-  "/check-project-id", 
-  status_code=http.HTTPStatus.OK,
-)
-async def post__check_project_id(body: CheckProjectIdSchema)->ApiResult[None]:
-  return check_if_project_exists(body)
 
 @router.post("/check-dataset")
 async def post__check_dataset(body: CheckDatasetSchema)->ApiResult[CheckDatasetResource]:
@@ -56,11 +44,12 @@ async def get__dataset_preview(body: CheckDatasetSchema)->ApiResult[DatasetPrevi
 
 
 @router.get('/')
-async def get__projects()->ApiResult[list[ProjectLiteResource]]:
+async def get__projects()->ApiResult[list[ProjectResource]]:
   return get_all_projects()
 
 @router.get('/{project_id}')
 async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource]:
+  config = cache.config
   return ApiResult(
     data=ProjectResource(
       id=cache.id,
@@ -71,15 +60,11 @@ async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource
   )
 
 @router.post('/')
-async def create__project(config: Config)->ApiResult[ProjectResource]:
-  return create_project(config)
-  
-@router.patch('/{project_id}/update-project-id')
-async def update__project_id(cache: ProjectCacheDependency, body: UpdateProjectIdSchema)->ApiResult[None]:
-  return update_project_id(cache.config, body)
-  
+async def create__project(body: ProjectMutationSchema)->ApiResult[ProjectResource]:
+  return create_project(body)
+
 @router.put('/{project_id}')
-async def update__project(cache: ProjectCacheDependency, body: UpdateProjectSchema)->ApiResult[ProjectResource]:
+async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSchema)->ApiResult[ProjectResource]:
   config = cache.config
   return update_project(config, body)
 

@@ -59,7 +59,7 @@ logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 
 class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
   project_id: str
-
+  
   @property
   def base_path(self):
     project_dir = os.path.join(os.getcwd(), DATA_DIRECTORY, self.project_id)

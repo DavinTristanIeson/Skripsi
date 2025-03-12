@@ -170,7 +170,9 @@ class SchemaManager(pydantic.BaseModel):
     
   def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame, source_df: pd.DataFrame)->tuple[pd.DataFrame, list[_SchemaColumnDiff]]:
     # Check if dataset has changed.
-    if len(source_df) != len(workspace_df):
+    different_row_counts = len(source_df) != len(workspace_df)
+    different_column_counts = len(set(map(lambda col: col.name, prev.columns)).symmetric_difference(map(lambda col: col.name, self.columns))) > 0
+    if different_row_counts or different_column_counts:
       # Dataset has DEFINITELY changed. Refit everything.
       try:
         df = self.fit(source_df)

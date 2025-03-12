@@ -1,11 +1,9 @@
 import os
 
-from fastapi import BackgroundTasks
-
 from controllers.project.project_checks import _assert_valid_project_id
 from modules.api import ApiResult, ApiError
 from modules.config import Config
-from models.project import ProjectLiteResource, ProjectResource, UpdateProjectIdSchema, UpdateProjectSchema
+from models.project import ProjectMutationSchema, ProjectResource
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.project.cache import ProjectCacheManager, get_cached_data_source
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
@@ -18,7 +16,7 @@ logger = ProvisionedLogger().provision("Project Controller")
 
 def get_all_projects():
   folder_name = os.path.join(os.getcwd(), DATA_DIRECTORY)
-  projects: list[ProjectLiteResource] = []
+  projects: list[ProjectResource] = []
 
   if os.path.isdir(folder_name):
     folders = [
@@ -29,31 +27,46 @@ def get_all_projects():
       # don't include hidden folders
       and not folder_name.startswith('.')
     ]
-    projects = list(map(
-      lambda folder: ProjectLiteResource(id=folder, path=os.path.join(folder_name, folder)),
-      folders
-    ))
+
+    for folder in folders:
+      # Cache the configs
+      cache = ProjectCacheManager().get(folder)
+      try:
+        projects.append(ProjectResource.from_config(cache.config))
+      except ApiError as e:
+        logger.error(f"Failed to load the config in \"{folder}\" due to: {e}")
+        continue
 
   return ApiResult(
     data=projects,
     message=None
   )
 
-def create_project(config: Config):
+def create_project(body: ProjectMutationSchema):
+  import uuid
+  paths = ProjectPathManager(project_id=uuid.uuid4().hex)
   # Condition checks
-  _assert_project_id_doesnt_exist(config.project_id)
-  _assert_valid_project_id(config.project_id)
-  os.makedirs(config.paths.project_path, exist_ok=True)
+  _assert_project_id_doesnt_exist(paths.project_id)
+  _assert_valid_project_id(paths.project_id)
+  os.makedirs(paths.project_path, exist_ok=True)
 
   # Create workspace
-  logger.info(f"Loading dataset from {config.source.path} with type {config.source.type}")
-  df = config.source.load()
+  logger.info(f"Loading dataset from {body.source.path} with type {body.source.type}")
+  df = body.source.load()
 
   logger.info(f"Fitting dataset")
-  df = config.data_schema.fit(df)
+  df = body.data_schema.fit(df)
 
   # Commit changes
-  logger.info(f"Saving configuration to {config.paths.config_path}")
+  logger.info(f"Saving configuration to {paths.config_path}")
+
+  config = Config(
+    data_schema=body.data_schema,
+    project_id=paths.project_id,
+    metadata=body.metadata,
+    source=body.source,
+    version=1,
+  )
   config.save_to_json()
   
   workspace_path = config.paths.full_path(ProjectPaths.Workspace)
@@ -61,38 +74,21 @@ def create_project(config: Config):
   config.save_workspace(df)
 
   return ApiResult(
-    data=ProjectResource(
-      id=config.project_id,
-      config=config,
-      path=config.paths.project_path
-    ),
-    message=f"Your new project \"{config.project_id}\", has been successfully created."
+    data=ProjectResource.from_config(config),
+    message=f"Your new project \"{body.metadata.name}\", has been successfully created."
   )
 
-def update_project_id(config: Config, body: UpdateProjectIdSchema):
-  # Condition checks
-  _assert_project_id_doesnt_exist(body.project_id)
-  _assert_valid_project_id(body.project_id)
-  new_paths = ProjectPathManager(project_id=body.project_id)
-
-  # Action
-  os.rename(config.paths.project_path, new_paths.project_path)
-
-  # Invalidate cache
-  ProjectCacheManager().invalidate(config.project_id)
-  TaskEngine().clear_tasks(config.project_id)
-
-  return ApiResult(message=f"Successfully update project ID from \"{config.project_id}\" to \"{body.project_id}\".", data=None)
-
-def update_project(config: Config, body: UpdateProjectSchema):
+def update_project(config: Config, body: ProjectMutationSchema):
   # Resolve project differences
   df = config.load_workspace()
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
 
   new_config = config.model_copy(deep=True)
+  new_config.source = config.source
   new_config.data_schema = body.data_schema
+  new_config.metadata = body.metadata
 
-  df, column_diffs = new_config.data_schema.resolve_difference(config.data_schema, df, get_cached_data_source())
+  df, column_diffs = new_config.data_schema.resolve_difference(config.data_schema, df, get_cached_data_source(new_config.source))
   cleanup_targets: list[str] = []
   for diff in column_diffs:
     if diff.current.type != diff.previous.type and diff.previous.type == SchemaColumnTypeEnum.Textual:
@@ -138,7 +134,6 @@ def delete_project(project_id: str):
 __all__ = [
   "get_all_projects",
   "create_project",
-  "update_project_id",
   "update_project",
   "delete_project"
 ]

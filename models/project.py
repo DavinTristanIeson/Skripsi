@@ -7,20 +7,23 @@ import pandas as pd
 import pydantic
 
 from modules.api import ApiError
+from modules.config.config import ProjectMetadata
 from modules.config.schema.schema_manager import SchemaManager
 from modules.config import Config, SchemaColumnTypeEnum, DataSource
 
 # Resource
-class ProjectLiteResource(pydantic.BaseModel):
-  # This resource doesn't have any other fields for now, and probably for the foreseeable future.
-  # But we're making it a resource anyway in case a new feature introduces a new field to this resource.
-  id: str
-  path: str
-
 class ProjectResource(pydantic.BaseModel):
   id: str
   path: str
   config: Config
+
+  @staticmethod
+  def from_config(config: Config)->"ProjectResource":
+    return ProjectResource(
+      id=config.project_id,
+      config=config,
+      path=config.paths.project_path
+    )
 
 
 class InferDatasetDescriptiveStatisticsResource(pydantic.BaseModel):
@@ -94,14 +97,14 @@ class CheckDatasetColumnSchema(pydantic.BaseModel):
   column: str
   dtype: SchemaColumnTypeEnum
 
-class UpdateProjectIdSchema(pydantic.BaseModel):
-  project_id: str
 
-class UpdateProjectSchema(pydantic.BaseModel):
+class ProjectMutationSchema(pydantic.BaseModel):
+  metadata: ProjectMetadata
+  source: DataSourceField
   data_schema: SchemaManager
 
+
 __all__ = [
-  "ProjectLiteResource",
   "ProjectResource",
 
   "InferDatasetColumnResource",

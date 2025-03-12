@@ -5,8 +5,9 @@ from typing import cast
 from controllers.project.dependency import ProjectCacheDependency
 from models.topic import StartTopicModelingSchema
 from modules.api.wrapper import ApiError, ApiResult
-from modules.config import ProjectPaths, SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
+from modules.project.paths import ProjectPaths
 from modules.task import (
   TaskEngine, TaskRequest, TaskRequestData,
   TaskLog, TaskResponse, TaskResponseData,
