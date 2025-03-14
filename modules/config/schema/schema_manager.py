@@ -71,7 +71,7 @@ SchemaColumnListField = Annotated[
 @dataclass
 class _SchemaColumnDiff:
   previous: SchemaColumn
-  current: SchemaColumn
+  current: Optional[SchemaColumn]
 
 class SchemaManager(pydantic.BaseModel):
   columns: SchemaColumnListField
@@ -106,6 +106,9 @@ class SchemaManager(pydantic.BaseModel):
   def topic(self)->list[TopicSchemaColumn]:
     return cast(list[TopicSchemaColumn], self.of_type(SchemaColumnTypeEnum.Topic))
 
+  def non_internal(self)->list[SchemaColumn]:
+    return list(filter(lambda col: not col.internal, self.columns))
+
   def assert_exists(self, name:str)->SchemaColumn:
     column: Optional[SchemaColumn] = None
     for col in self.columns:
@@ -123,7 +126,6 @@ class SchemaManager(pydantic.BaseModel):
   
   def process_columns(self, df: pd.DataFrame):
     reordered_df = df.loc[:, [col.name for col in self.columns if col.name in df.columns]]
-    reordered_df.columns = [col.alias or col.name for col in self.columns]
     return reordered_df
 
   def __fit_column(self, df: pd.DataFrame, col: SchemaColumn):
@@ -138,7 +140,6 @@ class SchemaManager(pydantic.BaseModel):
 
   def fit(self, raw_df: pd.DataFrame)->pd.DataFrame:
     try:
-      # don't exclude inactive columns, this is required for more effective updating.
       df = raw_df.loc[:, [col.name for col in self.columns if not col.internal]]
     except (IndexError, KeyError) as e:
       logger.error(e)
@@ -148,15 +149,8 @@ class SchemaManager(pydantic.BaseModel):
       self.__fit_column(df, col)
     return df
   
-  def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[_SchemaColumnDiff]:
-    current = self.columns
-    prev_columns = set(map(lambda x: x.name, previous))
-    current_columns = set(map(lambda x: x.name, current))
-    columnar_differences = prev_columns.symmetric_difference(current_columns)
-    if len(columnar_differences) > 0:
-      raise ApiError(f"There are columns that only exist in one of the configurations but not in both: {list(columnar_differences)}. To avoid data corruption, we do not allow users to modify the columns or the data source after the creation of a project. Consider creating a new project instead.", http.HTTPStatus.BAD_REQUEST)
-  
-    previous_column_map = {col.name: col for col in previous}
+  def resolve_column_difference(self, previous: Sequence[SchemaColumn])->list[_SchemaColumnDiff]:  
+    previous_column_map = {col.name: col for col in previous if not col.internal}
     non_internal_columns = filter(lambda col: not col.internal, self.columns)
     different_columns = filter(lambda col: col != previous_column_map[col.name], non_internal_columns)
     
@@ -171,26 +165,26 @@ class SchemaManager(pydantic.BaseModel):
   def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame, source_df: pd.DataFrame)->tuple[pd.DataFrame, list[_SchemaColumnDiff]]:
     # Check if dataset has changed.
     different_row_counts = len(source_df) != len(workspace_df)
-    different_column_counts = len(set(map(lambda col: col.name, prev.columns)).symmetric_difference(map(lambda col: col.name, self.columns))) > 0
+    self_columns = self.non_internal()
+    prev_columns = prev.non_internal()
+    different_column_counts = len(set(map(lambda col: col.name, prev_columns)).symmetric_difference(map(lambda col: col.name, self_columns))) > 0
     if different_row_counts or different_column_counts:
       # Dataset has DEFINITELY changed. Refit everything.
-      try:
-        df = self.fit(source_df)
-        column_diffs = list(map(lambda col: _SchemaColumnDiff(previous=col, current=None), self.columns)) # type: ignore
-        return df, column_diffs
-      except ApiError as e:
-        raise ApiError(f"{e.message}. This problem may be caused by changes to the columns of the source dataset. In which case, please create a new project instead.", http.HTTPStatus.NOT_FOUND)
-
-    column_diffs = self.resolve_column_difference(prev.columns)
+      df = self.fit(source_df)
+      column_diffs = list(map(lambda col: _SchemaColumnDiff(previous=col, current=None), self_columns)) # type: ignore
+      return df, column_diffs
+    column_diffs = self.resolve_column_difference(prev_columns)
     df = workspace_df.copy()
     for diff in column_diffs:
       internal_columns = diff.previous.get_internal_columns()
-      if diff.previous.type != diff.current.type:
+      if diff.current is None or diff.previous.type != diff.current.type:
         df.drop(
           list(map(lambda x: x.name, internal_columns)),
           axis=1, inplace=True
         )
     for diff in column_diffs:
+      if diff.current is None:
+        continue
       logger.info(f"Fitting \"{diff.current.name}\" again since the column options has changed.")
       self.__fit_column(df, diff.current)
     return self.process_columns(df), column_diffs

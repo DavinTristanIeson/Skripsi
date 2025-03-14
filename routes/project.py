@@ -2,7 +2,7 @@ import http
 from fastapi import APIRouter, BackgroundTasks
 
 from controllers.project.crud import get_all_projects
-from controllers.project.dependency import ProjectCacheDependency
+from controllers.project.dependency import ProjectCacheDependency, ProjectExistsDependency
 from controllers.project.infer_column import get_dataset_preview
 from modules.api.wrapper import ApiResult
 from modules.config.config import Config
@@ -49,7 +49,6 @@ async def get__projects()->ApiResult[list[ProjectResource]]:
 
 @router.get('/{project_id}')
 async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource]:
-  config = cache.config
   return ApiResult(
     data=ProjectResource(
       id=cache.id,
@@ -69,5 +68,5 @@ async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSc
   return update_project(config, body)
 
 @router.delete('/{project_id}')
-async def delete__project(project_id: str)->ApiResult[None]:
-  return delete_project(project_id)
+async def delete__project(config: ProjectExistsDependency)->ApiResult[None]:
+  return delete_project(config)

@@ -34,7 +34,8 @@ class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
   model_config = pydantic.ConfigDict(use_enum_values=True, frozen=True)
   name: str
   alias: Optional[str] = None
-  internal: bool = pydantic.Field(default=False, exclude=True)
+  description: Optional[str] = None
+  internal: bool = pydantic.Field(default=False, exclude=True, init=False)
 
   def get_internal_columns(self)->Sequence["_BaseSchemaColumn"]:
     return []

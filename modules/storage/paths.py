@@ -67,7 +67,7 @@ class AbstractPathManager(abc.ABC):
           logger.error(f"An error has occurred while deleting \"{self.base_path}\". Error => {e}")
           raise ApiError(f"An unexpected error has occurred while cleaning up the \"{self.base_path}\" folder: {e}", http.HTTPStatus.INTERNAL_SERVER_ERROR)
       else:
-        logger.warning(f"Skipping the deletion of \"{self.base_path}\" as there are non-managed files in the folder: {remaining_files}")
+        logger.warning(f"Skipping the deletion of \"{self.base_path}\" as there are non-deleted files in the folder: {remaining_files}")
   
 __all__ = [
   "AbstractPathManager"

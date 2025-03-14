@@ -8,21 +8,24 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from modules.logger import ProvisionedLogger
+import traceback
 
 from .wrapper import ApiError, ApiErrorResult
 
 logger = ProvisionedLogger().provision("FastAPI Error Handler")
 
 def api_error_exception_handler(request: Request, exc: ApiError):
-  logger.error(f"API Error while handling {request.url}. Error: {exc.message}")
+  logger.error(f"API Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
 
 def http_exception_handler(request: Request, exc: HTTPException):
-  logger.error(f"API Error while handling {request.url}. Error: {exc.detail}")
+  logger.error(f"API Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
+  logger.exception(exc)
   return JSONResponse(content=ApiErrorResult(message=exc.detail).model_dump(), status_code=exc.status_code)
 
 def default_exception_handler(request: Request, exc: Exception):
-  logger.error(f"Error while handling {request.url}. Error: {exc} {traceback.print_exception(exc)}")
+  logger.error(f"Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
+  logger.exception(exc)
   return JSONResponse(content=ApiErrorResult(message="An unexpected error has occurred in the server.").model_dump(), status_code=500)
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

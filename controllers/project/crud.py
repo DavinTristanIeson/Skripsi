@@ -83,15 +83,17 @@ def update_project(config: Config, body: ProjectMutationSchema):
   df = config.load_workspace()
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
 
-  new_config = config.model_copy(deep=True)
-  new_config.source = config.source
-  new_config.data_schema = body.data_schema
-  new_config.metadata = body.metadata
-
+  new_config = Config(
+    data_schema=body.data_schema,
+    project_id=config.project_id,
+    metadata=body.metadata,
+    source=body.source,
+    version=1,
+  )
   df, column_diffs = new_config.data_schema.resolve_difference(config.data_schema, df, get_cached_data_source(new_config.source))
   cleanup_targets: list[str] = []
   for diff in column_diffs:
-    if diff.current.type != diff.previous.type and diff.previous.type == SchemaColumnTypeEnum.Textual:
+    if (diff.current is None or diff.current.type != diff.previous.type) and diff.previous.type == SchemaColumnTypeEnum.Textual:
       cleanup_targets.append(ProjectPaths.BERTopic(diff.previous.name))
       cleanup_targets.append(ProjectPaths.DocumentEmbeddings(diff.previous.name))
       cleanup_targets.append(ProjectPaths.VisualizationEmbeddings(diff.previous.name))
@@ -114,21 +116,17 @@ def update_project(config: Config, body: ProjectMutationSchema):
       config=new_config,
       path=new_config.paths.project_path
     ),
-    message=f"Project \"{new_config.project_id}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
+    message=f"Project \"{new_config.metadata.name}\" has been successfully updated. All of the previously cached results has been invalidated to account for the modified columns/dataset, so you may have to run the topic modeling procedure again."
   )
 
-def delete_project(project_id: str):
-  manager = ProjectPathManager(project_id=project_id)
-  if not os.path.exists(manager.project_path):
-    raise ApiError(f"We cannot find any projects with ID: \"{project_id}\", perhaps it had been manually deleted by a user?", 404)
-
-  manager.cleanup(all=True)
+def delete_project(config: Config):
+  config.paths.cleanup(all=True)
   TaskEngine().clear_tasks()
-  ProjectCacheManager().invalidate(project_id)
+  ProjectCacheManager().invalidate(config.project_id)
 
   return ApiResult(
     data=None,
-    message=f"Project \"{project_id}\" has been successfully deleted."
+    message=f"Project \"{config.metadata.name}\" has been successfully deleted."
   )
 
 __all__ = [
