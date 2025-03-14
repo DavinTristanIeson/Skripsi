@@ -7,7 +7,7 @@ from modules.api.wrapper import ApiResult
 from modules.baseclass import ValueCarrier
 from modules.config import TextualSchemaColumn
 from modules.project.cache import ProjectCache
-from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, PaginatedApiResult
+from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, TablePaginationApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
@@ -15,7 +15,7 @@ from modules.topic.model import Topic, TopicModelingResult
 from modules.topic.procedure.hierarchy import calculate_weighted_words_for_topic_scopes
 
 
-def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->PaginatedApiResult[DocumentPerTopicResource]:
+def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
 
@@ -46,9 +46,10 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
     )
     documents.append(document)
 
-  return PaginatedApiResult(
+  return TablePaginationApiResult(
     data=documents,
     meta=engine.get_meta(df, params),
+    columns=cache.config.data_schema.columns,
     message=None,
   )
 

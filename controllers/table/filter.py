@@ -16,16 +16,17 @@ from modules.config import (
 from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.config.schema.base import GeospatialRoleEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
-from modules.table import TableEngine, PaginatedApiResult, PaginationParams
+from modules.table import TableEngine, TablePaginationApiResult, PaginationParams
 from modules.topic.model import Topic
 
-def paginate_table(params: PaginationParams, cache: ProjectCache)->PaginatedApiResult:
+def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
   data = engine.paginate(df, params)
-  return PaginatedApiResult(
+  return TablePaginationApiResult(
     data=data.to_dict("records"),
     message=None,
+    columns=cache.config.data_schema.columns,
     meta=engine.get_meta(data, params)
   )
 
@@ -209,10 +210,10 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
     size=int(word[1]),
   ), highest_word_frequencies))
   
-  return TableWordCloudResource(
+  return ApiResult(data=TableWordCloudResource(
     column=column,
     words=word_cloud_items,
-  )
+  ), message=None)
 
 def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   from modules.topic.bertopic_ext import BERTopicInterpreter
@@ -235,10 +236,10 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
       words=words
     ))
 
-  return TableTopicsResource(
+  return ApiResult(data=TableTopicsResource(
     column=column,
     topics=tuned_topics,
-  )
+  ), message=None)
 
 
 __all__ = [

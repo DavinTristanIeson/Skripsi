@@ -46,11 +46,11 @@ ProvisionedLogger().configure(
 )
 
 api_app = FastAPI(lifespan=lifespan, responses={
-  http.HTTPStatus.UNPROCESSABLE_ENTITY: dict(model=ApiErrorResult),
-  http.HTTPStatus.BAD_REQUEST: dict(model=ApiErrorResult),
-  http.HTTPStatus.NOT_FOUND: dict(model=ApiErrorResult),
-  http.HTTPStatus.INTERNAL_SERVER_ERROR: dict(model=ApiErrorResult),
-  http.HTTPStatus.FORBIDDEN: dict(model=ApiErrorResult),
+  400: dict(model=ApiErrorResult),
+  403: dict(model=ApiErrorResult),
+  404: dict(model=ApiErrorResult),
+  422: dict(model=ApiErrorResult),
+  500: dict(model=ApiErrorResult),
 })
 api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")

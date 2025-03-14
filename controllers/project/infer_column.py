@@ -1,9 +1,11 @@
+import http
 from typing import Any, Optional, cast
 
 import pandas as pd
 import numpy as np
 
 from modules.api import ApiResult
+from modules.api.wrapper import ApiError
 from modules.project.cache import get_cached_data_source
 from modules.logger import ProvisionedLogger
 from modules.config import SchemaColumnTypeEnum
@@ -87,6 +89,8 @@ def infer_columns_from_dataset(body: CheckDatasetSchema):
 
 def infer_column_from_dataset(body: CheckDatasetColumnSchema):
   df = get_cached_data_source(body.source)
+  if len(set(df.columns)) != len(df.columns):
+    raise ApiError("There are duplicate columns in the dataset!", http.HTTPStatus.BAD_REQUEST)
   inferred = infer_column_by_type(body.column, df, body.dtype)
 
   return ApiResult(
