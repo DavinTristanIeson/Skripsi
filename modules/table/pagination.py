@@ -11,7 +11,7 @@ class PaginationParams(pydantic.BaseModel):
   filter: Optional[TableFilter] = None
   sort: Optional[TableSort] = None
 
-class PaginationMeta(PaginationParams, pydantic.BaseModel):
+class PaginationMeta(pydantic.BaseModel):
   pages: int
   total: int
 
