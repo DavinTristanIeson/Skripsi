@@ -1,14 +1,7 @@
-from dataclasses import dataclass
-import functools
-import http
-import itertools
-from typing import TYPE_CHECKING, Sequence, cast
+from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
-import pydantic
 
-from modules.api import ApiError
-from modules.topic.procedure.hierarchy import bertopic_topic_hierarchy
 
 from ..bertopic_ext import (
   BERTopicInterpreter,
@@ -17,7 +10,7 @@ from ..bertopic_ext import (
 )
 
 from .utils import _BERTopicColumnIntermediateResult
-from ..model import TopicModelingResult, Topic
+from ..model import TopicModelingResult
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
@@ -55,7 +48,6 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: _BERTopicColumnInte
   column = intermediate.column
   model = intermediate.model
   task = intermediate.task
-  interpreter = BERTopicInterpreter(intermediate.model)
 
   task.log_pending(f"Applying post-processing on the topics of \"{intermediate.column.name}\"...")
 
@@ -65,10 +57,7 @@ def bertopic_post_processing(df: pd.DataFrame, intermediate: _BERTopicColumnInte
   document_topic_mapping_column[~intermediate.mask] = pd.NA
   df[column.topic_column.name] = document_topic_mapping_column
 
-  # Perform hierarchical clustering
-  task.log_pending(f"Calculating the topic hierarchy of \"{intermediate.column.name}\"...")
-  topics = bertopic_topic_hierarchy(intermediate)
-  task.log_pending(f"Calculating the topic hierarchy of \"{intermediate.column.name}\"...")
+  topics = BERTopicInterpreter(model).extract_topics()
 
   # Embed document/topics
   bertopic_visualization_embeddings(intermediate).topic_embeddings

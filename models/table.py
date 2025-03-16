@@ -1,4 +1,6 @@
 from typing import Any, Optional
+import numpy as np
+import pandas as pd
 import pydantic
 from modules.comparison.effect_size import EffectSizeMethodEnum
 from modules.comparison.statistic_test import StatisticTestMethodEnum
@@ -55,15 +57,52 @@ class TableColumnCountsResource(pydantic.BaseModel):
   # Only for topics
   outlier: Optional[int]
 
-class WordCloudItemResource(pydantic.BaseModel):
-  color: int
+class TableWordItemResource(pydantic.BaseModel):
+  group: int
   word: str
   size: int
 
-class TableWordCloudResource(pydantic.BaseModel):
+class TableWordsResource(pydantic.BaseModel):
   column: SchemaColumn
-  words: list[WordCloudItemResource]
+  words: list[TableWordItemResource]
 
 class TableTopicsResource(pydantic.BaseModel):
   column: SchemaColumn
   topics: list[Topic]
+
+class DescriptiveStatisticsResource(pydantic.BaseModel):
+  count: float
+  mean: float
+  median: float
+  std: float
+  min: float
+  q1: float
+  q3: float
+  max: float
+  inlier_range: tuple[float, float]
+  outlier_count: int
+
+  @staticmethod
+  def from_series(column: pd.Series):
+    summary = column.describe()
+    iqr = summary["75%"] - summary["25%"]
+    inlier_range = (summary["25%"] - (1.5 * iqr), summary["75%"] + (1.5 * iqr))
+
+    inlier_mask = np.bitwise_or(column >= inlier_range[0], column <= inlier_range[1])
+    outlier_count = column[~inlier_mask].count()
+    return DescriptiveStatisticsResource(
+      count=summary["count"],
+      mean=summary["mean"],
+      median=summary["50%"],
+      std=summary["std"],
+      min=summary["min"],
+      q1=summary["25%"],
+      q3=summary["75%"],
+      max=summary["max"],
+      inlier_range=inlier_range,
+      outlier_count=outlier_count,
+    )
+  
+class TableDescriptiveStatisticsResource(pydantic.BaseModel):
+  column: SchemaColumn
+  statistics: DescriptiveStatisticsResource

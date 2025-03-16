@@ -16,8 +16,13 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Continuous]
   # Note: bins contain the bin edges. So this should have length bin_count + 1
   bins: Optional[list[float]] = None
-  bin_count: int = 3 
+  bin_count: int = pydantic.Field(default=3, ge=2)
 
+  @pydantic.field_validator("bins")
+  def __validate_bins(self):
+    if self.bins is not None:
+      return sorted(self.bins)
+    return None
 
   @functools.cached_property
   def bins_column(self):
@@ -37,6 +42,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     # Get histogram edges
     if self.bins is not None:
       histogram_edges = np.array(self.bins)
+      histogram_edges.sort()
     else:
       histogram_edges = np.histogram_bin_edges(data, self.bin_count)
 

@@ -3,10 +3,10 @@ from typing import Optional, Sequence, cast
 import pandas as pd
 from modules.api import ApiResult
 from models.table import (
-  GetTableGeographicalColumnSchema, GetTableColumnSchema,
+  DescriptiveStatisticsResource, GetTableGeographicalColumnSchema, GetTableColumnSchema,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
-  TableColumnGeographicalPointsResource, TableColumnValuesResource,
-  TableTopicsResource, TableWordCloudResource, WordCloudItemResource
+  TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
+  TableTopicsResource, TableWordsResource, TableWordItemResource
 )
 from modules.api.wrapper import ApiError
 from modules.config import (
@@ -86,16 +86,20 @@ def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
 
 def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
   data, df, column = _filter_table(params, cache)
-  unique_values = data.unique()
+
+  if column.type == SchemaColumnTypeEnum.MultiCategorical:
+    column = cast(MultiCategoricalSchemaColumn, column)
+    unique_values = list(column.count_categories(column.json2list(cast(Sequence[str], data))).keys())
+  else:
+    unique_values = data.sort_values().unique().tolist()
 
   return ApiResult(
     data=TableColumnValuesResource(
       column=column,
-      values=unique_values.tolist()
+      values=unique_values
     ),
     message=None
   )
-
 
 def get_column_frequency_distribution(params: GetTableColumnSchema, cache: ProjectCache):
   data, df, column = _filter_table(params, cache, supported_types=[
@@ -204,13 +208,13 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   # Intentionally only using the BOW rather than C-TF-IDF version
   highest_word_frequencies = interpreter.get_weighted_words(bow)
 
-  word_cloud_items = list(map(lambda word: WordCloudItemResource(
-    color=0,
+  word_cloud_items = list(map(lambda word: TableWordItemResource(
+    group=0,
     word=word[0],
     size=int(word[1]),
   ), highest_word_frequencies))
   
-  return ApiResult(data=TableWordCloudResource(
+  return ApiResult(data=TableWordsResource(
     column=column,
     words=word_cloud_items,
   ), message=None)
@@ -241,14 +245,19 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
     topics=tuned_topics,
   ), message=None)
 
+def get_column_descriptive_statistics(params: GetTableColumnSchema, cache: ProjectCache):
+  data, df, column = _filter_table(params, cache, supported_types=[SchemaColumnTypeEnum.Continuous])
+  return ApiResult(data=TableDescriptiveStatisticsResource(
+    column=column,
+    statistics=DescriptiveStatisticsResource.from_series(data),
+  ), message=None)
 
 __all__ = [
   "paginate_table",
-  "get_column_values",
   "get_column_frequency_distribution",
   "get_column_geographical_points",
   "get_column_counts",
-  "get_column_unique_values",
   "get_column_topic_words",
   "get_column_word_frequencies",
+  "get_column_descriptive_statistics",
 ]

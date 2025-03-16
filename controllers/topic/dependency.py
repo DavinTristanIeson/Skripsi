@@ -21,11 +21,11 @@ def _has_topic_modeling_result(column: str, cache: ProjectCacheDependency)->Topi
 
 TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
 
-def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: int)->list[Topic]:
-  base_topics = topic_modeling_result.find(topic)
-  if len(base_topics) == 0:
-    raise ApiError(f"We cannot find any topic or super-topic with ID: {topic}. Perhaps the file containing the topic modeling result has been corrupted; in which case, please run the topic modeling procedure again. Alternatively, consider refreshing the page to get the newest topic information.", http.HTTPStatus.BAD_REQUEST)
-  return base_topics
+def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: int)->Topic:
+  topic_obj = topic_modeling_result.find(topic)
+  if topic_obj is None:
+    raise ApiError(f"We cannot find any topic with ID: {topic}. Perhaps the file containing the topic modeling result has been corrupted; in which case, please run the topic modeling procedure again. Alternatively, consider refreshing the page to get the newest topic information.", http.HTTPStatus.BAD_REQUEST)
+  return topic_obj
 
 TopicExistsDependency = Annotated[list[Topic], Depends(_topic_exists)]
 
