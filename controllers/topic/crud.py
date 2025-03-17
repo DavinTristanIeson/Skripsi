@@ -47,7 +47,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
   return TablePaginationApiResult(
     data=documents,
-    meta=engine.get_meta(df, params),
+    meta=engine.get_meta(documents, params),
     columns=cache.config.data_schema.columns,
     message=None,
   )

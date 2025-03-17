@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import functools
 from math import ceil
-from typing import Optional
+from typing import Any, Optional, Sequence
 import pandas as pd
 
 from modules.logger import TimeLogger
@@ -54,7 +54,7 @@ class TableEngine:
   def reorder(self, df: pd.DataFrame):
     return self.config.data_schema.process_columns(df)
   
-  def get_meta(self, df: pd.DataFrame, params: PaginationParams)->PaginationMeta:
+  def get_meta(self, df: Sequence[Any], params: PaginationParams)->PaginationMeta:
     if params.limit is None:
       return PaginationMeta(
         pages=1,
