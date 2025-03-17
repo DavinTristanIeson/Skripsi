@@ -28,9 +28,9 @@ router = APIRouter(
   tags=['Table']
 )
 
-@router.post("/")
-async def post__check_filter(params: TableFilter, cache: ProjectCacheDependency):
-  return Response(status_code=200)
+@router.post("/check-filter")
+async def post__check_filter(filter: TableFilter, cache: ProjectCacheDependency)->ApiResult[TableFilter]:
+  return ApiResult(data=filter, message=None)
 
 @router.post("/")
 async def post__get_table(params: PaginationParams, cache: ProjectCacheDependency)->TablePaginationApiResult[dict[str, Any]]:

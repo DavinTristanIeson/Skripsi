@@ -18,10 +18,10 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   bins: Optional[list[float]] = None
   bin_count: int = pydantic.Field(default=3, ge=2)
 
-  @pydantic.field_validator("bins")
-  def __validate_bins(self):
-    if self.bins is not None:
-      return sorted(self.bins)
+  @pydantic.field_validator("bins", mode="after")
+  def __validate_bins(cls, value: Optional[list[float]]):
+    if value is not None:
+      return sorted(value)
     return None
 
   @functools.cached_property
