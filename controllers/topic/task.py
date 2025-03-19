@@ -9,12 +9,11 @@ from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.paths import ProjectPaths
 from modules.task import (
-  TaskEngine, TaskRequest, TaskRequestData,
-  TaskLog, TaskResponse, TaskResponseData,
+  scheduler,
+  TaskLog, TaskResponse, 
   TaskStatusEnum
 )
-from modules.task.requests import TaskRequestType
-from modules.topic.procedure.procedure import bertopic_topic_modeling
+from modules.topic.procedure import BERTopicProcedureFacade
 
 
 logger = ProvisionedLogger().provision("Topic Controller")
@@ -51,7 +50,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
       files=[]
     )
 
-  if not options.use_cached_document_embeddings:
+  if not options.use_cached_document_vectors:
     logger.info(f"Cleaning up cached document embeddings from {targets}.")
     config.paths._cleanup(
       directories=list(map(
@@ -79,7 +78,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   engine = TaskEngine()
   has_pending_task = engine.result(task_id)
 
-  if not options.use_cached_document_embeddings:
+  if not options.use_cached_document_vectors:
     pass
 
   # Always cancel old task
@@ -119,8 +118,6 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
       engine.results[task_id] = response
   
   raise ApiError(f"No topic modeling task has been started for Project \"{config.project_id}\".", http.HTTPStatus.BAD_REQUEST)
-
-TaskEngine().register(TaskRequestType.TopicModeling, bertopic_topic_modeling)
 
 __all__ = [
   "start_topic_modeling",

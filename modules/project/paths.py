@@ -21,23 +21,43 @@ class ProjectPaths(SimpleNamespace):
   def Topics(column: str):
     return os.path.join(ProjectPaths.TopicsFolder, f"{column}.json")
 
-  EmbeddingsFolder = "embeddings"
+  EmbeddingsFolder = "embedding"
+
+  @staticmethod
+  def hash_name(name: str):
+    return hex(hash(name))
 
   @staticmethod
   def DocumentEmbeddings(column: str):
-    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "document_embeddings.npy")
+    return os.path.join(
+      ProjectPaths.EmbeddingsFolder,
+      ProjectPaths.hash_name(column),
+      "document_vectors.npy"
+    )
 
   @staticmethod
   def UMAPEmbeddings(column: str):
-    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "umap_embeddings.npy")
+    return os.path.join(
+      ProjectPaths.EmbeddingsFolder,
+      ProjectPaths.hash_name(column), 
+      "umap_embeddings.npy"
+    )
   
   @staticmethod
   def VisualizationEmbeddings(column: str):
-    return os.path.join(ProjectPaths.EmbeddingsFolder, column, "visualization_embeddings.npy")
+    return os.path.join(
+      ProjectPaths.EmbeddingsFolder,
+      ProjectPaths.hash_name(column),
+      "visualization_embeddings.npy"
+    )
   
   @staticmethod
   def EmbeddingModel(column: str, model: str):
-    return os.path.join(ProjectPaths.EmbeddingsFolder, column, model)
+    return os.path.join(
+      ProjectPaths.EmbeddingsFolder,
+      ProjectPaths.hash_name(column),
+      model
+    )
 
   BERTopicFolder = 'bertopic'
 

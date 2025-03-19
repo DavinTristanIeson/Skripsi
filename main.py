@@ -12,14 +12,8 @@ from modules.api.wrapper import ApiErrorResult
 import routes
 
 from modules.logger import ProvisionedLogger
-from modules.task import TaskEngine
 from modules.api import register_error_handlers
-from modules.scheduler import scheduler
-
-task_server = TaskEngine()
-task_server.initialize(
-  pool=concurrent.futures.ThreadPoolExecutor(2)
-)
+from modules.task import scheduler
 
 @asynccontextmanager
 async def lifespan(app):

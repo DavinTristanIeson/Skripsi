@@ -1,7 +1,6 @@
 import datetime
 from enum import Enum
-from types import SimpleNamespace
-from typing import Annotated, Literal, Union
+from typing import Generic, TypeVar
 import pydantic
 
 from modules.api import ExposedEnum
@@ -17,40 +16,25 @@ class TaskStatusEnum(str, Enum):
 
 ExposedEnum().register(TaskStatusEnum)
 
-class TaskResponseData(SimpleNamespace):
-  class Empty(pydantic.BaseModel):
-    type: Literal[TaskResponseType.Empty] = TaskResponseType.Empty
 
-  TypeUnion = Union[Empty]
-  DiscriminatedUnion = Annotated[TypeUnion, pydantic.Field(discriminator="type")]
-
+T = TypeVar("T")
 class TaskLog(pydantic.BaseModel):
   status: TaskStatusEnum
   message: str
   timestamp: datetime.datetime = pydantic.Field(
     default_factory=lambda: datetime.datetime.now()
   )
-class TaskResponse(pydantic.BaseModel):
+class TaskResponse(pydantic.BaseModel, Generic[T]):
   model_config = pydantic.ConfigDict(use_enum_values=True)
   
   id: str
-  data: TaskResponseData.DiscriminatedUnion
+  data: T
   logs: list[TaskLog]
   status: TaskStatusEnum
-
-  @staticmethod
-  def Idle(id: str):
-    return TaskResponse(
-      data=TaskResponseData.Empty(),
-      logs=[],
-      status=TaskStatusEnum.Idle,
-      id=id,
-    )
   
 __all__ = [
   "TaskLog",
   "TaskResponse",
-  "TaskResponseData",
   "TaskStatusEnum",
   "TaskResponseType"
 ]

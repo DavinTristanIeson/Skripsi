@@ -3,6 +3,7 @@ import http
 import threading
 from typing import Callable
 
+from modules.baseclass import Singleton
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 from .requests import TaskRequest
@@ -11,19 +12,11 @@ from .responses import TaskLog, TaskResponse, TaskResponseData, TaskStatusEnum
 logger = ProvisionedLogger().provision("Task")
 
 @dataclass
-class TaskPayload:
+class TaskStorageProxy:
   id: str
-
   lock: threading.Lock
   results: dict[str, TaskResponse]
-  stop_event: threading.Event
 
-  request: TaskRequest
-
-  def check_stop(self):
-    if self.stop_event.is_set():
-      raise Exception("This process has been cancelled.")
-    
   @property
   def task(self)->"TaskResponse":
     if self.id not in self.results:
@@ -40,7 +33,6 @@ class TaskPayload:
         message=message,
         status=status,
       ))
-    self.check_stop()
 
   def log_success(self, message: str):
     self.log(message, TaskStatusEnum.Success)
@@ -57,10 +49,23 @@ class TaskPayload:
       task = self.task
       task.status = TaskStatusEnum.Success
       task.data = data
-    self.check_stop()
 
-TaskHandlerFn = Callable[[TaskPayload], None]
+TaskHandlerFn = Callable[[TaskStorageProxy], None]
+
+class TaskStorage(metaclass=Singleton):
+  results: dict[str, TaskResponse]
+  lock: threading.Lock
+  def __init__(self) -> None:
+    self.results = {}
+    self.lock = threading.Lock()
+  def proxy(self, result_id: str):
+    return TaskStorageProxy(
+      id=result_id,
+      lock=self.lock,
+      results=self.results,
+    )
+
 
 __all__ = [
-  "TaskPayload"
+  "TaskStorageProxy"
 ]

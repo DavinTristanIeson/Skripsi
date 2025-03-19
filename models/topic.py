@@ -6,9 +6,10 @@ from modules.topic.model import Topic, TopicModelingResult
 
 # Schema
 class StartTopicModelingSchema(pydantic.BaseModel):
-  use_cached_document_embeddings: bool
+  use_cached_document_vectors: bool
   use_preprocessed_documents: bool
   use_cached_umap_embeddings: bool
+  use_visualization_vectors: bool
   targets: Optional[list[str]]
 
 class DocumentTopicMappingUpdateSchema(pydantic.BaseModel):
