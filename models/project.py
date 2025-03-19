@@ -70,7 +70,6 @@ class ProjectMutationSchema(pydantic.BaseModel):
   source: DataSourceField
   data_schema: SchemaManager
 
-
 __all__ = [
   "ProjectResource",
 

@@ -22,6 +22,8 @@ class TaskEngine(metaclass=Singleton):
   def __init__(self) -> None:
     super().__init__()
     self.ongoing_tasks = {}
+    self.handlers = {}
+    self.results = {}
     self.lock = threading.Lock()
 
   def handle_task(self, handler: TaskHandlerFn, message: TaskRequest):
@@ -101,10 +103,13 @@ class TaskEngine(metaclass=Singleton):
   ):
     self.pool = pool
     self.results = {}
+    self.handlers = {}
     logger.info("Initialized TaskEngine.")
 
   def register(self, type: TaskRequestType, handler: TaskHandlerFn):
     with self.lock:
+      if self.handlers is None:
+        self.handlers = {}
       self.handlers[type] = handler
 
 __all__ = [

@@ -102,8 +102,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
   cache.save_workspace(df)
 
   return ApiResult(
-    data="The topics have been successfully updated to your specifications.",
-    message=None,
+    data=None,
+    message="The topics have been successfully updated to your specifications.",
   )
 
 __all__ = [

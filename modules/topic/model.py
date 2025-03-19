@@ -4,9 +4,7 @@ from typing import Optional
 import pandas as pd
 import pydantic
 
-from modules.baseclass import ValueCarrier
 from modules.project.paths import ProjectPathManager, ProjectPaths
-
 
 class Topic(pydantic.BaseModel):
   id: int

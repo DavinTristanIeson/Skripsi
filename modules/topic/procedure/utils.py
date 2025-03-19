@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 
 from modules.api import ApiError
+from modules.project.paths import ProjectPaths
 from modules.task import TaskPayload
-from modules.config import Config, ProjectPaths, TextualSchemaColumn
+from modules.config import Config, TextualSchemaColumn
 
 if TYPE_CHECKING:
   from bertopic import BERTopic

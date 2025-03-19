@@ -14,6 +14,7 @@ import routes
 from modules.logger import ProvisionedLogger
 from modules.task import TaskEngine
 from modules.api import register_error_handlers
+from modules.scheduler import scheduler
 
 task_server = TaskEngine()
 task_server.initialize(
@@ -23,12 +24,11 @@ task_server.initialize(
 @asynccontextmanager
 async def lifespan(app):
   try:
+    scheduler.start()
     yield
   except asyncio.exceptions.CancelledError:
     pass
-  task_server.clear_tasks()
-  task_server.pool.shutdown(cancel_futures=True)
-
+  scheduler.shutdown()
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -37,7 +37,6 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"]
 )
-
 
 is_app = os.getenv("APP")
 ProvisionedLogger().configure(
@@ -56,6 +55,7 @@ api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.debug.router, prefix="/debug")
 api_app.include_router(routes.table.router, prefix="/table/{project_id}")
+api_app.include_router(routes.topic.router, prefix="/topics/{project_id}")
 register_error_handlers(api_app)
 
 app.mount('/api', api_app)
