@@ -54,7 +54,6 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
-  import copy
   df = cache.load_workspace()
   config = cache.config
 

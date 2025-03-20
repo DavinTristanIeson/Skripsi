@@ -1,9 +1,12 @@
 from fastapi import APIRouter
 
-from controllers.topic.crud import refine_topics
 from modules.api.wrapper import ApiResult
 from modules.table import PaginationParams
+from modules.table.pagination import TablePaginationApiResult
+from modules.task.responses import TaskResponse
+from modules.topic.model import TopicModelingResult
 
+from controllers.topic.crud import refine_topics
 from controllers.project import ProjectCacheDependency
 from controllers.topic import (
   TextualSchemaColumnDependency, TopicExistsDependency,
@@ -11,31 +14,28 @@ from controllers.topic import (
   check_topic_modeling_status, start_topic_modeling
 )
 from models.topic import DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema
-from modules.table.pagination import TablePaginationApiResult
-from modules.task.responses import TaskResponse
-from modules.topic.model import TopicModelingResult
 
 
 router = APIRouter(
   tags=["Topic Modeling"]
 )
 
-@router.post("/topic-modeling")
-def post__start_topic_modeling(body: StartTopicModelingSchema, cache: ProjectCacheDependency)->ApiResult[None]:
-  return start_topic_modeling(body, cache)
+@router.post("/start")
+def post__start_topic_modeling(body: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumnDependency)->ApiResult[None]:
+  return start_topic_modeling(body, cache, column)
 
-@router.get("/topic-modeling/status")
-def get__topic_modeling__status(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency)->TaskResponse:
+@router.get("/status")
+def get__topic_modeling__status(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency)->TaskResponse[TopicModelingResult]:
   return check_topic_modeling_status(cache, column)
 
-@router.get("/{column}/topics")
-def get__topics(topic_modeling_result: TopicModelingResultDependency)->ApiResult[TopicModelingResult]:
+@router.get("")
+def get__topics(topic_modeling_result: TopicModelingResultDependency, column: TextualSchemaColumnDependency)->ApiResult[TopicModelingResult]:
   return ApiResult(
     data=topic_modeling_result,
     message=None,
   )
 
-@router.get("/{column}/topics/refine")
+@router.put("/{column}/topics/refine")
 def refine__topics(
   body: RefineTopicsSchema,
   cache: ProjectCacheDependency,

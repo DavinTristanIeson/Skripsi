@@ -36,6 +36,8 @@ class BERTopicProcedureFacade:
       procedure.run()
     self.task.log_success(f"Finished discovering topics from \"{column.name}\" in Project \"{config.metadata.name}\" (data sourced from {config.source.path})")
     self.task.success(state.result)
+
+    return state
   
 __all__ = [
   "BERTopicProcedureFacade",

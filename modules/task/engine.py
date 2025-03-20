@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 
@@ -6,14 +5,18 @@ from modules.baseclass import Singleton
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.responses import TaskResponse
 
+topic_modeling_job_store = MemoryJobStore()
 scheduler = AsyncIOScheduler(
-  jobstores=dict(default=MemoryJobStore()),
-  executors=dict(default=ThreadPoolExecutor(max_workers=1)),
+  jobstores=dict(
+    default=MemoryJobStore(),
+    topic_modeling=topic_modeling_job_store
+  )
 )
 
 # Register apscheduler logger
 ProvisionedLogger().provision("apscheduler")
 
 __all__ = [
-  "scheduler"
+  "scheduler",
+  "topic_modeling_job_store"
 ]

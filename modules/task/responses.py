@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 import pydantic
 
 from modules.api import ExposedEnum
@@ -28,7 +28,7 @@ class TaskResponse(pydantic.BaseModel, Generic[T]):
   model_config = pydantic.ConfigDict(use_enum_values=True)
   
   id: str
-  data: T
+  data: Optional[T]
   logs: list[TaskLog]
   status: TaskStatusEnum
   

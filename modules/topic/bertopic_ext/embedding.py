@@ -50,15 +50,15 @@ class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransfor
   def embedding_model_path(self):
     return ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
   
-  def _save_model(self, model: Doc2Vec):
+  def _save_model(self, model: "Doc2Vec"):
     model.save(self.embedding_model_path)
   
-  def _load_model(self):
+  def _load_model(self)->"Doc2Vec":
     from gensim.models import Doc2Vec
     model = Doc2Vec.load(self.embedding_model_path)
-    return model
+    return cast(Doc2Vec, model)
   
-  def load_default_model(self):
+  def load_default_model(self)->"Doc2Vec":
     try:
       from gensim.models import Doc2Vec
       return Doc2Vec(dm=0, dbow_words=0, min_count=1, vector_size=100)
@@ -67,7 +67,7 @@ class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransfor
   
 @dataclass
 class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel):
-  model: Doc2Vec = field(init=False)
+  model: "Doc2Vec" = field(init=False)
 
   @classmethod
   def preference(cls):

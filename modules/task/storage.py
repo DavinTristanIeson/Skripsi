@@ -1,13 +1,10 @@
 from dataclasses import dataclass
-import http
 import threading
-from typing import Callable
+from typing import Any, Callable
 
 from modules.baseclass import Singleton
 from modules.logger import ProvisionedLogger
-from modules.api import ApiError
-from .requests import TaskRequest
-from .responses import TaskLog, TaskResponse, TaskResponseData, TaskStatusEnum
+from .responses import TaskLog, TaskResponse, TaskStatusEnum
 
 logger = ProvisionedLogger().provision("Task")
 
@@ -17,13 +14,20 @@ class TaskStorageProxy:
   lock: threading.Lock
   results: dict[str, TaskResponse]
 
+  def initialize(self):
+    response = TaskResponse(
+      id=self.id,
+      data=None,
+      logs=[],
+      status=TaskStatusEnum.Idle,
+    )
+    self.results[self.id] = response
+    return response
+
   @property
   def task(self)->"TaskResponse":
     if self.id not in self.results:
-      raise ApiError(
-        f"The task \"{self.id}\" has not been created yet. This should be a developer oversight. Try re-executing the procedure again.",
-        http.HTTPStatus.INTERNAL_SERVER_ERROR
-      )
+      return self.initialize()
     return self.results[self.id]
 
   def log(self, message: str, status: TaskStatusEnum):
@@ -43,8 +47,8 @@ class TaskStorageProxy:
   def log_pending(self, message: str):
     self.log(message, TaskStatusEnum.Pending)
     
-  def success(self, data: TaskResponseData.TypeUnion):
-    logger.info(data)
+  def success(self, data: Any):
+    logger.info(f"TASK {self.id} SUCCESS: {data}")
     with self.lock:
       task = self.task
       task.status = TaskStatusEnum.Success

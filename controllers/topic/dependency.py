@@ -2,15 +2,14 @@ import http
 import os
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from controllers.project.dependency import ProjectCacheDependency
 from modules.api.wrapper import ApiError
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.topic.model import Topic, TopicModelingResult
 
-
-def _is_textual_column(column: str, cache: ProjectCacheDependency):
+def _is_textual_column(column: Annotated[str, Query], cache: ProjectCacheDependency):
   col = cache.config.data_schema.assert_of_type(column, [SchemaColumnTypeEnum.Textual])
   return col
 
