@@ -8,7 +8,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.project.cache import ProjectCacheManager, get_cached_data_source
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
-from modules.task.engine import TaskEngine
+from modules.task.engine import scheduler, topic_modeling_job_store
 
 from .dependency import _assert_project_id_doesnt_exist
 
@@ -107,7 +107,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
-  TaskEngine().clear_tasks(new_config.project_id)
+  scheduler.remove_all_jobs(topic_modeling_job_store)
   new_config.paths._cleanup([], cleanup_targets)
 
   return ApiResult(
@@ -121,7 +121,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
 def delete_project(config: Config):
   config.paths.cleanup(all=True)
-  TaskEngine().clear_tasks()
+  scheduler.remove_all_jobs(topic_modeling_job_store)
   ProjectCacheManager().invalidate(config.project_id)
 
   return ApiResult(

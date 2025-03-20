@@ -1,27 +1,30 @@
+import http
 from typing import Any, Optional, cast
 
 import pandas as pd
 import numpy as np
 
+from models.table import DescriptiveStatisticsResource
 from modules.api import ApiResult
+from modules.api.wrapper import ApiError
 from modules.project.cache import get_cached_data_source
 from modules.logger import ProvisionedLogger
 from modules.config import SchemaColumnTypeEnum
 
-from models.project import CheckDatasetColumnSchema, CheckDatasetResource, CheckDatasetSchema, InferDatasetColumnResource, InferDatasetDescriptiveStatisticsResource, DatasetPreviewResource
+from models.project import CheckDatasetColumnSchema, CheckDatasetResource, CheckDatasetSchema, InferDatasetColumnResource, DatasetPreviewResource
 
 logger = ProvisionedLogger().provision("Project Controller")
 
 def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeEnum):
   data = df[column]
-  descriptive_statistics: Optional[InferDatasetDescriptiveStatisticsResource] = None
+  descriptive_statistics: Optional[DescriptiveStatisticsResource] = None
   categories: Optional[list[str]] = None
   if dtype == SchemaColumnTypeEnum.Textual:
     data = data.astype(str)
-    descriptive_statistics = InferDatasetDescriptiveStatisticsResource.from_series(data.str.len())
+    descriptive_statistics = DescriptiveStatisticsResource.from_series(data.str.len())
   elif dtype == SchemaColumnTypeEnum.Continuous:
     data = data.astype(np.float64)
-    descriptive_statistics = InferDatasetDescriptiveStatisticsResource.from_series(data)
+    descriptive_statistics = DescriptiveStatisticsResource.from_series(data)
   elif dtype == SchemaColumnTypeEnum.OrderedCategorical:
     data = data.astype(str)
     categories = sorted(set(map(str, data.unique())))
@@ -87,6 +90,8 @@ def infer_columns_from_dataset(body: CheckDatasetSchema):
 
 def infer_column_from_dataset(body: CheckDatasetColumnSchema):
   df = get_cached_data_source(body.source)
+  if len(set(df.columns)) != len(df.columns):
+    raise ApiError("There are duplicate columns in the dataset!", http.HTTPStatus.BAD_REQUEST)
   inferred = infer_column_by_type(body.column, df, body.dtype)
 
   return ApiResult(

@@ -54,10 +54,10 @@ def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: 
   else:
     return str(value)
   
-_AnyTableFilter = _BaseTableFilter | _BaseCompoundTableFilter
+
 class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.And] = TableFilterTypeEnum.And
-  operands: list[_AnyTableFilter] = pydantic.Field(min_length=1)
+  operands: list["TableFilter"] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -71,7 +71,7 @@ class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   
 class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.Or] = TableFilterTypeEnum.Or
-  operands: list[_AnyTableFilter] = pydantic.Field(min_length=1)
+  operands: list["TableFilter"] = pydantic.Field(min_length=1)
   def __hash__(self):
     return hash(' '.join(itertools.chain(
       hex(hash(self.type)),
@@ -87,7 +87,7 @@ class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
 
 class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.Not] = TableFilterTypeEnum.Not
-  operand: _AnyTableFilter
+  operand: "TableFilter"
   def __hash__(self):
     return hash(' '.join([
       hex(hash(self.type)),
@@ -164,7 +164,7 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   def apply(self, params):
     data = access_series(self, params)
     column = params.config.data_schema.assert_exists(self.target)
-    if column.type != SchemaColumnTypeEnum.Textual:
+    if column.type not in [SchemaColumnTypeEnum.Textual, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Unique]:
       raise _TableFilterError.WrongColumnType(
         filter_type=self.type,
         column_type=column.type,

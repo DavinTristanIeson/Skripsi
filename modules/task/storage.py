@@ -1,36 +1,33 @@
 from dataclasses import dataclass
-import http
 import threading
-from typing import Callable
+from typing import Any, Callable
 
+from modules.baseclass import Singleton
 from modules.logger import ProvisionedLogger
-from modules.api import ApiError
-from .requests import TaskRequest
-from .responses import TaskLog, TaskResponse, TaskResponseData, TaskStatusEnum
+from .responses import TaskLog, TaskResponse, TaskStatusEnum
 
 logger = ProvisionedLogger().provision("Task")
 
 @dataclass
-class TaskPayload:
+class TaskStorageProxy:
   id: str
-
   lock: threading.Lock
   results: dict[str, TaskResponse]
-  stop_event: threading.Event
 
-  request: TaskRequest
+  def initialize(self):
+    response = TaskResponse(
+      id=self.id,
+      data=None,
+      logs=[],
+      status=TaskStatusEnum.Idle,
+    )
+    self.results[self.id] = response
+    return response
 
-  def check_stop(self):
-    if self.stop_event.is_set():
-      raise Exception("This process has been cancelled.")
-    
   @property
   def task(self)->"TaskResponse":
     if self.id not in self.results:
-      raise ApiError(
-        f"The task \"{self.id}\" has not been created yet. This should be a developer oversight. Try re-executing the procedure again.",
-        http.HTTPStatus.INTERNAL_SERVER_ERROR
-      )
+      return self.initialize()
     return self.results[self.id]
 
   def log(self, message: str, status: TaskStatusEnum):
@@ -40,7 +37,6 @@ class TaskPayload:
         message=message,
         status=status,
       ))
-    self.check_stop()
 
   def log_success(self, message: str):
     self.log(message, TaskStatusEnum.Success)
@@ -51,16 +47,29 @@ class TaskPayload:
   def log_pending(self, message: str):
     self.log(message, TaskStatusEnum.Pending)
     
-  def success(self, data: TaskResponseData.TypeUnion):
-    logger.info(data)
+  def success(self, data: Any):
+    logger.info(f"TASK {self.id} SUCCESS: {data}")
     with self.lock:
       task = self.task
       task.status = TaskStatusEnum.Success
       task.data = data
-    self.check_stop()
 
-TaskHandlerFn = Callable[[TaskPayload], None]
+TaskHandlerFn = Callable[[TaskStorageProxy], None]
+
+class TaskStorage(metaclass=Singleton):
+  results: dict[str, TaskResponse]
+  lock: threading.Lock
+  def __init__(self) -> None:
+    self.results = {}
+    self.lock = threading.Lock()
+  def proxy(self, result_id: str):
+    return TaskStorageProxy(
+      id=result_id,
+      lock=self.lock,
+      results=self.results,
+    )
+
 
 __all__ = [
-  "TaskPayload"
+  "TaskStorageProxy"
 ]

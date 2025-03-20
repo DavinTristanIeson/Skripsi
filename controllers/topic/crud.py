@@ -7,15 +7,14 @@ from modules.api.wrapper import ApiResult
 from modules.baseclass import ValueCarrier
 from modules.config import TextualSchemaColumn
 from modules.project.cache import ProjectCache
-from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, PaginatedApiResult
+from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, TablePaginationApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.model import Topic, TopicModelingResult
-from modules.topic.procedure.hierarchy import calculate_weighted_words_for_topic_scopes
 
 
-def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->PaginatedApiResult[DocumentPerTopicResource]:
+def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
 
@@ -46,33 +45,17 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
     )
     documents.append(document)
 
-  return PaginatedApiResult(
+  return TablePaginationApiResult(
     data=documents,
-    meta=engine.get_meta(df, params),
+    meta=engine.get_meta(documents, params),
+    columns=cache.config.data_schema.columns,
     message=None,
   )
 
-def __reconstruct_topic_hierarchy(new_hierarchy: TopicUpdateSchema):
-  children: list[Topic] = []
-  if new_hierarchy.children is not None:
-    for child in new_hierarchy.children:
-      children.append(__reconstruct_topic_hierarchy(child))
-
-  return Topic(
-    id=new_hierarchy.id,
-    children=children,
-    label=new_hierarchy.label,
-    # These two will be updated later.
-    frequency=0,
-    words=[],
-  )
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
-  import copy
   df = cache.load_workspace()
   config = cache.config
-  # This could mutate the cached model, which we want to avoid. Always load from disk.
-  bertopic_model = cache.load_bertopic(column.name, no_cache=True)
 
   from modules.topic.bertopic_ext import BERTopicInterpreter, BERTopicIndividualModels
 
@@ -93,7 +76,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
     corpus_size=len(documents)
   )
 
-  # Update c-TF-IDF
+  bertopic_model = model_builder.build()
+
   bertopic_model.update_topics(
     docs=cast(list[str], documents),
     top_n_words=bertopic_model.top_n_words,
@@ -102,29 +86,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
     topics=cast(list[int], document_topics)
   )
 
-  interpreter = BERTopicInterpreter(bertopic_model)  
-
-  new_topics = __reconstruct_topic_hierarchy(body.topics)
-
-  topic_scopes = new_topics.get_topic_scopes()
-  new_weighted_words = calculate_weighted_words_for_topic_scopes(
-    topic_scopes=topic_scopes,
-    document_topics=document_topics,
-    documents=documents,
-    interpreter=interpreter,
-  )
-
-  base_topics_mapping = {topic.id: topic for topic in interpreter.extract_topics()}
-  for topic in new_topics.iterate_base_topics():
-    topic.words = base_topics_mapping[topic.id].words
-    topic.frequency = base_topics_mapping[topic.id].frequency
-  # Resolve differences
-  for topic in new_topics.iterate_all_topics():
-    if topic.is_base:
-      continue
-    topic.words = new_weighted_words[topic.id]
-  new_topics.recalculate_frequency()
-  new_topics.reindex(ValueCarrier(0))
+  interpreter = BERTopicInterpreter(bertopic_model)
+  new_topics = interpreter.extract_topics()
 
   new_tm_result = TopicModelingResult.infer_from(
     project_id=config.project_id,
@@ -138,8 +101,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
   cache.save_workspace(df)
 
   return ApiResult(
-    data="The topics have been successfully updated to your specifications.",
-    message=None,
+    data=None,
+    message="The topics have been successfully updated to your specifications.",
   )
 
 __all__ = [

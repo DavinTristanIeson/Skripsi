@@ -1,15 +1,21 @@
+from dataclasses import dataclass
 from typing import Optional
-import pandas as pd
 import pydantic
 
-from modules.topic.model import Topic, TopicModelingResult
+@dataclass
+class TopicModelingTaskRequest:
+  project_id: str
+  column: str
+
+  @property
+  def task_id(self):
+    return f"{self.project_id}__topic-modeling__{self.column}"
 
 # Schema
 class StartTopicModelingSchema(pydantic.BaseModel):
-  use_cached_document_embeddings: bool
+  use_cached_document_vectors: bool
   use_preprocessed_documents: bool
   use_cached_umap_embeddings: bool
-  targets: Optional[list[str]]
 
 class DocumentTopicMappingUpdateSchema(pydantic.BaseModel):
   document_id: int

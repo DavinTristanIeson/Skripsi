@@ -31,4 +31,7 @@ if args.is_dev:
 print(f"{Ansi.Grey}Syncing requirements.lock file with the virtual environment.{Ansi.End}")
 subprocess.run([venvpaths.pip_sync, scripts.config.REQUIREMENTS_LOCK_PATH, "--verbose"], check=True)
 
+print(f"{Ansi.Grey}Downloading spacy pipeline model...{Ansi.End}")
+subprocess.run([venvpaths.python, "-m", "spacy", "download", "en_core_web_sm"])
+
 print(f"{Ansi.Success}The virtual environment has been set-up successfully. You may now run \"python app.py\" to start the app.{Ansi.End}")

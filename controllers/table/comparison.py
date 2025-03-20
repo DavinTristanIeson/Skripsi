@@ -84,10 +84,10 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
 
   topics = interpreter.extract_topics()
 
-  return TableTopicsResource(
+  return ApiResult(data=TableTopicsResource(
     column=column,
     topics=topics,
-  )
+  ), message=None)
   
 
 __all__ = [

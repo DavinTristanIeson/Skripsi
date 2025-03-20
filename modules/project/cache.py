@@ -84,13 +84,13 @@ class ProjectCache:
       value=df
     ))
   
-  def load_bertopic(self, column: str, *, no_cache: bool = False)->"BERTopic":
+  def load_bertopic(self, column: str)->"BERTopic":
     from bertopic import BERTopic
     from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 
     cached_model = self.bertopic_models.get(column)
     textual_column = cast(TextualSchemaColumn, self.config.data_schema.assert_of_type(column, [SchemaColumnTypeEnum.Textual]))
-    if cached_model is None or no_cache:
+    if cached_model is None:
       model_path = self.config.paths.assert_path(ProjectPaths.BERTopic(column))
       embedding_model = BERTopicModelBuilder(self.id, textual_column, corpus_size=0).build_embedding_model()
       bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)

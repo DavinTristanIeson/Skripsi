@@ -10,44 +10,33 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from modules.api import ApiError
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config import TextualSchemaColumn
+from modules.storage import CachedEmbeddingTransformerBehavior
 
-from .cache import _CachedEmbeddingModel
 if TYPE_CHECKING:
   from umap import UMAP
-
 @dataclass
-class __CachedUMAP(_CachedEmbeddingModel, abc.ABC, BaseEstimator, TransformerMixin):
+class __CachedUMAP(CachedEmbeddingTransformerBehavior, abc.ABC, BaseEstimator, TransformerMixin):
   project_id: str
   column: TextualSchemaColumn
+  low_memory: bool
   
   @property
   @abc.abstractmethod
   def model(self)->"UMAP":
     ...
 
-  def fit(self, X: np.ndarray):
-    cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings is not None:
-      return self
-    
+  def _fit(self, X: np.ndarray):
     self.model.fit(X)
-    return self
   
-  def transform(self, X: np.ndarray):
-    cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings is not None:
-      return cached_embeddings
-    embeddings = cast(np.ndarray, self.model.transform(X))
-    self.save_embeddings(embeddings)
-    return embeddings
-
-class BERTopicCachedUMAP(__CachedUMAP):
-  low_memory = True
+  def _transform(self, X: np.ndarray):
+    return cast(np.ndarray, self.model.transform(X))
+  
   @property
   def embedding_path(self):
     paths = ProjectPathManager(project_id=self.project_id)
     return paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
 
+class BERTopicCachedUMAP(__CachedUMAP):
   @functools.cached_property
   def __model(self):
     from umap import UMAP
@@ -73,7 +62,6 @@ class VisualizationCachedUMAPResult:
 
 @dataclass
 class VisualizationCachedUMAP(__CachedUMAP):
-  low_memory = True
   corpus_size: int
   topic_count: int
   @property

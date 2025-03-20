@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 from modules.logger import ProvisionedLogger
 from modules.config import TextualSchemaColumn
@@ -53,10 +53,12 @@ class BERTopicModelBuilder:
     ).build()
 
   def build_umap_model(self)->"UMAP":
-    return BERTopicCachedUMAP(
+    from umap import UMAP
+    return cast(UMAP, BERTopicCachedUMAP(
       project_id=self.project_id,
       column=self.column,
-    ) # type: ignore
+      low_memory=True,
+    ))
   
   def build_hdbscan_model(self)->"HDBSCAN":
     from hdbscan import HDBSCAN

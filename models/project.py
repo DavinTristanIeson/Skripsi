@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pydantic
 
+from models.table import DescriptiveStatisticsResource
 from modules.api import ApiError
 from modules.config.config import ProjectMetadata
 from modules.config.schema.schema_manager import SchemaManager
@@ -25,40 +26,6 @@ class ProjectResource(pydantic.BaseModel):
       path=config.paths.project_path
     )
 
-
-class InferDatasetDescriptiveStatisticsResource(pydantic.BaseModel):
-  count: float
-  mean: float
-  median: float
-  std: float
-  min: float
-  q1: float
-  q3: float
-  max: float
-  inlier_range: tuple[float, float]
-  outlier_count: int
-
-  @staticmethod
-  def from_series(column: pd.Series):
-    summary = column.describe()
-    iqr = summary["75%"] - summary["25%"]
-    inlier_range = (summary["25%"] - (1.5 * iqr), summary["75%"] + (1.5 * iqr))
-
-    inlier_mask = np.bitwise_or(column >= inlier_range[0], column <= inlier_range[1])
-    outlier_count = column[~inlier_mask].count()
-    return InferDatasetDescriptiveStatisticsResource(
-      count=summary["count"],
-      mean=summary["mean"],
-      median=summary["50%"],
-      std=summary["std"],
-      min=summary["min"],
-      q1=summary["25%"],
-      q3=summary["75%"],
-      max=summary["max"],
-      inlier_range=inlier_range,
-      outlier_count=outlier_count,
-    )
-
 class InferDatasetColumnResource(pydantic.BaseModel):
   # Configurations that FE can use to autofill schema.
   name: str
@@ -66,7 +33,7 @@ class InferDatasetColumnResource(pydantic.BaseModel):
 
   count: int
   categories: Optional[list[str]]
-  descriptive_statistics: Optional[InferDatasetDescriptiveStatisticsResource]
+  descriptive_statistics: Optional[DescriptiveStatisticsResource]
   
 
 class CheckDatasetResource(pydantic.BaseModel):
@@ -103,12 +70,10 @@ class ProjectMutationSchema(pydantic.BaseModel):
   source: DataSourceField
   data_schema: SchemaManager
 
-
 __all__ = [
   "ProjectResource",
 
   "InferDatasetColumnResource",
-  "InferDatasetDescriptiveStatisticsResource",
   
   "CheckDatasetColumnSchema",
   "CheckDatasetSchema",
