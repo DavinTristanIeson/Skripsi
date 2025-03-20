@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from modules.api.wrapper import ApiResult
+from modules.api.wrapper import ApiError, ApiResult
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse
@@ -13,7 +13,7 @@ from controllers.topic import (
   TopicModelingResultDependency, paginate_documents_per_topic,
   check_topic_modeling_status, start_topic_modeling
 )
-from models.topic import DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema
+from models.topic import ColumnTopicModelingResultResource, DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema
 
 
 router = APIRouter(
@@ -28,14 +28,26 @@ def post__start_topic_modeling(body: StartTopicModelingSchema, cache: ProjectCac
 def get__topic_modeling__status(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency)->TaskResponse[TopicModelingResult]:
   return check_topic_modeling_status(cache, column)
 
-@router.get("")
-def get__topics(topic_modeling_result: TopicModelingResultDependency, column: TextualSchemaColumnDependency)->ApiResult[TopicModelingResult]:
+@router.get("/")
+def get__all_topics(cache: ProjectCacheDependency)->ApiResult[list[ColumnTopicModelingResultResource]]:
+  config = cache.config
+  textual_columns = config.data_schema.textual()
+  topic_modeling_results: list[ColumnTopicModelingResultResource] = []
+  for column in textual_columns:
+    try:
+      result = cache.load_topic(column.name)
+    except ApiError:
+      result = None
+    topic_modeling_results.append(ColumnTopicModelingResultResource(
+      result=result,
+      column=column,
+    ))
   return ApiResult(
-    data=topic_modeling_result,
+    data=topic_modeling_results,
     message=None,
   )
 
-@router.put("/{column}/topics/refine")
+@router.put("/refine")
 def refine__topics(
   body: RefineTopicsSchema,
   cache: ProjectCacheDependency,
@@ -49,7 +61,7 @@ def refine__topics(
     column=column,
   )
 
-@router.get("/{column}/documents/{topic}")
+@router.get("/documents")
 def get__documents_per_topic(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, params: PaginationParams, topics: TopicExistsDependency)->TablePaginationApiResult[DocumentPerTopicResource]:
   return paginate_documents_per_topic(
     cache=cache,

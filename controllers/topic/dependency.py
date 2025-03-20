@@ -20,7 +20,7 @@ def _has_topic_modeling_result(column: str, cache: ProjectCacheDependency)->Topi
 
 TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
 
-def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: int)->Topic:
+def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: int = Query())->Topic:
   topic_obj = topic_modeling_result.find(topic)
   if topic_obj is None:
     raise ApiError(f"We cannot find any topic with ID: {topic}. Perhaps the file containing the topic modeling result has been corrupted; in which case, please run the topic modeling procedure again. Alternatively, consider refreshing the page to get the newest topic information.", http.HTTPStatus.BAD_REQUEST)

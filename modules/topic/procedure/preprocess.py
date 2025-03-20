@@ -4,6 +4,7 @@ from typing import Sequence
 from modules.api.wrapper import ApiError
 from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
 
@@ -20,7 +21,7 @@ class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
     self.task.log_success(f"Loaded cached dataset from \"{workspace_path}\"...")
 
     # Effect
-    self.df = df
+    self.state.df = df
 
 class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
   def run(self):
@@ -57,12 +58,17 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
     # Light preprocessing for SBERT
     sbert_documents = column.preprocessing.preprocess_light(original_documents)
-    self.task.log_pending(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
+    self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
 
     # Effect
     self.state.mask = mask
     self.state.embedding_documents = sbert_documents
     self.state.documents = preprocess_documents # type: ignore
+    self.state.model = BERTopicModelBuilder(
+      project_id=config.project_id,
+      column=column,
+      corpus_size=len(preprocess_documents)
+    ).build()
 
 __all__ = [
   "BERTopicDataLoaderProcedureComponent",

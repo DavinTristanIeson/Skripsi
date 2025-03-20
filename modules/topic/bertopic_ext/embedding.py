@@ -8,6 +8,7 @@ import os
 from typing import TYPE_CHECKING, Sequence, Union, cast
 
 import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 
 from modules.api.wrapper import ApiError
@@ -45,7 +46,7 @@ class _BaseDocumentEmbeddingModel(_DocumentEmbeddingModelDependency, CachedEmbed
   def preference(cls)->BERTopicEmbeddingModelPreprocessingPreference:
     ...
 
-class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerBehavior):
+class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerBehavior, BaseEstimator, TransformerMixin):
   @property
   def embedding_model_path(self):
     return ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
@@ -66,7 +67,7 @@ class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransfor
       raise ApiError("The gensim library must be installed before Doc2Vec document embedding can be performed.", http.HTTPStatus.BAD_REQUEST)
   
 @dataclass
-class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel):
+class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel, BaseEstimator, TransformerMixin):
   model: "Doc2Vec" = field(init=False)
 
   @classmethod
@@ -93,7 +94,7 @@ class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel):
         for doc in X
       ))
 
-class SbertEmbeddingModel(_BaseDocumentEmbeddingModel):
+class SbertEmbeddingModel(_BaseDocumentEmbeddingModel, BaseEstimator, TransformerMixin):
   @classmethod
   def preference(cls):
     return BERTopicEmbeddingModelPreprocessingPreference.Light
@@ -106,7 +107,7 @@ class SbertEmbeddingModel(_BaseDocumentEmbeddingModel):
       raise ApiError("The sentence_transformers library must be installed before SBERT document embedding can be performed.", 400)
     return SentenceTransformer("all-MiniLM-L6-v2")
 
-  def _fit(self, X: Sequence[str]):
+  def fit(self, X: Sequence[str]):
     # There's no fitting
     return self
   

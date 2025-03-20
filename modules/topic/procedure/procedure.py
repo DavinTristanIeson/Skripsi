@@ -1,9 +1,12 @@
 from dataclasses import dataclass
+from typing import cast
 
 from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.task import TaskStorageProxy
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 
 from .base import BERTopicIntermediateState, BERTopicProcedureComponent
 from .embedding import BERTopicEmbeddingProcedureComponent
@@ -23,6 +26,8 @@ class BERTopicProcedureFacade:
     column = config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual])
 
     state = BERTopicIntermediateState()
+    state.config = config
+    state.column = cast(TextualSchemaColumn, column)
     procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=state, task=self.task),
       BERTopicPreprocessProcedureComponent(state=state, task=self.task),

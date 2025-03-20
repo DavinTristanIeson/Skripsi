@@ -23,20 +23,29 @@ from modules.topic.procedure import BERTopicProcedureFacade
 logger = ProvisionedLogger().provision("Topic Controller")
 
 def topic_modeling_task(payload: TopicModelingTaskRequest):
-  task_store_proxy = TaskStorage().proxy(payload.task_id)
+  proxy = TaskStorage().proxy(payload.task_id)
+  with proxy.lock:
+    proxy.initialize()
+    proxy.task.status = TaskStatusEnum.Pending
   facade = BERTopicProcedureFacade(
-    task=task_store_proxy,
+    task=proxy,
     column=payload.column,
     project_id=payload.project_id
   )
-  facade.run()
+  try:
+    facade.run()
+  except Exception as e:
+    logger.exception(e)
+    proxy.log_error(f"We weren't able to complete the topic modeling procedure due to the following error: {e}")
+    with proxy.lock:
+      proxy.task.status = TaskStatusEnum.Failed
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
 
   cleanup_directories: list[str] = []
 
-  if not options.use_cached_umap_embeddings:
+  if not options.use_cached_umap_vectors:
     logger.info(f"Cleaning up cached UMAP embeddings from {column.name}.")
     cleanup_directories.extend([
       ProjectPaths.VisualizationEmbeddings(column.name),
@@ -77,7 +86,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     pass
 
   project_id = config.project_id
-  scheduler.add_job(topic_modeling_task, args=request, max_instances=1)
+  scheduler.add_job(topic_modeling_task, args=[request], max_instances=1)
 
   if has_pending_task:
     return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to Project \"{project_id}\". Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")

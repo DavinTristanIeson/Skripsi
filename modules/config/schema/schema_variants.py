@@ -1,3 +1,4 @@
+from enum import Enum
 import functools
 import math
 from typing import Annotated, ClassVar, Literal, Optional, Sequence, Union
@@ -6,6 +7,7 @@ import numpy as np
 import pydantic
 import pandas as pd
 
+from modules.api.enum import ExposedEnum
 from modules.validation import DiscriminatedUnionValidator
 
 from .base import _BaseMultiCategoricalSchemaColumn, _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
@@ -169,9 +171,15 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     df[self.name] = data
 
 
+class TemporalPrecisionEnum(str, Enum):
+  Date = "date"
+  DateTime = "date-time"
+ExposedEnum().register(TemporalPrecisionEnum)
+
 class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Temporal]
   datetime_format: Optional[str]
+  temporal_precision: TemporalPrecisionEnum = TemporalPrecisionEnum.DateTime
 
   MONTHS: ClassVar[list[str]] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
   DAYS_OF_WEEK: ClassVar[list[str]] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -213,12 +221,14 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     )
   
   def get_internal_columns(self):
-    return [
+    internal_columns = [
       self.year_column,
       self.month_column,
       self.day_of_week_column,
-      self.hour_column,
     ]
+    if self.temporal_precision:
+      internal_columns.append(self.hour_column)
+    return internal_columns
 
   def fit(self, df):
     if not pd.api.types.is_datetime64_any_dtype(df[self.name]):
@@ -226,6 +236,9 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       if self.datetime_format is not None:
         kwargs["format"] = self.datetime_format
       datetime_column = pd.to_datetime(df[self.name], **kwargs)
+
+      if self.temporal_precision == TemporalPrecisionEnum.Date:
+        datetime_column = datetime_column.dt.round("D")
       df[self.name] = datetime_column
     else:
       datetime_column = df[self.name]

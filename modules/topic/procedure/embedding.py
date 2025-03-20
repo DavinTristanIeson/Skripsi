@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING
 
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
 
 from .base import BERTopicProcedureComponent
 
-from ..bertopic_ext import SupportedBERTopicEmbeddingModels, BERTopicEmbeddingModelPreprocessingPreference
+from ..bertopic_ext import BERTopicEmbeddingModelPreprocessingPreference
 
 class BERTopicEmbeddingProcedureComponent(BERTopicProcedureComponent):
   def run(self):

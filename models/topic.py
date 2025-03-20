@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Optional
 import pydantic
 
+from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.topic.model import TopicModelingResult
+
 @dataclass
 class TopicModelingTaskRequest:
   project_id: str
@@ -15,7 +18,7 @@ class TopicModelingTaskRequest:
 class StartTopicModelingSchema(pydantic.BaseModel):
   use_cached_document_vectors: bool
   use_preprocessed_documents: bool
-  use_cached_umap_embeddings: bool
+  use_cached_umap_vectors: bool
 
 class DocumentTopicMappingUpdateSchema(pydantic.BaseModel):
   document_id: int
@@ -36,3 +39,7 @@ class DocumentPerTopicResource(pydantic.BaseModel):
   original: str
   preprocessed: str
   topic: int
+
+class ColumnTopicModelingResultResource(pydantic.BaseModel):
+  column: TextualSchemaColumn
+  result: Optional[TopicModelingResult]
