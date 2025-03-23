@@ -15,7 +15,6 @@ from .base import _BaseStatisticTest, SignificanceResult, _StatisticTestValidity
 logger = ProvisionedLogger().provision("TableComparisonEngine")
 
 class StatisticTestMethodEnum(str, Enum):
-  Auto = "auto"
   T = "t"
   MannWhitneyU = "mann-whitney-u"
   ChiSquared = "chi-squared"
@@ -141,39 +140,15 @@ class StatisticTestFactory:
   groups: list[pd.Series]
   preference: StatisticTestMethodEnum
   def build(self)->_BaseStatisticTest:
-    t = TStatisticTest(column=self.column, groups=self.groups)
-    mann_whitney_u = MannWhitneyUStatisticTest(column=self.column, groups=self.groups)
-    chi_squared = ChiSquaredStatisticTest(column=self.column, groups=self.groups)
-
     if self.preference == StatisticTestMethodEnum.T:
-      return t
+      return TStatisticTest(column=self.column, groups=self.groups)
     elif self.preference == StatisticTestMethodEnum.MannWhitneyU:
-      return mann_whitney_u
+      return MannWhitneyUStatisticTest(column=self.column, groups=self.groups)
     elif self.preference == StatisticTestMethodEnum.ChiSquared:
-      return chi_squared
-    
-    # Auto
-    if self.column.type == SchemaColumnTypeEnum.Categorical:
-      return chi_squared
-    elif self.column.type == SchemaColumnTypeEnum.OrderedCategorical:
-      return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.Continuous:
-      are_normals = list(map(
-        lambda group: scipy.stats.normaltest(group).pvalue < 0.05,
-        self.groups
-      ))
-      if all(are_normals):
-        return t
-      else:
-        return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.Topic:
-      return chi_squared
-    elif self.column.type == SchemaColumnTypeEnum.Temporal:
-      return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.MultiCategorical:
-      return chi_squared
+      return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"Column of type \"{self.column.type}\" cannot be compared.")
+      raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+
 
 __all__ = [
   "StatisticTestFactory",

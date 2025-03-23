@@ -8,11 +8,9 @@ import scipy.stats
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 
-from .base import _BaseEffectSize, EffectSizeResult, SignificanceResult, _StatisticTestValidityModel
-from .statistic_test import StatisticTestMethodEnum
+from .base import _BaseEffectSize, EffectSizeResult, _StatisticTestValidityModel
 
 class EffectSizeMethodEnum(str, Enum):
-  Auto = "auto"
   MeanDifference = "mean-difference"
   MedianDifference = "median-difference"
   CohensD = "cohen-d"
@@ -159,32 +157,19 @@ class EffectSizeFactory:
   column: SchemaColumn
   groups: list[pd.Series]
   preference: EffectSizeMethodEnum
-  def build(self, result: SignificanceResult)->_BaseEffectSize:
-    mean_difference = MeanDifferenceEffectSize(column=self.column, groups=self.groups)
-    median_difference = MedianDifferenceEffectSize(column=self.column, groups=self.groups)
-    cohens_d = CohenDEffectSize(column=self.column, groups=self.groups)
-    rank_biserial = RankBiserialEffectSize(column=self.column, groups=self.groups)
-    cramer_v = CramerVEffectSize(column=self.column, groups=self.groups)
-
+  def build(self)->_BaseEffectSize:
     if self.preference == EffectSizeMethodEnum.MeanDifference:
-      return mean_difference
+      return MeanDifferenceEffectSize(column=self.column, groups=self.groups)
     elif self.preference == EffectSizeMethodEnum.MedianDifference:
-      return median_difference
+      return MedianDifferenceEffectSize(column=self.column, groups=self.groups)
     elif self.preference == EffectSizeMethodEnum.CohensD:
-      return cohens_d
+      return CohenDEffectSize(column=self.column, groups=self.groups)
     elif self.preference == EffectSizeMethodEnum.RankBiserialCorrelation:
-      return rank_biserial
+      return RankBiserialEffectSize(column=self.column, groups=self.groups)
     elif self.preference == EffectSizeMethodEnum.CramerV:
-      return cramer_v
-    
-    if result.type == StatisticTestMethodEnum.ChiSquared:
-      return cramer_v
-    elif result.type == StatisticTestMethodEnum.MannWhitneyU:
-      return rank_biserial
-    elif result.type == StatisticTestMethodEnum.T:
-      return cohens_d
+      return CramerVEffectSize(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"Column of type \"{self.column.type}\" cannot be compared.")
+      raise ValueError(f"\"{self.preference}\" is not a valid effect size.")
     
 __all__ = [
   "EffectSizeFactory",

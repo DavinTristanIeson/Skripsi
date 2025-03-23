@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import pandas as pd
 import pydantic
-from typing import cast
+from typing import Sequence, cast
 
 from modules.config import Config, SchemaColumn, SchemaColumnTypeEnum, MultiCategoricalSchemaColumn
 from modules.table import TableEngine, NamedTableFilter
@@ -102,7 +102,7 @@ class TableComparisonEngine:
     if column.type == SchemaColumnTypeEnum.MultiCategorical:
       column = cast(MultiCategoricalSchemaColumn, column)
       for i in range(len(groups)):
-        groups[i] = column.flatten(column.json2list(groups[i]))
+        groups[i] = pd.Series(list(column.flatten(column.json2list(cast(Sequence[str], groups[i])))))
 
   def load(self, df: pd.DataFrame, column: SchemaColumn)->list[pd.Series]:
     data_groups: list[pd.Series] = []
@@ -113,7 +113,7 @@ class TableComparisonEngine:
       data_groups.append(data)
     return data_groups
   
-  def compare(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: StatisticTestMethodEnum = StatisticTestMethodEnum.Auto, effect_size_preference: EffectSizeMethodEnum = EffectSizeMethodEnum.Auto):
+  def compare(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: StatisticTestMethodEnum, effect_size_preference: EffectSizeMethodEnum):
     column = self.config.data_schema.assert_exists(column_name)
     groups = self.load(df, column)
     self.preprocess(groups, column)
@@ -125,14 +125,14 @@ class TableComparisonEngine:
       preference=statistic_test_preference
     ).build()
 
-    validity = statistic_test_method.check_is_valid()
-    significance = statistic_test_method.significance()
-
     effect_size_method = EffectSizeFactory(
       column=column,
       groups=groups,
       preference=effect_size_preference
-    ).build(significance)
+    ).build()
+
+    validity = statistic_test_method.check_is_valid()
+    significance = statistic_test_method.significance()
     
     validity2 = effect_size_method.check_is_valid()
     validity.merge(validity2)
