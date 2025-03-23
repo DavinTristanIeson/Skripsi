@@ -178,10 +178,14 @@ class SchemaManager(pydantic.BaseModel):
     for diff in column_diffs:
       internal_columns = diff.previous.get_internal_columns()
       if diff.current is None or diff.previous.type != diff.current.type:
-        df.drop(
-          list(map(lambda x: x.name, internal_columns)),
-          axis=1, inplace=True
-        )
+        for internal_column in internal_columns:
+          try:
+            df.drop(
+              internal_column.name,
+              axis=1, inplace=True
+            )
+          except KeyError:
+            continue
     for diff in column_diffs:
       if diff.current is None:
         continue

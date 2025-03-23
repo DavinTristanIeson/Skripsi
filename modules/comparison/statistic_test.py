@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
+from modules.comparison.utils import _chisq_prepare, _mann_whitney_u_prepare
 from modules.logger import ProvisionedLogger
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
@@ -15,7 +16,6 @@ from .base import _BaseStatisticTest, SignificanceResult, _StatisticTestValidity
 logger = ProvisionedLogger().provision("TableComparisonEngine")
 
 class StatisticTestMethodEnum(str, Enum):
-  Auto = "auto"
   T = "t"
   MannWhitneyU = "mann-whitney-u"
   ChiSquared = "chi-squared"
@@ -82,8 +82,7 @@ class MannWhitneyUStatisticTest(_BaseStatisticTest):
     return _StatisticTestValidityModel(warnings=warnings)
 
   def significance(self):
-    A = self.groups[0]
-    B = self.groups[1]
+    A, B = _mann_whitney_u_prepare(self.groups[0], self.groups[1])
     statistic, p_value = scipy.stats.mannwhitneyu(A, B)
 
     return SignificanceResult(
@@ -103,36 +102,32 @@ class ChiSquaredStatisticTest(_BaseStatisticTest):
   def get_supported_types(cls):
     return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Topic]
 
-  def contingency_table(self):
-    A = self.groups[0]
-    B = self.groups[1]
-    A_freq = A.value_counts()
-    B_freq = B.value_counts()
-    crosstab = pd.concat([A_freq, B_freq], axis=0)
-    crosstab.fillna(0, inplace=True)
-    return crosstab
-
   def _check_is_valid(self):
-    contingency_table = self.contingency_table()
+    contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=False)
     less_than_5 = contingency_table < 5
     less_than_5_indices = np.argwhere(less_than_5)
-    less_than_5_count: int = less_than_5.sum() # type: ignore
+    less_than_5_count: int = less_than_5.sum().sum()
 
     warnings: list[str] = []
     if less_than_5_count >= less_than_5.size * 0.2:
-      observations = itertools.islice(map(lambda index: f"({contingency_table.index[index[0]]} x {contingency_table.columns[index[1]]}: {contingency_table.iloc[index]} obs.)", less_than_5_indices), 5)
-      warnings.append(f"More than 20% of the contingency table has less than 5 observations: {', '.join(observations)}")
+      observations: list[str] = []
+      for index in less_than_5_indices:
+        group_name = contingency_table.columns[index[1]]
+        row_name = contingency_table.index[index[0]]
+        observations.append(f"{group_name} - {row_name} ({contingency_table.iat[index[0], index[1]]} obs.)")
+
+      warnings.append(f"More than 20% of the contingency table has less than 5 observations: {', '.join(observations[:5])}")
 
     return _StatisticTestValidityModel(warnings=warnings)
   
   def significance(self):
-    statistic, p_value = scipy.stats.chi2_contingency(
-      self.contingency_table()
+    res = scipy.stats.chi2_contingency(
+      _chisq_prepare(self.groups[0], self.groups[1], with_correction=True)
     )
     return SignificanceResult(
       type=StatisticTestMethodEnum.ChiSquared,
-      statistic=statistic, # type: ignore
-      p_value=p_value # type: ignore
+      statistic=res.statistic, # type: ignore
+      p_value=res.pvalue # type: ignore
     )
   
 @dataclass
@@ -141,39 +136,15 @@ class StatisticTestFactory:
   groups: list[pd.Series]
   preference: StatisticTestMethodEnum
   def build(self)->_BaseStatisticTest:
-    t = TStatisticTest(column=self.column, groups=self.groups)
-    mann_whitney_u = MannWhitneyUStatisticTest(column=self.column, groups=self.groups)
-    chi_squared = ChiSquaredStatisticTest(column=self.column, groups=self.groups)
-
     if self.preference == StatisticTestMethodEnum.T:
-      return t
+      return TStatisticTest(column=self.column, groups=self.groups)
     elif self.preference == StatisticTestMethodEnum.MannWhitneyU:
-      return mann_whitney_u
+      return MannWhitneyUStatisticTest(column=self.column, groups=self.groups)
     elif self.preference == StatisticTestMethodEnum.ChiSquared:
-      return chi_squared
-    
-    # Auto
-    if self.column.type == SchemaColumnTypeEnum.Categorical:
-      return chi_squared
-    elif self.column.type == SchemaColumnTypeEnum.OrderedCategorical:
-      return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.Continuous:
-      are_normals = list(map(
-        lambda group: scipy.stats.normaltest(group).pvalue < 0.05,
-        self.groups
-      ))
-      if all(are_normals):
-        return t
-      else:
-        return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.Topic:
-      return chi_squared
-    elif self.column.type == SchemaColumnTypeEnum.Temporal:
-      return mann_whitney_u
-    elif self.column.type == SchemaColumnTypeEnum.MultiCategorical:
-      return chi_squared
+      return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"Column of type \"{self.column.type}\" cannot be compared.")
+      raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+
 
 __all__ = [
   "StatisticTestFactory",
