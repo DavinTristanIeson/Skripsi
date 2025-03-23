@@ -48,7 +48,7 @@ class _BaseValidatedComparison(abc.ABC):
     is_normal = normaltest_result < 0.05
     warnings = []
     if not is_normal:
-      warnings.append(f"{self.get_name()} expects the samples to be normally distributed, but \"{data.name}\" does not follow a normal distribution (confidence: {1 - normaltest_result}).")
+      warnings.append(f"{self.get_name()} expects the samples to be normally distributed, but \"{data.name}\" does not follow a normal distribution (confidence: {(1 - normaltest_result)*100:.2f}%).")
     return warnings
 
   @abc.abstractmethod

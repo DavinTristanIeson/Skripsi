@@ -6,6 +6,7 @@ import pandas as pd
 import scipy.stats
 
 from modules.api import ExposedEnum
+from modules.comparison.utils import _chisq_prepare, _mann_whitney_u_prepare
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 
 from .base import _BaseEffectSize, EffectSizeResult, _StatisticTestValidityModel
@@ -71,11 +72,7 @@ class CohenDEffectSize(_BaseEffectSize):
     return [SchemaColumnTypeEnum.Continuous]
   
   def _check_is_valid(self):
-    warnings = [
-      *self.check_normality(self.groups[0]),
-      *self.check_normality(self.groups[1]),
-    ]
-    return _StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel()
   
   def effect_size(self):
     X = self.groups[0]
@@ -107,19 +104,15 @@ class RankBiserialEffectSize(_BaseEffectSize):
     return _StatisticTestValidityModel()
 
   def effect_size(self):
-    X = self.groups[0]
-    Y = self.groups[1]
-    NX = len(X)
-    NY = len(Y)
-
-    U, pvalue = scipy.stats.mannwhitneyu(X, Y)
-    # A bit silly that we have to run a Mann Whitney U Test again, but oh well.
-    # It's better than making a mistake with the actual full formula.
-    # Based on https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Rank-biserial_correlation
-    rb = (2 * U) / (NX * NY) - 1
+    A, B = _mann_whitney_u_prepare(self.groups[0], self.groups[1])
+    full_data = np.hstack([A, B])
+    ranks = scipy.stats.rankdata(full_data)
+    ranks_a = ranks[:len(A)]
+    ranks_b = ranks[len(A):]
+    rank_biserial = 2 * (ranks_a.mean() - ranks_b.mean()) / len(full_data)
     return EffectSizeResult(
       type=EffectSizeMethodEnum.RankBiserialCorrelation,
-      value=rb,
+      value=rank_biserial,
     )
   
 class CramerVEffectSize(_BaseEffectSize):
@@ -133,19 +126,9 @@ class CramerVEffectSize(_BaseEffectSize):
   
   def _check_is_valid(self):
     return _StatisticTestValidityModel()
-  
-  
-  def contingency_table(self):
-    A = self.groups[0]
-    B = self.groups[1]
-    A_freq = A.value_counts()
-    B_freq = B.value_counts()
-    crosstab = pd.concat([A_freq, B_freq], axis=0)
-    crosstab.fillna(0, inplace=True)
-    return crosstab
 
   def effect_size(self):
-    contingency_table = self.contingency_table()
+    contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=True)
     V = scipy.stats.contingency.association(contingency_table, method="cramer")
     return EffectSizeResult(
       type=EffectSizeMethodEnum.CramerV,

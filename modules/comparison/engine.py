@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import numpy as np
 import pandas as pd
 import pydantic
 from typing import Sequence, cast
@@ -17,8 +18,11 @@ logger = ProvisionedLogger().provision("TableComparisonEngine")
 
 class TableComparisonGroupInfo(pydantic.BaseModel):
   name: str
-  sample_size: int
-  invalid_size: int
+  empty_count: int
+  overlap_count: int
+  valid_count: int
+  total_count: int
+
 
 class TableComparisonResult(pydantic.BaseModel):
   warnings: list[str]
@@ -61,48 +65,53 @@ class TableComparisonEngine:
       warnings=warnings
     )
 
-  def _exclude_overlapping_rows(self, groups: list[pd.Series]):
+  def _exclude_overlapping_rows(self, groups: list[pd.Series], group_info: list[TableComparisonGroupInfo]):
+    valid_mask = list(map(lambda group: np.full(len(group), 1, dtype=np.bool_), groups))
     for i in range(len(groups)):
       for j in range(i + 1, len(groups)):
         data_A = groups[i].index
         data_B = groups[j].index
         overlap = data_A.intersection(data_B) # type: ignore
-        groups[i].drop(overlap, axis=0, inplace=True)
-        groups[j].drop(overlap, axis=0, inplace=True)
-        logger.info(f"Dropped {len(overlap)} rows from {groups[i].name} and {groups[j].name} because they overlap.")
+        valid_mask[i][overlap] = 0
+        valid_mask[j][overlap] = 0
+    
+    for i, mask in enumerate(valid_mask):
+      groups[i] = groups[i][mask]
+      overlap_count = int(len(mask) - mask.sum())
+      group_info[i].overlap_count = overlap_count
+      logger.info(f"Dropped {overlap_count} overlapping rows from {groups[i].name}.")
 
-  def _exclude_na_rows(self, groups: list[pd.Series])->list[int]:
-    invalid_count = []
+  def _exclude_na_rows(self, groups: list[pd.Series], group_info: list[TableComparisonGroupInfo]):
     for i in range(len(groups)):
       data = groups[i]
       notna_mask = data.notna()
       groups[i] = data[notna_mask]
-      invalid_count.append(len(data) - notna_mask.count())
-    return invalid_count
-  
-  def get_groups_info(self, groups: list[pd.Series])->list[TableComparisonGroupInfo]:
-    return list(map(
-      lambda group: TableComparisonGroupInfo(
-        name=str(group.name),
-        invalid_size=group.isna().sum(),
-        sample_size=len(group),
-      ),
-      groups
-    ))
+      group_info[i].empty_count = int(len(data) - notna_mask.count())
       
   def check_is_valid(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     validity1 = self._are_compared_groups_overlapping(groups)
     validity2 = self._are_samples_large_enough(groups)
     return validity1.merge(validity2)
 
-  def preprocess(self, groups: list[pd.Series], column: SchemaColumn)->None:
-    self._exclude_na_rows(groups)
+  def preprocess(self, groups: list[pd.Series], column: SchemaColumn)->list[TableComparisonGroupInfo]:
+    group_info = list(map(lambda group: TableComparisonGroupInfo(
+      name=str(group.name),
+      empty_count=0,
+      overlap_count=0,
+      valid_count=len(group),
+      total_count=len(group),
+    ), groups))
     if self.exclude_overlapping_rows:
-      self._exclude_overlapping_rows(groups)
+      self._exclude_overlapping_rows(groups, group_info)
+    self._exclude_na_rows(groups, group_info)
+    for group, ginfo in zip(groups, group_info):
+      ginfo.valid_count = len(group)
+
     if column.type == SchemaColumnTypeEnum.MultiCategorical:
       column = cast(MultiCategoricalSchemaColumn, column)
       for i in range(len(groups)):
         groups[i] = pd.Series(list(column.flatten(column.json2list(cast(Sequence[str], groups[i])))))
+    return group_info
 
   def load(self, df: pd.DataFrame, column: SchemaColumn)->list[pd.Series]:
     data_groups: list[pd.Series] = []
@@ -116,7 +125,7 @@ class TableComparisonEngine:
   def compare(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: StatisticTestMethodEnum, effect_size_preference: EffectSizeMethodEnum):
     column = self.config.data_schema.assert_exists(column_name)
     groups = self.load(df, column)
-    self.preprocess(groups, column)
+    group_info = self.preprocess(groups, column)
     validity = self.check_is_valid(groups)
 
     statistic_test_method = StatisticTestFactory(
@@ -137,8 +146,6 @@ class TableComparisonEngine:
     validity2 = effect_size_method.check_is_valid()
     validity.merge(validity2)
     effect_size = effect_size_method.effect_size()
-
-    group_info = self.get_groups_info(groups)
 
     return TableComparisonResult(
       effect_size=effect_size,
