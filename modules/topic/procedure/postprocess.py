@@ -27,7 +27,11 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     documents = self.state.documents
     document_topic_assignments = self.state.document_topic_assignments
     interpreter = BERTopicInterpreter(self.state.model)
-    umap_model = BERTopicIndividualModels.cast(model).umap_model
+    umap_model = BERTopicCachedUMAP(
+      column=column,
+      project_id=config.project_id,
+      low_memory=True,
+    )
 
     # Compute
     self.task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
@@ -45,7 +49,7 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     
     raw_topic_vectors: list[np.ndarray] = []
     for topic in range(interpreter.topic_count):
-      raw_topic_vectors.append(document_vectors[document_topic_assignments == topic].mean())
+      raw_topic_vectors.append(document_vectors[document_topic_assignments == topic].mean(axis=0))
     topic_vectors = np.array(raw_topic_vectors)
     high_dimensional_vectors = np.vstack([document_vectors, topic_vectors])
     vis_umap_model.fit_transform(high_dimensional_vectors)

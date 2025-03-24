@@ -51,7 +51,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         nlp.Defaults.stop_words.remove(token.lower())
       tokenizer.add_special_case(token, [{
         "ORTH": token,
-        "LEMMA": token,
+        "NORM": token,
       }])
   
     return nlp

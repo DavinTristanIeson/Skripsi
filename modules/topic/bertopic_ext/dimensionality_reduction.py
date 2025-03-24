@@ -25,16 +25,12 @@ class __CachedUMAP(CachedEmbeddingTransformerBehavior, abc.ABC, BaseEstimator, T
   def model(self)->"UMAP":
     ...
 
-  def _fit(self, X: np.ndarray):
-    self.model.fit(X)
-  
+  def fit(self, X: np.ndarray):
+    return self
+
   def _transform(self, X: np.ndarray):
-    return cast(np.ndarray, self.model.transform(X))
-  
-  @property
-  def embedding_path(self):
-    paths = ProjectPathManager(project_id=self.project_id)
-    return paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
+    return cast(np.ndarray, self.model.fit_transform(X))
+
 
 class BERTopicCachedUMAP(__CachedUMAP):
   @functools.cached_property
@@ -44,6 +40,7 @@ class BERTopicCachedUMAP(__CachedUMAP):
       n_neighbors=self.column.topic_modeling.reference_document_count
         or self.column.topic_modeling.min_topic_size,
       min_dist=0.1,
+      n_jobs=1,
       # BERTopic uses 5 dimensions
       n_components=5,
       metric="euclidean",
@@ -54,6 +51,10 @@ class BERTopicCachedUMAP(__CachedUMAP):
   def model(self):
     return self.__model
 
+  @property
+  def embedding_path(self):
+    paths = ProjectPathManager(project_id=self.project_id)
+    return paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
 
 @dataclass
 class VisualizationCachedUMAPResult:

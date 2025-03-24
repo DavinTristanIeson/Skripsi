@@ -18,14 +18,16 @@ class ProjectPaths(SimpleNamespace):
   TopicsFolder = "topics"
 
   @staticmethod
-  def Topics(column: str):
-    return os.path.join(ProjectPaths.TopicsFolder, f"{column}.json")
-
-  EmbeddingsFolder = "embedding"
+  def hash_name(name: str)->str:
+    import base64
+    encoded_name = base64.b64encode(name.encode('utf-8'))
+    return encoded_name.decode('utf-8')
 
   @staticmethod
-  def hash_name(name: str):
-    return hex(hash(name))
+  def Topics(column: str):
+    return os.path.join(ProjectPaths.TopicsFolder, f"{ProjectPaths.hash_name(column)}.json")
+
+  EmbeddingsFolder = "embedding"
 
   @staticmethod
   def DocumentEmbeddings(column: str):
@@ -63,7 +65,7 @@ class ProjectPaths(SimpleNamespace):
 
   @staticmethod
   def BERTopic(column: str):
-    return os.path.join(ProjectPaths.BERTopicFolder, column)
+    return os.path.join(ProjectPaths.BERTopicFolder, ProjectPaths.hash_name(column))
   
   @staticmethod
   def TopicModelingPaths(column: str):

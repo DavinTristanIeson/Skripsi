@@ -43,33 +43,34 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
 
-  cleanup_directories: list[str] = []
+  cleanup_files: list[str] = []
 
   if not options.use_cached_umap_vectors:
     logger.info(f"Cleaning up cached UMAP embeddings from {column.name}.")
-    cleanup_directories.extend([
+    cleanup_files.extend([
       ProjectPaths.VisualizationEmbeddings(column.name),
       ProjectPaths.UMAPEmbeddings(column.name),
     ])
 
   if not options.use_cached_document_vectors:
-    cleanup_directories.append(ProjectPaths.DocumentEmbeddings(column.name))
+    cleanup_files.append(ProjectPaths.DocumentEmbeddings(column.name))
     logger.info(f"Cleaning up cached document embeddings from {column.name}.")
   
 
   df = cache.load_workspace()
   if not options.use_preprocessed_documents:
     logger.info(f"Cleaning up cached preprocessed documents and topic column from {column.name}.")
-    df.drop(column.preprocess_column.name, axis=1, inplace=True)
-    df.drop(column.topic_column.name, axis=1, inplace=True)
+    if column.preprocess_column.name in df.columns:
+      df.drop(column.preprocess_column.name, axis=1, inplace=True)
+    if column.topic_column.name in df.columns:
+      df.drop(column.topic_column.name, axis=1, inplace=True)
     cache.save_workspace(df)
 
+  cleanup_files.append(ProjectPaths.Topics(column.name))
   cache.topics.invalidate(key=column.name)
   config.paths._cleanup(
-    directories=cleanup_directories,
-    files=[
-      ProjectPaths.Topics(column.name)
-    ]
+    directories=[],
+    files=cleanup_files,
   )
 
 

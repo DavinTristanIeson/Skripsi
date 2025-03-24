@@ -110,7 +110,7 @@ class CachedEmbeddingTransformerBehavior(CachedEmbeddingBehavior, abc.ABC, Gener
 
   def transform(self, X: TInput):
     cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings:
+    if cached_embeddings is not None:
       return cached_embeddings
     
     embeddings = self._transform(X)

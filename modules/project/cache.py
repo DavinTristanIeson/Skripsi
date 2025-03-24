@@ -27,11 +27,11 @@ class ProjectCache:
     init=False,
   )
   topics: CacheClient[TopicModelingResult] = field(
-    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=None),
+    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=10 * 60),
     init=False,
   )
   bertopic_models: CacheClient["BERTopic"] = field(
-    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=None),
+    default_factory=lambda: CacheClient(name="Topics", maxsize=None, ttl=10 * 60),
     init=False,
   )
 
@@ -103,9 +103,9 @@ class ProjectCache:
       return cached_model
     
   def save_bertopic(self, model: "BERTopic", column:str):
-    model_path = self.config.paths.assert_path(ProjectPaths.BERTopic(column))
-    logger.info(f"Saved BERTopic model in \"{model_path}\".")
+    model_path = self.config.paths.allocate_path(ProjectPaths.BERTopic(column))
     model.save(model_path, "safetensors", save_ctfidf=True)
+    logger.info(f"Saved BERTopic model in \"{model_path}\".")
     self.bertopic_models.set(CacheItem(
       key=column,
       value=model,
