@@ -9,6 +9,7 @@ from models.topic import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
+from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
   scheduler,
@@ -42,6 +43,8 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
+  cache.topics.invalidate(key=column.name)
+  cache.bertopic_models.invalidate(key=column.name)
 
   cleanup_files: list[str] = []
 
@@ -67,9 +70,9 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     cache.save_workspace(df)
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
-  cache.topics.invalidate(key=column.name)
+  ProjectCacheManager().invalidate(config.project_id)
   config.paths._cleanup(
-    directories=[],
+    directories=[ProjectPaths.BERTopic(column.name)],
     files=cleanup_files,
   )
 
@@ -110,9 +113,12 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
   if result is not None:
     return result
 
-  bertopic_path = config.paths.full_path(ProjectPaths.BERTopic(column.name))
-  if os.path.exists(bertopic_path):
+  try:
     topics = cache.load_topic(column.name)
+  except ApiError:
+    topics = None
+  
+  if topics is not None:
     response = TaskResponse(
       id=request.task_id,
       logs=[

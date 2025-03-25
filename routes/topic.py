@@ -6,14 +6,14 @@ from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse
 from modules.topic.model import TopicModelingResult
 
-from controllers.topic.crud import refine_topics
+from controllers.topic.crud import get_filtered_topics_of_column, refine_topics
 from controllers.project import ProjectCacheDependency
 from controllers.topic import (
   TextualSchemaColumnDependency, TopicExistsDependency,
   TopicModelingResultDependency, paginate_documents_per_topic,
   check_topic_modeling_status, start_topic_modeling
 )
-from models.topic import ColumnTopicModelingResultResource, DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema
+from models.topic import ColumnTopicModelingResultResource, DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema, TopicsOfColumnSchema
 
 
 router = APIRouter(
@@ -29,7 +29,7 @@ def get__topic_modeling__status(cache: ProjectCacheDependency, column: TextualSc
   return check_topic_modeling_status(cache, column)
 
 @router.get("/")
-def get__all_topics(cache: ProjectCacheDependency)->ApiResult[list[ColumnTopicModelingResultResource]]:
+def get__all_topic_modeling_results(cache: ProjectCacheDependency)->ApiResult[list[ColumnTopicModelingResultResource]]:
   config = cache.config
   textual_columns = config.data_schema.textual()
   topic_modeling_results: list[ColumnTopicModelingResultResource] = []
@@ -47,8 +47,14 @@ def get__all_topics(cache: ProjectCacheDependency)->ApiResult[list[ColumnTopicMo
     message=None,
   )
 
+@router.post("/topics")
+def get__all_topics(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, tm_result: TopicModelingResultDependency, body: TopicsOfColumnSchema)->ApiResult[TopicModelingResult]:
+  if body.filter is None:
+    return ApiResult(data=tm_result, message=None)
+  return get_filtered_topics_of_column(cache, body, tm_result, column)
+
 @router.put("/refine")
-def refine__topics(
+def put__refine_topics(
   body: RefineTopicsSchema,
   cache: ProjectCacheDependency,
   column: TextualSchemaColumnDependency,
@@ -61,11 +67,11 @@ def refine__topics(
     column=column,
   )
 
-@router.get("/documents")
-def get__documents_per_topic(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, params: PaginationParams, topics: TopicExistsDependency)->TablePaginationApiResult[DocumentPerTopicResource]:
+@router.post("/documents")
+def post__documents_per_topic(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, params: PaginationParams, topic: TopicExistsDependency)->TablePaginationApiResult[DocumentPerTopicResource]:
   return paginate_documents_per_topic(
     cache=cache,
     column=column,
     params=params,
-    topics=topics,
+    topic=topic,
   )

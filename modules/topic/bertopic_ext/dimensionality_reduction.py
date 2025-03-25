@@ -29,7 +29,8 @@ class __CachedUMAP(CachedEmbeddingTransformerBehavior, abc.ABC, BaseEstimator, T
     return self
 
   def _transform(self, X: np.ndarray):
-    return cast(np.ndarray, self.model.fit_transform(X))
+    low_dimensional_points = self.model.fit_transform(X)
+    return cast(np.ndarray, low_dimensional_points)
 
 
 class BERTopicCachedUMAP(__CachedUMAP):

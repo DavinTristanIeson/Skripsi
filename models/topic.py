@@ -3,6 +3,7 @@ from typing import Optional
 import pydantic
 
 from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.table.filter_variants import TableFilter
 from modules.topic.model import TopicModelingResult
 
 @dataclass
@@ -32,6 +33,9 @@ class TopicUpdateSchema(pydantic.BaseModel):
 class RefineTopicsSchema(pydantic.BaseModel):
   topics: TopicUpdateSchema
   document_topics: list[DocumentTopicMappingUpdateSchema]
+
+class TopicsOfColumnSchema(pydantic.BaseModel):
+  filter: Optional[TableFilter]
 
 # Resource
 class DocumentPerTopicResource(pydantic.BaseModel):
