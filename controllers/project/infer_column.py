@@ -103,7 +103,11 @@ def get_dataset_preview(body: CheckDatasetSchema):
   df = get_cached_data_source(body.root)
   dataset_columns=list(df.columns)
   total_rows=len(df)
-  preview_rows=cast(list[dict[str, Any]], df.head(15).to_dict(orient="records"))
+
+  df = df.head(15) 
+  df["__index"] = df.index
+
+  preview_rows=cast(list[dict[str, Any]], df.to_dict(orient="records"))
   return ApiResult(
     data=DatasetPreviewResource(
       dataset_columns=dataset_columns,

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import functools
 from math import ceil
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, cast
 import pandas as pd
 
 from modules.logger import TimeLogger
@@ -88,13 +88,18 @@ class TableEngine:
         self.save_to_cache(df, params.filter, params.sort)
       else:
         df = cached_df
+    meta = self.get_meta(cast(Sequence[Any], df), params)
     if params.limit is not None:
       page = params.page or 0
       from_idx = page * params.limit
       to_idx = (page + 1) * params.limit
       df = df.iloc[from_idx:to_idx, :]
+    
+    df = self.reorder(df)
+    df["__index"] = df.index
 
-    return self.reorder(df)
+    return df, meta
+
     
 __all__ = [
   "TableEngine"

@@ -25,7 +25,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   )
   params.sort = None
   
-  filtered_df = engine.paginate(df, params)
+  filtered_df, meta = engine.paginate(df, params)
 
   documents: list[DocumentPerTopicResource] = []
   for idx, row in filtered_df.iterrows():
@@ -39,7 +39,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
   return TablePaginationApiResult(
     data=documents,
-    meta=engine.get_meta(documents, params),
+    meta=meta,
     columns=cache.config.data_schema.columns,
     message=None,
   )
