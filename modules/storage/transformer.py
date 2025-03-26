@@ -22,7 +22,7 @@ class CachedEmbeddingBehavior(abc.ABC):
     pass
 
   def save_embeddings(self, embeddings: np.ndarray):
-    logger.info(f"Saving embeddings to \"{self.embedding_path}\".")
+    logger.info(f"Saving embeddings with shape {embeddings.shape} to \"{self.embedding_path}\".")
     try:
       os.makedirs(os.path.dirname(self.embedding_path), exist_ok=True)
       np.save(self.embedding_path, embeddings)
@@ -37,7 +37,7 @@ class CachedEmbeddingBehavior(abc.ABC):
       return None
     try:
       embeddings = np.load(self.embedding_path)
-      logger.info(f"Loaded cached embeddings from \"{self.embedding_path}\".")
+      logger.info(f"Loaded cached embeddings from \"{self.embedding_path}\" with shape {embeddings.shape}.")
       return embeddings
     except Exception as e:
       # Silent failure. Continue process as normal.
@@ -110,7 +110,7 @@ class CachedEmbeddingTransformerBehavior(CachedEmbeddingBehavior, abc.ABC, Gener
 
   def transform(self, X: TInput):
     cached_embeddings = self.load_cached_embeddings()
-    if cached_embeddings:
+    if cached_embeddings is not None:
       return cached_embeddings
     
     embeddings = self._transform(X)

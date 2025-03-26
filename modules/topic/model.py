@@ -11,6 +11,8 @@ class Topic(pydantic.BaseModel):
   words: list[tuple[str, float]]
   label: Optional[str]
   frequency: int
+  description: Optional[str] = None
+  tags: Optional[list[str]] = None
 
 class TopicModelingResult(pydantic.BaseModel):
   project_id: str

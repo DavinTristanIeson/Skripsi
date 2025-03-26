@@ -9,6 +9,7 @@ from models.topic import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
+from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
   scheduler,
@@ -42,34 +43,37 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
+  cache.topics.invalidate(key=column.name)
+  cache.bertopic_models.invalidate(key=column.name)
 
-  cleanup_directories: list[str] = []
+  cleanup_files: list[str] = []
 
   if not options.use_cached_umap_vectors:
     logger.info(f"Cleaning up cached UMAP embeddings from {column.name}.")
-    cleanup_directories.extend([
+    cleanup_files.extend([
       ProjectPaths.VisualizationEmbeddings(column.name),
       ProjectPaths.UMAPEmbeddings(column.name),
     ])
 
   if not options.use_cached_document_vectors:
-    cleanup_directories.append(ProjectPaths.DocumentEmbeddings(column.name))
+    cleanup_files.append(ProjectPaths.DocumentEmbeddings(column.name))
     logger.info(f"Cleaning up cached document embeddings from {column.name}.")
   
 
   df = cache.load_workspace()
   if not options.use_preprocessed_documents:
     logger.info(f"Cleaning up cached preprocessed documents and topic column from {column.name}.")
-    df.drop(column.preprocess_column.name, axis=1, inplace=True)
-    df.drop(column.topic_column.name, axis=1, inplace=True)
+    if column.preprocess_column.name in df.columns:
+      df.drop(column.preprocess_column.name, axis=1, inplace=True)
+    if column.topic_column.name in df.columns:
+      df.drop(column.topic_column.name, axis=1, inplace=True)
     cache.save_workspace(df)
 
-  cache.topics.invalidate(key=column.name)
+  cleanup_files.append(ProjectPaths.Topics(column.name))
+  ProjectCacheManager().invalidate(config.project_id)
   config.paths._cleanup(
-    directories=cleanup_directories,
-    files=[
-      ProjectPaths.Topics(column.name)
-    ]
+    directories=[ProjectPaths.BERTopic(column.name)],
+    files=cleanup_files,
   )
 
 
@@ -109,9 +113,12 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
   if result is not None:
     return result
 
-  bertopic_path = config.paths.full_path(ProjectPaths.BERTopic(column.name))
-  if os.path.exists(bertopic_path):
+  try:
     topics = cache.load_topic(column.name)
+  except ApiError:
+    topics = None
+  
+  if topics is not None:
     response = TaskResponse(
       id=request.task_id,
       logs=[

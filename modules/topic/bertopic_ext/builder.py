@@ -86,12 +86,11 @@ class BERTopicModelBuilder:
   
   def build_vectorizer_model(self)->"CountVectorizer":
     from sklearn.feature_extraction.text import CountVectorizer
-    column = self.column
+    # We handle all preprocessing.
     vectorizer_model = CountVectorizer(
-      min_df=column.preprocessing.min_df,
-      max_df=column.preprocessing.max_df,
+      min_df=1,
+      max_df=1,
       stop_words=None,
-      ngram_range=column.topic_modeling.n_gram_range
     )
     return vectorizer_model
   

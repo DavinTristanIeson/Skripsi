@@ -139,7 +139,8 @@ class BERTopicInterpreter:
     # Get the average between global and local. This follows the code in BERTopic implementation
     # Except for the topic proportions part. That one is ours.
     global_ctfidf = global_ctfidf.take(unique_topics, axis=0) * topic_proportions
-    tuned_ctfidf = (global_ctfidf + local_ctfidf ) / 2
+    local_ctfidf = local_ctfidf.take(unique_topics, axis=0)
+    tuned_ctfidf = (global_ctfidf + local_ctfidf) / 2
     return tuned_ctfidf, unique_topics
 
 __all__ = [

@@ -22,12 +22,12 @@ from modules.topic.model import Topic
 def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
-  data = engine.paginate(df, params).to_dict("records")
+  data, meta = engine.paginate(df, params)
   return TablePaginationApiResult(
-    data=data,
+    data=data.to_dict("records"),
     message=None,
     columns=cache.config.data_schema.columns,
-    meta=engine.get_meta(data, params)
+    meta=meta
   )
 
 def _filter_table(params: GetTableColumnSchema, cache: ProjectCache, *, supported_types: Optional[list[SchemaColumnTypeEnum]] = None):

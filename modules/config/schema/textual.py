@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, cast
 import pandas as pd
 import pydantic
 import tqdm
@@ -51,7 +51,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         nlp.Defaults.stop_words.remove(token.lower())
       tokenizer.add_special_case(token, [{
         "ORTH": token,
-        "LEMMA": token,
+        "NORM": token,
       }])
   
     return nlp
@@ -78,12 +78,8 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     return sbert_corpus
 
   def preprocess_heavy(self, raw_documents: Sequence[str])->list[str]:
-    from gensim.corpora import Dictionary
-    
     nlp = self.load_nlp()
-    greedy_corpus: list[list[str]] = []
-    dictionary = Dictionary()
-    
+    greedy_corpus: list[str] = []
     spacy_docs = nlp.pipe(raw_documents)
     for doc in tqdm.tqdm(spacy_docs, desc="Preprocessing documents...", total=len(raw_documents)):
       tokens = []
@@ -110,23 +106,25 @@ class TextPreprocessingConfig(pydantic.BaseModel):
           continue
 
         tokens.append(token.lemma_.lower())
-      greedy_corpus.append(tokens)
-    dictionary.add_documents(greedy_corpus)
+      greedy_corpus.append(' '.join(tokens))
 
-    dictionary.filter_extremes(
-      no_below=self.min_df,
-      no_above=self.max_df,
-      keep_n=10000000000000000 if self.max_unique_words is None else self.max_unique_words,
-      keep_tokens=self.ignore_tokens
+    from sklearn.feature_extraction.text import CountVectorizer
+    vectorizer = CountVectorizer(
+      min_df=self.min_df,
+      max_df=self.max_df,
+      max_features=self.max_unique_words,
+      vocabulary=self.ignore_tokens,
     )
 
-    corpus: list[str] = []
-    for doc in greedy_corpus:
-      filtered_doc = list(filter(lambda token: token in dictionary.token2id, doc))
-      if len(filtered_doc) < self.min_document_length:
-        corpus.append(None) # type: ignore
-        continue
-      corpus.append(' '.join(filtered_doc))
+    vectorizer.fit(greedy_corpus)
+    analyzer = vectorizer.build_analyzer()
+
+    corpus: list[str] = list(map(
+      # This is an intentional cast
+      lambda doc: cast(str, None if len(doc) < self.min_document_length else ' '.join(doc)),
+      map(analyzer, greedy_corpus)
+    ))
+
     return corpus
   
 
@@ -148,6 +146,8 @@ class TopicModelingConfig(pydantic.BaseModel):
   reference_document_count: Optional[int] = pydantic.Field(default=None, gt=1)
 
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
+
+  # TODO: Move this to preprocessing config
   n_gram_range: tuple[int, int] = (1, 2)
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
   

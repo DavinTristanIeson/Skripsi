@@ -33,8 +33,8 @@ class BERTopicProcedureFacade:
       BERTopicPreprocessProcedureComponent(state=state, task=self.task),
       BERTopicEmbeddingProcedureComponent(state=state, task=self.task),
       BERTopicTopicModelingProcedureComponent(state=state, task=self.task),
-      BERTopicPostprocessProcedureComponent(state=state, task=self.task),
       BERTopicVisualizationEmbeddingProcedureComponent(state=state, task=self.task),
+      BERTopicPostprocessProcedureComponent(state=state, task=self.task),
     ]
 
     for procedure in procedures:

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
 from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
@@ -18,6 +19,7 @@ from ..model import TopicModelingResult
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
+logger = ProvisionedLogger().provision("Topic Modeling")
 class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponent):
   def run(self):
     # Dependencies
@@ -25,9 +27,13 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     column = self.state.column
     model = self.state.model
     documents = self.state.documents
-    document_topic_assignments = self.state.document_topic_assignments
+    document_topic_assignments = np.array(model.topics_)
     interpreter = BERTopicInterpreter(self.state.model)
-    umap_model = BERTopicIndividualModels.cast(model).umap_model
+    umap_model = BERTopicCachedUMAP(
+      column=column,
+      project_id=config.project_id,
+      low_memory=True,
+    )
 
     # Compute
     self.task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
@@ -43,10 +49,16 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
       self.task.log_error("Failed to reuse the reduced document vectors calculated by UMAP. Perhaps this is a developer oversight. UMAP will be executed again on the original document vectors.")
       document_vectors = self.state.document_vectors
     
+    logger.debug(f"Calculating topic vectors from document vectors with the following configuration: {document_topic_assignments}")
     raw_topic_vectors: list[np.ndarray] = []
     for topic in range(interpreter.topic_count):
-      raw_topic_vectors.append(document_vectors[document_topic_assignments == topic].mean())
+      mean_document_vector = document_vectors[document_topic_assignments == topic].mean(axis=0)
+      raw_topic_vectors.append(mean_document_vector)
     topic_vectors = np.array(raw_topic_vectors)
+    if topic_vectors.shape[0] == 0:
+      topic_vectors = np.full((interpreter.topic_count, document_vectors.shape[1]), 0, dtype=document_vectors.dtype)
+    logger.debug(f"Concatening document vectors with shape {document_vectors.shape} and topic vectors with shape {topic_vectors.shape}.")
+
     high_dimensional_vectors = np.vstack([document_vectors, topic_vectors])
     vis_umap_model.fit_transform(high_dimensional_vectors)
 
@@ -86,6 +98,7 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     cache = ProjectCacheManager().get(config.project_id)
     cache.save_workspace(df)
     cache.save_topic(topic_modeling_result, column.name)
+    ProjectCacheManager().invalidate(config.project_id)
 
     self.state.result = topic_modeling_result
 

@@ -1,39 +1,31 @@
-import functools
-from typing import Optional, Sequence, cast
+from typing import Sequence, cast
 
-import numpy as np
-from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicUpdateSchema
+from controllers.topic.dependency import _assert_dataframe_has_topic_columns
+from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
-from modules.baseclass import ValueCarrier
 from modules.config import TextualSchemaColumn
 from modules.project.cache import ProjectCache
-from modules.table import TableEngine, IsOneOfTableFilter, TableFilterTypeEnum, TablePaginationApiResult
+from modules.table import TableEngine, TablePaginationApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
+from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic, TopicModelingResult
 
 
-def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topics: Optional[list[Topic]], params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
+def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topic: Topic, params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
 
-  if topics is None:
-    params.filter = EqualToTableFilter(
-      target=column.name,
-      type=TableFilterTypeEnum.EqualTo,
-      value=-1,
-    )
-  else:
-    topic_idx = list(map(lambda x: x.id, topics))
-    params.filter = IsOneOfTableFilter(
-      target=column.name,
-      type=TableFilterTypeEnum.IsOneOf,
-      values=list(map(str, topic_idx)),
-    )
+  _assert_dataframe_has_topic_columns(df, column)
+
+  params.filter = EqualToTableFilter(
+    target=column.topic_column.name,
+    value=topic.id,
+  )
   params.sort = None
   
-  filtered_df = engine.paginate(df, params)
+  filtered_df, meta = engine.paginate(df, params)
 
   documents: list[DocumentPerTopicResource] = []
   for idx, row in filtered_df.iterrows():
@@ -47,15 +39,15 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
   return TablePaginationApiResult(
     data=documents,
-    meta=engine.get_meta(documents, params),
+    meta=meta,
     columns=cache.config.data_schema.columns,
     message=None,
   )
 
-
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
   df = cache.load_workspace()
   config = cache.config
+  _assert_dataframe_has_topic_columns(df, column)
 
   from modules.topic.bertopic_ext import BERTopicInterpreter, BERTopicIndividualModels
 
@@ -104,6 +96,37 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
     data=None,
     message="The topics have been successfully updated to your specifications.",
   )
+
+
+def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
+  df = cache.load_workspace()
+  config = cache.config
+  _assert_dataframe_has_topic_columns(df, column)
+  bertopic_model = cache.load_bertopic(column.name)
+
+  filtered_df = TableEngine(config).filter(df, body.filter)
+  local_corpus = cast(Sequence[str], filtered_df[column.preprocess_column])
+
+  interpreter = BERTopicInterpreter(bertopic_model)
+  local_bow = interpreter.represent_as_bow(local_corpus)
+  local_ctfidf = interpreter.represent_as_ctfidf(local_bow)
+  local_ctfidf, unique_topics = interpreter.topic_ctfidfs_per_class(local_ctfidf, filtered_df[column.topic_column.name])
+
+  topics: list[Topic] = []
+  for idx, topic in enumerate(unique_topics):
+    words = interpreter.get_weighted_words(local_ctfidf[idx])
+    frequency = (filtered_df[column.topic_column.name] == idx).sum()
+    topics.append(Topic(
+      id=topic,
+      frequency=frequency,
+      words=words,
+      label=interpreter.get_label(words),
+    ))
+
+  new_tm_result = TopicModelingResult.infer_from(config.project_id, filtered_df[column.topic_column.name], topics)
+
+  return ApiResult(data=new_tm_result, message=None)
+
 
 __all__ = [
   "paginate_documents_per_topic",
