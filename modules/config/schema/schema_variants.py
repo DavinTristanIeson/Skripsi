@@ -32,6 +32,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Bins)",
       internal=True,
+      source_name=self.name,
     )
   
   def get_internal_columns(self):
@@ -149,7 +150,8 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     return UniqueSchemaColumn(
       type=SchemaColumnTypeEnum.Unique,
       name=f"{self.name} (Preprocessed)",
-      internal=True
+      internal=True,
+      source_name=self.name,
     )
 
   @functools.cached_property
@@ -157,7 +159,8 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     return TopicSchemaColumn(
       type=SchemaColumnTypeEnum.Topic,
       name=f"{self.name} (Topic)",
-      internal=True
+      internal=True,
+      source_name=self.name,
     )
   
   def get_internal_columns(self):
@@ -190,7 +193,8 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     return OrderedCategoricalSchemaColumn(
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Year)",
-      internal=True
+      internal=True,
+      source_name=self.name,
     )
   
   @functools.cached_property
@@ -199,7 +203,8 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Month)",
       category_order=self.MONTHS,
-      internal=True
+      internal=True,
+      source_name=self.name,
     )
 
   @functools.cached_property
@@ -208,7 +213,8 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Day of Week)",
       category_order=self.DAYS_OF_WEEK,
-      internal=True
+      internal=True,
+      source_name=self.name,
     )
   
   @functools.cached_property
@@ -218,6 +224,7 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       name=f"{self.name} (Hour)",
       internal=True,
       category_order=self.HOURS,
+      source_name=self.name,
     )
   
   def get_internal_columns(self):
