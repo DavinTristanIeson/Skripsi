@@ -33,6 +33,14 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   max_unique_words: Optional[int] = pydantic.Field(default=None, gt=0)
   min_document_length: int = pydantic.Field(default=5, gt=0)
   min_word_length: int = pydantic.Field(default=3, gt=0)
+  n_gram_range: tuple[int, int] = (1, 2)
+
+  @pydantic.field_validator("n_gram_range", mode="after")
+  def __n_gram_range_validator(cls, value: tuple[int, int]):
+    if value[0] > value[1]:
+      return (value[1], value[0])
+    return value
+
 
   @property
   def spacy_pipeline_name(self):
@@ -113,10 +121,17 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       min_df=self.min_df,
       max_df=self.max_df,
       max_features=self.max_unique_words,
-      vocabulary=self.ignore_tokens,
+      ngram_range=self.n_gram_range, 
     )
 
+    # Train naive vocabulary
     vectorizer.fit(greedy_corpus)
+    if len(self.ignore_tokens) > 0:
+      vocabulary = list(vectorizer.vocabulary_.keys())
+      vocabulary.extend(self.ignore_tokens)
+      # No need to set min_df and max_df anymore
+      vectorizer = CountVectorizer(vocabulary=vocabulary)
+
     analyzer = vectorizer.build_analyzer()
 
     corpus: list[str] = list(map(
@@ -147,17 +162,9 @@ class TopicModelingConfig(pydantic.BaseModel):
 
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
 
-  # TODO: Move this to preprocessing config
-  n_gram_range: tuple[int, int] = (1, 2)
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
   
   top_n_words: int = pydantic.Field(default=50, ge=3)
-
-  @pydantic.field_validator("n_gram_range", mode="after")
-  def __n_gram_range_validator(cls, value: tuple[int, int]):
-    if value[0] > value[1]:
-      return (value[1], value[0])
-    return value
 
   no_outliers: bool = False
   represent_outliers: bool = False
