@@ -1,5 +1,7 @@
 from typing import Sequence, cast
 
+import numpy as np
+
 from controllers.topic.dependency import _assert_dataframe_has_topic_columns
 from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
@@ -8,7 +10,7 @@ from modules.project.cache import ProjectCache
 from modules.table import TableEngine, TablePaginationApiResult
 from modules.table.filter_variants import EqualToTableFilter
 from modules.table.pagination import PaginationParams
-from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder, EmptyBERTopicModelBuilder
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic, TopicModelingResult
 
@@ -44,12 +46,12 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
     message=None,
   )
 
-def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
+def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
   df = cache.load_workspace()
   config = cache.config
   _assert_dataframe_has_topic_columns(df, column)
 
-  from modules.topic.bertopic_ext import BERTopicInterpreter, BERTopicIndividualModels
+  from modules.topic.bertopic_ext import BERTopicInterpreter
 
   # Update document-topic mapping
   document_indices = list(map(lambda x: x.document_id, body.document_topics))
@@ -62,24 +64,24 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, tm_result: Topi
   documents = documents[mask]
   document_topics = document_topics[mask]
 
-  model_builder = BERTopicModelBuilder(
-    project_id=config.project_id,
+  model_builder = EmptyBERTopicModelBuilder(
     column=column,
-    corpus_size=len(documents)
   )
-
   bertopic_model = model_builder.build()
 
-  bertopic_model.update_topics(
-    docs=cast(list[str], documents),
-    top_n_words=bertopic_model.top_n_words,
-    vectorizer_model=model_builder.build_vectorizer_model(),
-    ctfidf_model=model_builder.build_ctfidf_model(),
-    topics=cast(list[int], document_topics)
+  bertopic_model.fit(
+    cast(list[str], documents),
+    cast(np.ndarray, document_topics)
   )
 
   interpreter = BERTopicInterpreter(bertopic_model)
   new_topics = interpreter.extract_topics()
+
+  topic_label_map = {topic.id: topic.label for topic in body.topics}
+
+  for topic in new_topics:
+    if topic.id in topic_label_map:
+      topic.label = topic_label_map[topic.id]
 
   new_tm_result = TopicModelingResult.infer_from(
     project_id=config.project_id,

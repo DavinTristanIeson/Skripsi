@@ -21,18 +21,17 @@ class StartTopicModelingSchema(pydantic.BaseModel):
   use_preprocessed_documents: bool
   use_cached_umap_vectors: bool
 
-class DocumentTopicMappingUpdateSchema(pydantic.BaseModel):
+class DocumentTopicAssignmentUpdateSchema(pydantic.BaseModel):
   document_id: int
   topic_id: int
 
 class TopicUpdateSchema(pydantic.BaseModel):
   id: int
   label: Optional[str]
-  children: Optional[list["TopicUpdateSchema"]]
 
 class RefineTopicsSchema(pydantic.BaseModel):
-  topics: TopicUpdateSchema
-  document_topics: list[DocumentTopicMappingUpdateSchema]
+  topics: list[TopicUpdateSchema]
+  document_topics: list[DocumentTopicAssignmentUpdateSchema]
 
 class TopicsOfColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
