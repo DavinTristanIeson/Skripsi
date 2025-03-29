@@ -1,6 +1,7 @@
 from typing import Sequence, cast
 
 import numpy as np
+import pandas as pd
 
 from controllers.topic.dependency import _assert_dataframe_has_topic_columns
 from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
@@ -8,34 +9,42 @@ from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
 from modules.project.cache import ProjectCache
 from modules.table import TableEngine, TablePaginationApiResult
-from modules.table.filter_variants import EqualToTableFilter
+from modules.table.filter_variants import AndTableFilter, EqualToTableFilter, NotEmptyTableFilter
 from modules.table.pagination import PaginationParams
-from modules.topic.bertopic_ext.builder import BERTopicModelBuilder, EmptyBERTopicModelBuilder
+from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic, TopicModelingResult
 
 
-def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, topic: Topic, params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
+def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
 
   _assert_dataframe_has_topic_columns(df, column)
-
-  params.filter = EqualToTableFilter(
-    target=column.topic_column.name,
-    value=topic.id,
-  )
-  params.sort = None
   
+  not_empty_filter = NotEmptyTableFilter(target=column.name)
+  if params.filter is not None:
+    params.filter = AndTableFilter(
+      operands=[
+        not_empty_filter,
+        params.filter,
+      ]
+    )
+  else:
+    params.filter = not_empty_filter
+
   filtered_df, meta = engine.paginate(df, params)
 
   documents: list[DocumentPerTopicResource] = []
-  for idx, row in filtered_df.iterrows():
+  for row in filtered_df.to_dict("records"):
+    print(row, column.name, column.preprocess_column.name, column.topic_column.name)
+
+    topic_id = row[column.topic_column.name]
     document = DocumentPerTopicResource(
-      id=int(idx), # type: ignore
+      id=row["__index"], # type: ignore
       original=row[column.name],
       preprocessed=row[column.preprocess_column.name],
-      topic=row[column.topic_column.name],
+      topic=None if pd.isna(topic_id) else topic_id,
     )
     documents.append(document)
 
@@ -100,7 +109,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
 
-def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, tm_result: TopicModelingResult, column: TextualSchemaColumn):
+def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn):
   df = cache.load_workspace()
   config = cache.config
   _assert_dataframe_has_topic_columns(df, column)
@@ -118,11 +127,12 @@ def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchem
   for idx, topic in enumerate(unique_topics):
     words = interpreter.get_weighted_words(local_ctfidf[idx])
     frequency = (filtered_df[column.topic_column.name] == idx).sum()
+    label = interpreter.get_label(words)
     topics.append(Topic(
       id=topic,
       frequency=frequency,
       words=words,
-      label=interpreter.get_label(words),
+      label=label or f"Topic {idx + 1}",
     ))
 
   new_tm_result = TopicModelingResult.infer_from(config.project_id, filtered_df[column.topic_column.name], topics)

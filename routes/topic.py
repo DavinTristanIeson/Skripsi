@@ -51,7 +51,7 @@ def get__all_topic_modeling_results(cache: ProjectCacheDependency)->ApiResult[li
 def get__all_topics(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, tm_result: TopicModelingResultDependency, body: TopicsOfColumnSchema)->ApiResult[TopicModelingResult]:
   if body.filter is None:
     return ApiResult(data=tm_result, message=None)
-  return get_filtered_topics_of_column(cache, body, tm_result, column)
+  return get_filtered_topics_of_column(cache, body, column)
 
 @router.put("/refine")
 def put__refine_topics(
@@ -63,15 +63,18 @@ def put__refine_topics(
   return refine_topics(
     cache=cache,
     body=body,
-    tm_result=topic_modeling_result,
     column=column,
   )
 
 @router.post("/documents")
-def post__documents_per_topic(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, params: PaginationParams, topic: TopicExistsDependency)->TablePaginationApiResult[DocumentPerTopicResource]:
+def post__documents_per_topic(
+  cache: ProjectCacheDependency,
+  column: TextualSchemaColumnDependency,
+  params: PaginationParams,
+  topic_modeling_result: TopicModelingResultDependency
+)->TablePaginationApiResult[DocumentPerTopicResource]:
   return paginate_documents_per_topic(
     cache=cache,
     column=column,
     params=params,
-    topic=topic,
   )

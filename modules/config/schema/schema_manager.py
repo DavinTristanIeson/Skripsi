@@ -5,6 +5,7 @@ from typing import Annotated, Callable, Optional, Sequence, cast
 import pandas as pd
 import pydantic
 
+from modules.config.context import ConfigSerializationContext
 from modules.logger import ProvisionedLogger, TimeLogger
 from modules.api import ApiError
 from .schema_variants import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
@@ -58,8 +59,10 @@ def __extend_schema_manager_columns(value: list[SchemaColumn]):
       offset += 1
     return final_columns
 
-def __serialize_columns(value: list[SchemaColumn], handler):
-  return handler(list(filter(lambda x: not x.internal, value)))
+def __serialize_columns(value: list[SchemaColumn], handler, info: pydantic.SerializationInfo):
+  if isinstance(info.context, ConfigSerializationContext) and info.context.is_save:
+    return handler(list(filter(lambda x: not x.internal, value)))
+  return handler(value)
   
 SchemaColumnListField = Annotated[
   list[SchemaColumn],

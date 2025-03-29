@@ -118,6 +118,12 @@ class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
 class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel, frozen=True):
   type: Literal[TableFilterTypeEnum.IsOneOf] = TableFilterTypeEnum.IsOneOf
   values: list[ValueType]
+  def __hash__(self):
+    return hash(' '.join([
+      hex(hash(self.type)),
+      *map(lambda x: hex(hash(x)), self.values),
+    ]))
+  
   def apply(self, params):
     data = access_series(self, params)
     values = list(map(lambda value: parse_value(self, params, value=value, operand="values"), self.values))

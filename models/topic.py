@@ -27,7 +27,7 @@ class DocumentTopicAssignmentUpdateSchema(pydantic.BaseModel):
 
 class TopicUpdateSchema(pydantic.BaseModel):
   id: int
-  label: Optional[str]
+  label: str
 
 class RefineTopicsSchema(pydantic.BaseModel):
   topics: list[TopicUpdateSchema]
@@ -39,9 +39,9 @@ class TopicsOfColumnSchema(pydantic.BaseModel):
 # Resource
 class DocumentPerTopicResource(pydantic.BaseModel):
   id: int
-  original: str
-  preprocessed: str
-  topic: int
+  original: Optional[str]
+  preprocessed: Optional[str]
+  topic: Optional[int]
 
 class ColumnTopicModelingResultResource(pydantic.BaseModel):
   column: TextualSchemaColumn

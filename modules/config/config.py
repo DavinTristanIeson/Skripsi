@@ -3,6 +3,7 @@ import pandas as pd
 import pydantic
 import os
 
+from modules.config.context import ConfigSerializationContext
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 
@@ -48,7 +49,7 @@ class Config(pydantic.BaseModel):
     config_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.Config)
     logger.info(f"Saving config file in \"{config_path}\"")
     with open(config_path, 'w', encoding='utf-8') as f:
-      json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+      json.dump(self.model_dump(context=ConfigSerializationContext(is_save=True)), f, indent=4, ensure_ascii=False)
     return
   
   def load_workspace(self)->pd.DataFrame:
