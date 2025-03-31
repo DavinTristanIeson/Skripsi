@@ -19,16 +19,6 @@ from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table import TableEngine, TablePaginationApiResult, PaginationParams
 from modules.topic.model import Topic
 
-def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
-  df = cache.load_workspace()
-  engine = TableEngine(cache.config)
-  data, meta = engine.paginate(df, params)
-  return TablePaginationApiResult(
-    data=data.to_dict("records"),
-    message=None,
-    columns=cache.config.data_schema.columns,
-    meta=meta
-  )
 
 def _filter_table(params: GetTableColumnSchema, cache: ProjectCache, *, supported_types: Optional[list[SchemaColumnTypeEnum]] = None):
   config = cache.config
@@ -233,10 +223,11 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   tuned_topics: list[Topic] = []
   for topic_id in unique_topics:
     words = interpreter.get_weighted_words(topic_ctfidfs[topic_id])
+    label = interpreter.get_label(words)
     tuned_topics.append(Topic(
       id=topic_id,
       frequency=(topics == topic_id).sum(),
-      label=None,
+      label=label or f"Topic {len(tuned_topics) + 1}",
       words=words
     ))
 
@@ -253,7 +244,6 @@ def get_column_descriptive_statistics(params: GetTableColumnSchema, cache: Proje
   ), message=None)
 
 __all__ = [
-  "paginate_table",
   "get_column_frequency_distribution",
   "get_column_geographical_points",
   "get_column_counts",

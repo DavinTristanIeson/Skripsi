@@ -23,8 +23,9 @@ class TableEngine:
   
   @classmethod
   def workspace_key(cls, filter: Optional[TableFilter], sort: Optional[TableSort])->str:
+    import hashlib
     return ' '.join(map(
-      lambda x: hex(hash(x)).lstrip('-').lstrip('0x'),
+      lambda x: hashlib.md5(str(x).encode('utf-8')).hexdigest(),
       [filter, sort]
     ))
   

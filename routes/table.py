@@ -3,8 +3,9 @@ from fastapi import APIRouter, Response
 
 from controllers.table.comparison import compare_group_words
 from controllers.table.filter import get_column_descriptive_statistics, get_column_topic_words, get_column_unique_values, get_column_values, get_column_word_frequencies
+from controllers.table.general import get_affected_rows
 from models.table import (
-  ComparisonGroupWordsSchema, GetTableColumnSchema,
+  ComparisonGroupWordsSchema, DatasetFilterSchema, GetTableColumnSchema,
   GetTableGeographicalColumnSchema, ComparisonStatisticTestSchema,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
@@ -35,6 +36,10 @@ async def post__check_filter(filter: TableFilter, cache: ProjectCacheDependency)
 @router.post("/")
 async def post__get_table(params: PaginationParams, cache: ProjectCacheDependency)->TablePaginationApiResult[dict[str, Any]]:
   return paginate_table(params, cache)
+
+@router.post("/affected-rows")
+async def post__get_affected_rows(params: DatasetFilterSchema, cache: ProjectCacheDependency)->ApiResult[list[int]]:
+  return get_affected_rows(params, cache)
 
 @router.post("/column/frequency-distribution")
 async def post__get_table_column__frequency_distribution(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnFrequencyDistributionResource]:

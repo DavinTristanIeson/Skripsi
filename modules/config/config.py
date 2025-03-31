@@ -3,6 +3,7 @@ import pandas as pd
 import pydantic
 import os
 
+from modules.config.context import ConfigSerializationContext
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 
@@ -48,7 +49,7 @@ class Config(pydantic.BaseModel):
     config_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.Config)
     logger.info(f"Saving config file in \"{config_path}\"")
     with open(config_path, 'w', encoding='utf-8') as f:
-      json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+      json.dump(self.model_dump(context=ConfigSerializationContext(is_save=True)), f, indent=4, ensure_ascii=False)
     return
   
   def load_workspace(self)->pd.DataFrame:
@@ -61,6 +62,9 @@ class Config(pydantic.BaseModel):
       raise ApiError(f"Failed to load the workspace table from {path}. Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
     for col in self.data_schema.ordered_categorical():
       # Set ordered categories
+      col.fit(df) # type: ignore
+    for col in self.data_schema.topic():
+      # Force topic to be int32. Don't trust floats.
       col.fit(df) # type: ignore
     return df
   

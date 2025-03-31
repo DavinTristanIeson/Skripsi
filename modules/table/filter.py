@@ -78,8 +78,11 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
 class _TableFilterParams:
   data: pd.DataFrame
   config: Config
+
+  def mask(self, flag: bool):
+    return pd.Series(np.full(len(self.data), flag, dtype=np.bool_), dtype="boolean")
   
-class _BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
+class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   target: str
   type: Any
   model_config = pydantic.ConfigDict(use_enum_values=True)
@@ -88,12 +91,13 @@ class _BaseTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
   def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
     pass
 
-class _BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC, frozen=True):
+class _BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC):
+  model_config = pydantic.ConfigDict(use_enum_values=True)
   @abc.abstractmethod
   def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
     pass
 
-class TableSort(pydantic.BaseModel, abc.ABC, frozen=True):
+class TableSort(pydantic.BaseModel, abc.ABC):
   name: str
   asc: bool
 

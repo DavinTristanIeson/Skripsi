@@ -13,6 +13,9 @@ class GetTableColumnSchema(pydantic.BaseModel):
   column: str
   filter: Optional[TableFilter]
 
+class DatasetFilterSchema(pydantic.BaseModel):
+  filter: Optional[TableFilter]
+
 class GetTableGeographicalColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
   latitude_column: str

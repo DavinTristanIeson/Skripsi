@@ -40,6 +40,40 @@ class BERTopicIndividualModels:
     )
 
 @dataclass
+class EmptyBERTopicModelBuilder:
+  column: TextualSchemaColumn
+  def build_vectorizer_model(self)->"CountVectorizer":
+    from sklearn.feature_extraction.text import CountVectorizer
+    # We handle all preprocessing.
+    vectorizer_model = CountVectorizer(
+      min_df=1,
+      max_df=1,
+      stop_words=None,
+    )
+    return vectorizer_model
+  
+  def build_ctfidf_model(self)->"ClassTfidfTransformer":
+    from bertopic.vectorizers import ClassTfidfTransformer
+    ctfidf_model = ClassTfidfTransformer(
+      bm25_weighting=True,
+      reduce_frequent_words=True,
+    )
+    return ctfidf_model
+  
+  def build(self):
+    from bertopic import BERTopic
+    from bertopic.backend import BaseEmbedder
+    from bertopic.dimensionality import BaseDimensionalityReduction
+    from bertopic.cluster import BaseCluster
+    return BERTopic(
+      embedding_model=BaseEmbedder(),
+      umap_model=BaseDimensionalityReduction(),
+      hdbscan_model=BaseCluster(),
+      vectorizer_model=self.build_vectorizer_model(),
+      ctfidf_model=self.build_ctfidf_model(),
+    )
+
+@dataclass
 class BERTopicModelBuilder:
   project_id: str
   column: TextualSchemaColumn
@@ -85,22 +119,10 @@ class BERTopicModelBuilder:
     return hdbscan_model
   
   def build_vectorizer_model(self)->"CountVectorizer":
-    from sklearn.feature_extraction.text import CountVectorizer
-    # We handle all preprocessing.
-    vectorizer_model = CountVectorizer(
-      min_df=1,
-      max_df=1,
-      stop_words=None,
-    )
-    return vectorizer_model
+    return EmptyBERTopicModelBuilder(self.column).build_vectorizer_model()
   
   def build_ctfidf_model(self)->"ClassTfidfTransformer":
-    from bertopic.vectorizers import ClassTfidfTransformer
-    ctfidf_model = ClassTfidfTransformer(
-      bm25_weighting=True,
-      reduce_frequent_words=True,
-    )
-    return ctfidf_model
+    return EmptyBERTopicModelBuilder(self.column).build_ctfidf_model()
 
   def build(self)->"BERTopic":
     from bertopic import BERTopic
@@ -143,5 +165,6 @@ class BERTopicModelBuilder:
   
 __all__ = [
   "BERTopicIndividualModels",
-  "BERTopicModelBuilder"
+  "BERTopicModelBuilder",
+  "EmptyBERTopicModelBuilder"
 ]

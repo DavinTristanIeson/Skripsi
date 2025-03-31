@@ -1,5 +1,6 @@
 from typing import Sequence, cast
 
+import numpy as np
 import pandas as pd
 from modules.api.wrapper import ApiResult
 from modules.comparison import TableComparisonEngine
@@ -13,6 +14,7 @@ from models.table import (
   ComparisonGroupWordsSchema,
   TableTopicsResource
 )
+from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
 
 def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
   config = cache.config
@@ -51,12 +53,10 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
   df = cache.load_workspace()
   engine = TableEngine(config=config)
 
-  builder = BERTopicModelBuilder(
-    project_id=config.project_id,
+  builder = EmptyBERTopicModelBuilder(
     column=column,
-    corpus_size=None
   )
-  bertopic_model = BERTopic()
+  bertopic_model = builder.build()
 
   document_batches: list[pd.Series] = []
   document_topics: list[int] = []
@@ -74,11 +74,9 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
     document_topics.extend([group_id] * len(subcorpus))
   documents = pd.concat(document_batches, axis=0)
 
-  bertopic_model.update_topics(
-    docs=cast(list[str], documents),
-    topics=document_topics,
-    ctfidf_model=builder.build_ctfidf_model(),
-    vectorizer_model=builder.build_vectorizer_model()
+  bertopic_model.fit(
+    cast(list[str], documents),
+    np.array(document_topics)
   )
   interpreter = BERTopicInterpreter(bertopic_model)
 
