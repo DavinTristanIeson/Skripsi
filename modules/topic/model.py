@@ -9,7 +9,7 @@ from modules.project.paths import ProjectPathManager, ProjectPaths
 class Topic(pydantic.BaseModel):
   id: int
   words: list[tuple[str, float]]
-  label: str
+  label: Optional[str]
   frequency: int
   description: Optional[str] = None
   tags: Optional[list[str]] = None

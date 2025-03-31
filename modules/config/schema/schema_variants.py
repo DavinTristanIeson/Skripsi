@@ -138,7 +138,7 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
 class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Topic]
   def fit(self, df):
-    df[self.name] = df[self.name].astype(np.int32)
+    df[self.name] = df[self.name].astype("Int32")
 
 class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Textual]

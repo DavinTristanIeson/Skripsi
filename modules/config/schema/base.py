@@ -31,7 +31,7 @@ class GeospatialRoleEnum(str, Enum):
 ExposedEnum().register(GeospatialRoleEnum)
 
 class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
-  model_config = pydantic.ConfigDict(use_enum_values=True, frozen=True)
+  model_config = pydantic.ConfigDict(use_enum_values=True)
   name: str
   description: Optional[str] = None
   internal: bool = pydantic.Field(default=False)

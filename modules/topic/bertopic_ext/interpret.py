@@ -79,36 +79,27 @@ class BERTopicInterpreter:
   
   def extract_topics(self)->list[Topic]:
     model = self.model
-    if model.topic_embeddings_ is None:
-      raise ApiError(
-        "BERTopic model has not been fitted yet! This might be a developer oversight.",
-        http.HTTPStatus.INTERNAL_SERVER_ERROR
-      )
     topic_words_mapping = model.get_topics()
     topics: list[Topic] = []
     for raw_key, raw_topic_words in topic_words_mapping.items():
       key = int(raw_key)
+      # Don't store outliers as a topic
       if key == -1:
         continue
       topic_words = cast(list[tuple[str, float]], raw_topic_words)
       topic_words = list(filter(lambda x: len(x[0]) > 0, topic_words))
-
-      representative_topic_words = list(itertools.islice(map(
-        lambda el: el[0],
-        topic_words
-      ), 3))
-      if len(representative_topic_words) == 0:
-        topic_label = f"Topic {key+1}"
-      else:
-        topic_label = ', '.join(representative_topic_words)
       topic_frequency = cast(int, model.get_topic_freq(int(key)))
 
       topic = Topic(
         id=key,
-        label=topic_label,
+        label=None,
         words=topic_words,
         frequency=topic_frequency,
       )
+
+      # Don't store non-existent topics
+      if topic_frequency == 0:
+        continue
       topics.append(topic)
 
     return topics

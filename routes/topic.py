@@ -51,7 +51,7 @@ def get__all_topic_modeling_results(cache: ProjectCacheDependency)->ApiResult[li
 def get__all_topics(cache: ProjectCacheDependency, column: TextualSchemaColumnDependency, tm_result: TopicModelingResultDependency, body: TopicsOfColumnSchema)->ApiResult[TopicModelingResult]:
   if body.filter is None:
     return ApiResult(data=tm_result, message=None)
-  return get_filtered_topics_of_column(cache, body, column)
+  return get_filtered_topics_of_column(cache, body, column, tm_result)
 
 @router.put("/refine")
 def put__refine_topics(

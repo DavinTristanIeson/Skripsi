@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import http
-from typing import Annotated, Callable, Optional, Sequence, cast
+from typing import Annotated, Optional, Sequence, cast
 
 import pandas as pd
 import pydantic

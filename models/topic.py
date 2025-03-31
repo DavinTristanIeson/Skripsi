@@ -27,7 +27,9 @@ class DocumentTopicAssignmentUpdateSchema(pydantic.BaseModel):
 
 class TopicUpdateSchema(pydantic.BaseModel):
   id: int
-  label: str
+  label: Optional[str]
+  tags: Optional[list[str]]
+  description: Optional[str]
 
 class RefineTopicsSchema(pydantic.BaseModel):
   topics: list[TopicUpdateSchema]

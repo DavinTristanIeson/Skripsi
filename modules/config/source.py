@@ -53,6 +53,7 @@ class ExcelDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
     logger.info(f"Loaded data source from {self.path}")
     return df
 
+# Definitely should be frozen. They should be stable since they're going to be used with lru_cache.
 DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 
 __all__ = [

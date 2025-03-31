@@ -22,7 +22,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
   _assert_dataframe_has_topic_columns(df, column)
   
-  not_empty_filter = NotEmptyTableFilter(target=column.name)
+  not_empty_filter = NotEmptyTableFilter(target=column.preprocess_column.name)
   if params.filter is not None:
     params.filter = AndTableFilter(
       operands=[
@@ -37,8 +37,6 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 
   documents: list[DocumentPerTopicResource] = []
   for row in filtered_df.to_dict("records"):
-    print(row, column.name, column.preprocess_column.name, column.topic_column.name)
-
     topic_id = row[column.topic_column.name]
     document = DocumentPerTopicResource(
       id=row["__index"], # type: ignore
@@ -66,6 +64,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   document_indices = list(map(lambda x: x.document_id, body.document_topics))
   new_topics = list(map(lambda x: x.topic_id, body.document_topics))
   df.loc[document_indices, column.topic_column.name] = new_topics
+  df[column.topic_column.name] = df[column.topic_column.name].astype("Int32")
 
   documents = df[column.preprocess_column.name]
   document_topics = df[column.topic_column.name]
@@ -73,6 +72,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   documents = documents[mask]
   document_topics = document_topics[mask]
 
+  # Reset BERTopic model
   model_builder = EmptyBERTopicModelBuilder(
     column=column,
   )
@@ -80,17 +80,19 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
 
   bertopic_model.fit(
     cast(list[str], documents),
-    cast(np.ndarray, document_topics)
+    y=cast(np.ndarray, document_topics)
   )
 
   interpreter = BERTopicInterpreter(bertopic_model)
   new_topics = interpreter.extract_topics()
 
-  topic_label_map = {topic.id: topic.label for topic in body.topics}
-
+  # Assign new labels
+  topic_map = {topic.id: topic for topic in body.topics}
   for topic in new_topics:
-    if topic.id in topic_label_map:
-      topic.label = topic_label_map[topic.id]
+    if topic.id in topic_map:
+      topic.label = topic_map[topic.id].label
+      topic.description = topic_map[topic.id].description
+      topic.tags = topic_map[topic.id].tags
 
   new_tm_result = TopicModelingResult.infer_from(
     project_id=config.project_id,
@@ -109,7 +111,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
 
-def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn):
+def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn, tm_result: TopicModelingResult):
   df = cache.load_workspace()
   config = cache.config
   _assert_dataframe_has_topic_columns(df, column)
@@ -125,14 +127,16 @@ def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchem
 
   topics: list[Topic] = []
   for idx, topic in enumerate(unique_topics):
+    existing_topic = tm_result.find(topic.id)
+    if not existing_topic:
+      continue
+
     words = interpreter.get_weighted_words(local_ctfidf[idx])
-    frequency = (filtered_df[column.topic_column.name] == idx).sum()
-    label = interpreter.get_label(words)
     topics.append(Topic(
       id=topic,
-      frequency=frequency,
+      frequency=existing_topic.frequency,
       words=words,
-      label=label or f"Topic {idx + 1}",
+      label=existing_topic.label
     ))
 
   new_tm_result = TopicModelingResult.infer_from(config.project_id, filtered_df[column.topic_column.name], topics)
