@@ -12,7 +12,6 @@ from modules.topic.procedure.base import BERTopicProcedureComponent
 from ..bertopic_ext import (
   BERTopicInterpreter,
   VisualizationCachedUMAP,
-  VisualizationCachedUMAPResult
 )
 
 from ..model import TopicModelingResult
@@ -25,10 +24,7 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     # Dependencies
     config = self.state.config
     column = self.state.column
-    model = self.state.model
-    documents = self.state.documents
-    document_topic_assignments = np.array(model.topics_)
-    interpreter = BERTopicInterpreter(self.state.model)
+    
     umap_model = BERTopicCachedUMAP(
       column=column,
       project_id=config.project_id,
@@ -36,12 +32,10 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     )
 
     # Compute
-    self.task.log_pending("Mapping the document and topic vectors to 2D for visualization purposes...")
+    self.task.log_pending("Mapping the document vectors to 2D for visualization purposes...")
     vis_umap_model = VisualizationCachedUMAP(
       project_id=config.project_id,
       column=column,
-      topic_count=interpreter.topic_count,
-      corpus_size=len(documents),
       low_memory=True,
     )
     document_vectors = umap_model.load_cached_embeddings()
@@ -49,20 +43,9 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
       self.task.log_error("Failed to reuse the reduced document vectors calculated by UMAP. Perhaps this is a developer oversight. UMAP will be executed again on the original document vectors.")
       document_vectors = self.state.document_vectors
     
-    logger.debug(f"Calculating topic vectors from document vectors with the following configuration: {document_topic_assignments}")
-    raw_topic_vectors: list[np.ndarray] = []
-    for topic in range(interpreter.topic_count):
-      mean_document_vector = document_vectors[document_topic_assignments == topic].mean(axis=0)
-      raw_topic_vectors.append(mean_document_vector)
-    topic_vectors = np.array(raw_topic_vectors)
-    if topic_vectors.shape[0] == 0:
-      topic_vectors = np.full((interpreter.topic_count, document_vectors.shape[1]), 0, dtype=document_vectors.dtype)
-    logger.debug(f"Concatening document vectors with shape {document_vectors.shape} and topic vectors with shape {topic_vectors.shape}.")
+    vis_umap_model.fit_transform(document_vectors)
 
-    high_dimensional_vectors = np.vstack([document_vectors, topic_vectors])
-    vis_umap_model.fit_transform(high_dimensional_vectors)
-
-    self.task.log_success(f"Finished mapping the document and topic vectors to 2D. The embeddings have been stored in {vis_umap_model.embedding_path}.")
+    self.task.log_success(f"Finished mapping the document vectors to 2D. The visualization vectors have been stored in {vis_umap_model.embedding_path}.")
 
 class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
   def run(self):

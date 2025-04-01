@@ -120,6 +120,8 @@ def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchem
   filtered_df = TableEngine(config).filter(df, body.filter)
   local_corpus = cast(Sequence[str], filtered_df[column.preprocess_column])
 
+  bertopic_model.hierarchical_topics
+
   interpreter = BERTopicInterpreter(bertopic_model)
   local_bow = interpreter.represent_as_bow(local_corpus)
   local_ctfidf = interpreter.represent_as_ctfidf(local_bow)

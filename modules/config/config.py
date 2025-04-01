@@ -64,8 +64,9 @@ class Config(pydantic.BaseModel):
       # Set ordered categories
       col.fit(df) # type: ignore
     for col in self.data_schema.topic():
-      # Force topic to be int32. Don't trust floats.
-      col.fit(df) # type: ignore
+      if col.name in df.columns:
+        # Force topic to be int32. Don't trust floats.
+        col.fit(df) # type: ignore
     return df
   
   def save_workspace(self, df: pd.DataFrame):

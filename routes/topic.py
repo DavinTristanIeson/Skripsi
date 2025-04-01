@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from controllers.topic.visualization import get_document_visualization_results, get_topic_visualization_results
 from modules.api.wrapper import ApiError, ApiResult
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
@@ -13,7 +14,7 @@ from controllers.topic import (
   TopicModelingResultDependency, paginate_documents_per_topic,
   check_topic_modeling_status, start_topic_modeling
 )
-from models.topic import ColumnTopicModelingResultResource, DocumentPerTopicResource, RefineTopicsSchema, StartTopicModelingSchema, TopicsOfColumnSchema
+from models.topic import ColumnTopicModelingResultResource, DocumentPerTopicResource, DocumentTopicsVisualizationResource, RefineTopicsSchema, StartTopicModelingSchema, TopicVisualizationResource, TopicsOfColumnSchema
 
 
 router = APIRouter(
@@ -77,4 +78,28 @@ def post__documents_per_topic(
     cache=cache,
     column=column,
     params=params,
+  )
+
+@router.get("/visualization/topics")
+def get__topic_visualization_results(
+  cache: ProjectCacheDependency,
+  column: TextualSchemaColumnDependency,
+  topic_modeling_result: TopicModelingResultDependency
+)->ApiResult[list[TopicVisualizationResource]]:
+  return get_topic_visualization_results(
+    cache=cache,
+    column=column,
+    topic_modeling_result=topic_modeling_result
+  )
+
+@router.get("/visualization/documents")
+def get__document_visualization_results(
+  cache: ProjectCacheDependency,
+  column: TextualSchemaColumnDependency,
+  topic_modeling_result: TopicModelingResultDependency
+)->ApiResult[DocumentTopicsVisualizationResource]:
+  return get_document_visualization_results(
+    cache=cache,
+    column=column,
+    topic_modeling_result=topic_modeling_result
   )

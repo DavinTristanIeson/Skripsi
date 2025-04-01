@@ -58,7 +58,7 @@ def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: 
 
 class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.And] = TableFilterTypeEnum.And
-  operands: list["TableFilter"] = pydantic.Field(min_length=1)
+  operands: list["TableFilter"]
   def apply(self, params):
     mask = params.mask(True)
     for operand in self.operands:
@@ -68,7 +68,7 @@ class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
   
 class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.Or] = TableFilterTypeEnum.Or
-  operands: list["TableFilter"] = pydantic.Field(min_length=1)
+  operands: list["TableFilter"]
   def apply(self, params):
     if len(self.operands) == 0:
       return params.mask(True)

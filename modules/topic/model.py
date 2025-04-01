@@ -72,5 +72,5 @@ class TopicModelingResult(pydantic.BaseModel):
 
 __all__ = [
   "Topic",
-  "TopicModelingResult"
+  "TopicModelingResult",
 ]

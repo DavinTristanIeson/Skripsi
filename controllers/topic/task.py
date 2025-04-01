@@ -1,13 +1,11 @@
 import http
-import os
-from typing import Optional, cast
 
 from apscheduler.jobstores.base import JobLookupError
 
 from controllers.project.dependency import ProjectCacheDependency
 from models.topic import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
-from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.config import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
@@ -43,8 +41,9 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
-  cache.topics.invalidate(key=column.name)
-  cache.bertopic_models.invalidate(key=column.name)
+  df = cache.load_workspace()
+
+  ProjectCacheManager().invalidate(config.project_id)
 
   cleanup_files: list[str] = []
 
@@ -60,14 +59,13 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     logger.info(f"Cleaning up cached document embeddings from {column.name}.")
   
 
-  df = cache.load_workspace()
   if not options.use_preprocessed_documents:
     logger.info(f"Cleaning up cached preprocessed documents and topic column from {column.name}.")
     if column.preprocess_column.name in df.columns:
       df.drop(column.preprocess_column.name, axis=1, inplace=True)
     if column.topic_column.name in df.columns:
       df.drop(column.topic_column.name, axis=1, inplace=True)
-    cache.save_workspace(df)
+    config.save_workspace(df)
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
   ProjectCacheManager().invalidate(config.project_id)
@@ -75,7 +73,6 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     directories=[ProjectPaths.BERTopic(column.name)],
     files=cleanup_files,
   )
-
 
   request = TopicModelingTaskRequest(
     project_id=config.project_id,

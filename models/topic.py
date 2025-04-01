@@ -4,7 +4,7 @@ import pydantic
 
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table.filter_variants import TableFilter
-from modules.topic.model import TopicModelingResult
+from modules.topic.model import Topic, TopicModelingResult
 
 @dataclass
 class TopicModelingTaskRequest:
@@ -48,3 +48,19 @@ class DocumentPerTopicResource(pydantic.BaseModel):
 class ColumnTopicModelingResultResource(pydantic.BaseModel):
   column: TextualSchemaColumn
   result: Optional[TopicModelingResult]
+
+class TopicVisualizationResource(pydantic.BaseModel):
+  topic: Topic
+  x: float
+  y: float
+  frequency: int
+
+class DocumentVisualizationResource(pydantic.BaseModel):
+  document: str
+  topic: int
+  x: float
+  y: float
+
+class DocumentTopicsVisualizationResource(pydantic.BaseModel):
+  documents: list[DocumentVisualizationResource]
+  topics: list[TopicVisualizationResource]

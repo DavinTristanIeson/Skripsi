@@ -1,13 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import functools
-import http
 from typing import TYPE_CHECKING, cast
 import abc
 
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from modules.api import ApiError
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config import TextualSchemaColumn
 from modules.storage import CachedEmbeddingTransformerBehavior
@@ -58,14 +56,7 @@ class BERTopicCachedUMAP(__CachedUMAP):
     return paths.full_path(ProjectPaths.UMAPEmbeddings(self.column.name))
 
 @dataclass
-class VisualizationCachedUMAPResult:
-  document_embeddings: np.ndarray
-  topic_embeddings: np.ndarray
-
-@dataclass
 class VisualizationCachedUMAP(__CachedUMAP):
-  corpus_size: int
-  topic_count: int
   @property
   def embedding_path(self):
     paths = ProjectPathManager(project_id=self.project_id)
@@ -87,21 +78,7 @@ class VisualizationCachedUMAP(__CachedUMAP):
   def model(self):
     return self.__model
   
-  def join_embeddings(self, document_embeddings: np.ndarray, topic_embeddings: np.ndarray):
-    return np.vstack([document_embeddings, topic_embeddings])
-  
-  def separate_embeddings(self, embeddings: np.ndarray):
-    expected_length = self.corpus_size + self.topic_count
-    if embeddings.shape[0] != expected_length:
-      raise ApiError(f"Expected cached visualization embeddings for \"{self.column.name}\" to have {self.corpus_size} + {self.topic_count} rows, but got {embeddings.shape[0]} instead. Maybe the cached visualization embeddings in \"{self.embedding_path}\" has been corrupted. To fix this, please run the topic modeling procedure again.", http.HTTPStatus.INTERNAL_SERVER_ERROR)
-
-    return VisualizationCachedUMAPResult(
-      document_embeddings=embeddings[:self.corpus_size],
-      topic_embeddings=embeddings[self.corpus_size:],
-    )
-  
 __all__ = [
   "BERTopicCachedUMAP",
-  "VisualizationCachedUMAPResult",
   "VisualizationCachedUMAP",
 ]
