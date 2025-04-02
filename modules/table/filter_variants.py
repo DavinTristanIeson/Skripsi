@@ -18,7 +18,7 @@ def access_series(filter: _BaseTableFilter, params: _TableFilterParams)->pd.Seri
   if filter.target not in params.data.columns:
     raise _TableFilterError.ColumnNotFound(
       target=filter.target,
-      project_id=params.config.project_id
+      project_name=params.config.metadata.name,
     )
   return params.data[filter.target]
 

@@ -36,7 +36,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   filtered_df, meta = engine.paginate(df, params)
 
   documents: list[DocumentPerTopicResource] = []
-  for row in filtered_df.to_dict("records"):
+  for row in filtered_df.to_dict(orient="records"):
     topic_id = row[column.topic_column.name]
     document = DocumentPerTopicResource(
       id=row["__index"], # type: ignore

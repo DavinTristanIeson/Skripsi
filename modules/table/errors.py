@@ -20,9 +20,9 @@ class _TableFilterError(SimpleNamespace):
       http.HTTPStatus.UNPROCESSABLE_ENTITY
     )
   
-  def ColumnNotFound(*, target: str, project_id: str):
+  def ColumnNotFound(*, target: str, project_name: str):
     return ApiError(
-      f"Filter target \"{target}\" does not exist in Project \"{project_id}\"",
+      f"Filter target \"{target}\" does not exist in Project \"{project_name}\"",
       http.HTTPStatus.UNPROCESSABLE_ENTITY
     )
   

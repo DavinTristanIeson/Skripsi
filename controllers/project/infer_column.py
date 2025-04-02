@@ -20,13 +20,13 @@ def infer_column_by_type(column: str, df: pd.DataFrame, dtype: SchemaColumnTypeE
   descriptive_statistics: Optional[DescriptiveStatisticsResource] = None
   categories: Optional[list[str]] = None
   if dtype == SchemaColumnTypeEnum.Textual:
-    data = data.astype(str)
+    data = data.astype(pd.StringDtype())
     descriptive_statistics = DescriptiveStatisticsResource.from_series(data.str.len())
   elif dtype == SchemaColumnTypeEnum.Continuous:
-    data = data.astype(np.float64)
+    data = data.astype(pd.Float64Dtype())
     descriptive_statistics = DescriptiveStatisticsResource.from_series(data)
   elif dtype == SchemaColumnTypeEnum.OrderedCategorical:
-    data = data.astype(str)
+    data = data.astype(pd.StringDtype())
     categories = sorted(set(map(str, data.unique())))
 
   logger.info(f"Inferred type {dtype} for column {column}.")

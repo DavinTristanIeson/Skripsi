@@ -80,7 +80,12 @@ def create_project(body: ProjectMutationSchema):
 
 def update_project(config: Config, body: ProjectMutationSchema):
   # Resolve project differences
-  df = config.load_workspace()
+
+  try:
+    df = config.load_workspace()
+  except ApiError:
+    df = get_cached_data_source(config.source)
+
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
 
   new_config = Config(

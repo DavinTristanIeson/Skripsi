@@ -15,7 +15,7 @@ def _chisq_prepare(A: pd.Series, B: pd.Series, *, with_correction: bool = False)
   has_empty_cells = empty_cells_count > 0
   if has_empty_cells:
     # Haldene-Anscombe correction
-    crosstab += 0.5
+    crosstab += 1
   return crosstab
 
 def _mann_whitney_u_prepare(A: pd.Series, B: pd.Series):

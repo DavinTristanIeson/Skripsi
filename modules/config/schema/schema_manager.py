@@ -143,7 +143,8 @@ class SchemaManager(pydantic.BaseModel):
 
   def fit(self, raw_df: pd.DataFrame)->pd.DataFrame:
     try:
-      df = raw_df.loc[:, [col.name for col in self.columns if not col.internal]]
+      column_targets = [col.name for col in self.columns if not col.internal]
+      df = raw_df.loc[:, column_targets]
     except (IndexError, KeyError) as e:
       logger.error(e)
       raise ApiError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {e.args}", http.HTTPStatus.NOT_FOUND)

@@ -129,7 +129,22 @@ class CramerVEffectSize(_BaseEffectSize):
 
   def effect_size(self):
     contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=True)
-    V = scipy.stats.contingency.association(contingency_table, method="cramer")
+
+    # Cramer V with bias correction (https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V)
+    chi2_result = scipy.stats.chi2_contingency(contingency_table)
+    chi2 = chi2_result.statistic # type: ignore
+
+    n = contingency_table.sum().sum()
+    psi2 = chi2 / n
+    k = contingency_table.shape[1]
+    r = contingency_table.shape[0]
+
+    k_tilde = k - (np.power(k - 1, 2) / (n - 1))
+    r_tilde = r - (np.power(r - 1, 2) / (n - 1))
+    psi2_tilde = max(0, psi2 - ((k-1) * (r-1) / (n-1)))
+
+    V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
+    # V = scipy.stats.contingency.association(contingency_table, method="cramer")
     return EffectSizeResult(
       type=EffectSizeMethodEnum.CramerV,
       value=V,

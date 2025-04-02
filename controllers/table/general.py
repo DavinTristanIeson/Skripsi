@@ -1,5 +1,5 @@
-
 from models.table import DatasetFilterSchema
+
 from modules.api.wrapper import ApiResult
 from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
@@ -11,7 +11,7 @@ def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginati
   engine = TableEngine(cache.config)
   data, meta = engine.paginate(df, params)
   return TablePaginationApiResult(
-    data=data.to_dict("records"),
+    data=df.to_dict(orient="records"),
     message=None,
     columns=cache.config.data_schema.columns,
     meta=meta

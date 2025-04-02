@@ -83,7 +83,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     return categorical_bins
 
   def fit(self, df):
-    data = df[self.name].astype(np.float64)
+    data = df[self.name].astype(pd.Float64Dtype())
     df[self.name] = data
     df[self.bins_column.name] = self.__histogram(data)
   
@@ -94,7 +94,7 @@ class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     if raw_data.dtype == 'category':
       data = pd.Categorical(raw_data)
     else:  
-      data = pd.Categorical(raw_data.astype(str))
+      data = pd.Categorical(raw_data.astype(pd.StringDtype()))
     df[self.name] = data
   
 class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
@@ -106,7 +106,7 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     if raw_data.dtype == 'category':
       data = pd.Categorical(raw_data)
     else:  
-      data = pd.Categorical(raw_data.astype(str))
+      data = pd.Categorical(raw_data.astype(pd.StringDtype()))
 
     category_order: Optional[list[str]] = None  
     if self.category_order is not None:
@@ -138,7 +138,7 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
 class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Topic]
   def fit(self, df):
-    df[self.name] = df[self.name].astype("Int32")
+    df[self.name] = df[self.name].astype(pd.Int32Dtype())
 
 class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Textual]
@@ -170,7 +170,7 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     ]
   
   def fit(self, df):
-    data = df[self.name].astype(str)
+    data = df[self.name].astype(pd.StringDtype())
     df[self.name] = data
 
 
@@ -273,7 +273,7 @@ class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.B
   is_json: bool = True
 
   def fit(self, df):
-    data: Sequence[str] = df[self.name].astype(str) # type: ignore
+    data: Sequence[str] = df[self.name].astype(pd.StringDtype()) # type: ignore
     tags_list = self.json2list(data)
     json_strings = self.list2json(tags_list)
     df[self.name] = pd.Series(json_strings)
@@ -283,14 +283,14 @@ class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   role: GeospatialRoleEnum
 
   def fit(self, df):
-    data = df[self.name].astype(np.float64)
+    data = df[self.name].astype(pd.Float64Dtype())
     df[self.name] = data
 
 class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   type: Literal[SchemaColumnTypeEnum.Unique]
 
   def fit(self, df):
-    df[self.name] = df[self.name].astype(str)
+    df[self.name] = df[self.name].astype(pd.StringDtype())
   
 SchemaColumn = Annotated[
   Union[
