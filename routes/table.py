@@ -1,12 +1,9 @@
 from typing import Any
 from fastapi import APIRouter, Response
 
-from controllers.table.comparison import compare_group_words
-from controllers.table.filter import get_column_descriptive_statistics, get_column_topic_words, get_column_unique_values, get_column_values, get_column_word_frequencies
-from controllers.table.general import get_affected_rows
 from models.table import (
-  ComparisonGroupWordsSchema, DatasetFilterSchema, GetTableColumnSchema,
-  GetTableGeographicalColumnSchema, ComparisonStatisticTestSchema,
+  ComparisonGroupWordsSchema, DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
+  GetTableGeographicalColumnSchema, ComparisonStatisticTestSchema, TableColumnAggregateTotalsResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
   TableWordsResource
@@ -20,7 +17,10 @@ from controllers.project import ProjectCacheDependency
 from controllers.table import (
   paginate_table, get_column_counts,
   get_column_frequency_distribution, statistic_test,
-  get_column_geographical_points,
+  get_column_geographical_points, get_column_aggregate_totals,
+  get_column_descriptive_statistics, get_column_topic_words,
+  get_column_unique_values, get_column_values, get_column_word_frequencies,
+  compare_group_words, get_affected_rows
 )
 from modules.table.filter_variants import TableFilter
 from modules.table.pagination import TablePaginationApiResult
@@ -44,6 +44,10 @@ async def post__get_affected_rows(params: DatasetFilterSchema, cache: ProjectCac
 @router.post("/column/frequency-distribution")
 async def post__get_table_column__frequency_distribution(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnFrequencyDistributionResource]:
   return get_column_frequency_distribution(body, cache)
+
+@router.post("/column/aggregate-totals")
+async def post__get_table_column__aggregate_totals(body: GetTableColumnAggregateTotalsSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnAggregateTotalsResource]:
+  return get_column_aggregate_totals(body, cache)
 
 @router.post("/column/counts")
 async def post__get_table_column__counts(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnCountsResource]:

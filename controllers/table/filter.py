@@ -3,7 +3,7 @@ from typing import Optional, Sequence, cast
 import pandas as pd
 from modules.api import ApiResult
 from models.table import (
-  DescriptiveStatisticsResource, GetTableGeographicalColumnSchema, GetTableColumnSchema,
+  DescriptiveStatisticsResource, GetTableColumnAggregateTotalsSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateTotalsResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
   TableTopicsResource, TableWordsResource, TableWordItemResource
@@ -17,39 +17,38 @@ from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.config.schema.base import GeospatialRoleEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table import TableEngine, TablePaginationApiResult, PaginationParams
+from modules.table.filter import TableSort
 from modules.topic.model import Topic
 
 
 def _filter_table(params: GetTableColumnSchema, cache: ProjectCache, *, supported_types: Optional[list[SchemaColumnTypeEnum]] = None):
   config = cache.config
-  df = cache.load_workspace()
   if supported_types is not None:
     column = config.data_schema.assert_of_type(params.column, supported_types)
   else:
     column = config.data_schema.assert_exists(params.column)
 
   engine = TableEngine(config=config)
-  filtered_df = engine.filter(df, params.filter)
-  data = filtered_df[column.name]
+  df = engine.process_workspace(params.filter, None)
+  data = df[column.name]
 
   mask = data.notna()
   data = data[mask]
-  filtered_df = filtered_df[mask]
+  df = df[mask]
 
-  return data, filtered_df, column
+  return data, df, column
 
 def _filter_table_textual(params: GetTableColumnSchema, cache: ProjectCache):
   config = cache.config
-  df = cache.load_workspace()
   column = config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual])
   
   engine = TableEngine(config=config)
-  filtered_df = engine.filter(df, params.filter)
+  df = engine.process_workspace(params.filter, None)
   column = cast(TextualSchemaColumn, column)
-  if column.preprocess_column.name not in filtered_df.categories:
+  if column.preprocess_column.name not in df.categories:
     raise ApiError("The topic modeling procedure has not been executed on this dataset.", http.HTTPStatus.BAD_REQUEST)
-  data = filtered_df[column.preprocess_column.name]
-  return data, filtered_df, column
+  data = df[column.preprocess_column.name]
+  return data, df, column
 
 
 def _filter_table_textual_with_topic(params: GetTableColumnSchema, cache: ProjectCache):
@@ -97,8 +96,9 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
     SchemaColumnTypeEnum.OrderedCategorical,
     SchemaColumnTypeEnum.Topic,
     SchemaColumnTypeEnum.MultiCategorical,
+    SchemaColumnTypeEnum.Temporal,
   ])
-  
+
   if column.type == SchemaColumnTypeEnum.MultiCategorical:
     _column = cast(MultiCategoricalSchemaColumn, column)
     freqdist = pd.Series(_column.count_categories(data))
@@ -110,6 +110,39 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
       column=column,
       frequencies=freqdist.values.tolist(),
       values=freqdist.index.tolist()
+    ),
+    message=None
+  )
+
+def get_column_aggregate_totals(params: GetTableColumnAggregateTotalsSchema, cache: ProjectCache):
+  config = cache.config
+  engine = TableEngine(config)
+  column = config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Continuous])
+  config.data_schema.assert_of_type(params.grouped_by.name, [
+    SchemaColumnTypeEnum.Categorical,
+    SchemaColumnTypeEnum.OrderedCategorical,
+    SchemaColumnTypeEnum.Topic,
+    SchemaColumnTypeEnum.MultiCategorical,
+    SchemaColumnTypeEnum.Temporal,
+  ])
+
+  engine = TableEngine(config=config)
+  df = engine.process_workspace(params.filter, params.grouped_by)
+  
+  data = df[column.name]
+  grouper = df[params.grouped_by.name]
+  mask = data.notna() & grouper.notna()
+
+  data = data[mask]
+  df = df[mask]
+
+  totals = data.groupby(by=params.grouped_by.name).sum()
+
+  return ApiResult(
+    data=TableColumnAggregateTotalsResource(
+      column=column,
+      totals=totals.values.tolist(),
+      values=totals.index.tolist(),
     ),
     message=None
   )
@@ -250,4 +283,7 @@ __all__ = [
   "get_column_topic_words",
   "get_column_word_frequencies",
   "get_column_descriptive_statistics",
+  "get_column_aggregate_totals",
+  "get_column_unique_values",
+  "get_column_values",
 ]

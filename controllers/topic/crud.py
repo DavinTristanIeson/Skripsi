@@ -33,7 +33,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   else:
     params.filter = not_empty_filter
 
-  filtered_df, meta = engine.paginate(df, params)
+  filtered_df, meta = engine.paginate_workspace(params)
 
   documents: list[DocumentPerTopicResource] = []
   for row in filtered_df.to_dict(orient="records"):

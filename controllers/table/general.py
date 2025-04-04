@@ -7,11 +7,10 @@ from modules.table.pagination import PaginationParams, TablePaginationApiResult
 
 
 def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
-  df = cache.load_workspace()
   engine = TableEngine(cache.config)
-  data, meta = engine.paginate(df, params)
+  data, meta = engine.paginate_workspace(params)
   return TablePaginationApiResult(
-    data=df.to_dict(orient="records"),
+    data=data.to_dict(orient="records"),
     message=None,
     columns=cache.config.data_schema.columns,
     meta=meta

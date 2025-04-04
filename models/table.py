@@ -6,12 +6,16 @@ from modules.comparison.effect_size import EffectSizeMethodEnum
 from modules.comparison.statistic_test import StatisticTestMethodEnum
 from modules.config import SchemaColumn
 from modules.table import NamedTableFilter, TableFilter
+from modules.table.filter import TableSort
 from modules.topic.model import Topic
 
 # Schema
 class GetTableColumnSchema(pydantic.BaseModel):
   column: str
   filter: Optional[TableFilter]
+
+class GetTableColumnAggregateTotalsSchema(GetTableColumnSchema, pydantic.BaseModel):
+  grouped_by: TableSort
 
 class DatasetFilterSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
@@ -44,6 +48,11 @@ class TableColumnFrequencyDistributionResource(pydantic.BaseModel):
   column: SchemaColumn
   values: list[str]
   frequencies: list[int]
+
+class TableColumnAggregateTotalsResource(pydantic.BaseModel):
+  column: SchemaColumn
+  values: list[str]
+  totals: list[int]
 
 class TableColumnGeographicalPointsResource(pydantic.BaseModel):
   latitude_column: SchemaColumn
