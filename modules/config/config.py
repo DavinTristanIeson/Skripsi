@@ -13,7 +13,7 @@ from ..project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
   
 logger = ProvisionedLogger().provision("Config")
 class ProjectMetadata(pydantic.BaseModel):
-  name: str
+  name: str = pydantic.Field(min_length=1)
   description: Optional[str]
   tags: list[str]
 
