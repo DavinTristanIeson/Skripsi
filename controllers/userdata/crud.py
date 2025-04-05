@@ -85,11 +85,13 @@ class JSONStorageController(Generic[T]):
       json.dump(jsonable_encoder(contents), f)
 
   def all(self)->list[UserDataResource[T]]:
+    logger.info(f"{self.path} - GET ALL")
     with self.lock:
       current_state = self.read_file()
       return current_state
     
   def get(self, id: str)->Optional[UserDataResource[T]]:
+    logger.info(f"{self.path} - GET {id}")
     with self.lock:
       current_state = self.read_file()
       for item in current_state:
@@ -98,6 +100,7 @@ class JSONStorageController(Generic[T]):
       return None
 
   def create(self, item: UserDataSchema[T]):
+    logger.info(f"{self.path} - CREATE {item}")
     import uuid
     addition = UserDataResource[T].from_schema(item, uuid.uuid4().hex)
     # Ensure that Generic is properly resolved. Pydantic cannot resolve the nested T generic up there.
@@ -109,6 +112,7 @@ class JSONStorageController(Generic[T]):
       self.write_file(current_state)
 
   def update(self, id: str, item: UserDataSchema[T]):
+    logger.info(f"{self.path} - UPDATE {id} WITH {item}")
     with self.lock:
       current_state = self.read_file()
       __has_update = False
@@ -130,6 +134,7 @@ class JSONStorageController(Generic[T]):
       self.write_file(current_state)
     
   def delete(self, id: str):
+    logger.info(f"{self.path} - DELETE {id}")
     with self.lock:
       current_state = self.read_file()
       __has_delete = False
