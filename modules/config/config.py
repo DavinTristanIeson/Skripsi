@@ -61,6 +61,9 @@ class Config(pydantic.BaseModel):
       logger.error(e)
       raise ApiError(f"Failed to load the workspace table from {path}. Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
     for col in self.data_schema.ordered_categorical():
+      if col.name not in df.columns:
+        logger.warning(f"Failed to load {col.name} as it doesn't exist in the workspace. (Full column: {col})")
+        continue
       # Set ordered categories
       col.fit(df) # type: ignore
     for col in self.data_schema.topic():

@@ -1,5 +1,6 @@
 from typing import Any
 from fastapi import APIRouter, Response
+from fastapi.responses import JSONResponse
 
 from models.table import (
   ComparisonGroupWordsSchema, DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
@@ -35,7 +36,8 @@ async def post__check_filter(filter: TableFilter, cache: ProjectCacheDependency)
 
 @router.post("/")
 async def post__get_table(params: PaginationParams, cache: ProjectCacheDependency)->TablePaginationApiResult[dict[str, Any]]:
-  return paginate_table(params, cache)
+  response = paginate_table(params, cache)
+  return response
 
 @router.post("/affected-rows")
 async def post__get_affected_rows(params: DatasetFilterSchema, cache: ProjectCacheDependency)->ApiResult[list[int]]:

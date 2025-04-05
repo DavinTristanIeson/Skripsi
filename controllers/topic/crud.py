@@ -39,7 +39,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   for row in filtered_df.to_dict(orient="records"):
     topic_id = row[column.topic_column.name]
     document = DocumentPerTopicResource(
-      id=row["__index"], # type: ignore
+      id=int(row["__index"]),
       original=row[column.name],
       preprocessed=row[column.preprocess_column.name],
       topic=None if pd.isna(topic_id) else topic_id,

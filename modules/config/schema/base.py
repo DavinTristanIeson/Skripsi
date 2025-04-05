@@ -30,7 +30,9 @@ class GeospatialRoleEnum(str, Enum):
 
 ExposedEnum().register(GeospatialRoleEnum)
 
-class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
+# Frozen classes are required for easy columnar comparison in schema_manager.py.
+
+class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC, frozen=True):
   model_config = pydantic.ConfigDict(use_enum_values=True)
   name: str
   description: Optional[str] = None
@@ -45,7 +47,7 @@ class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC):
     ...
 
 
-class _BaseMultiCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, abc.ABC):
+class _BaseMultiCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, abc.ABC, frozen=True):
   delimiter: str = ","
   is_json: bool = True
     

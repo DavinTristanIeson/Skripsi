@@ -1,3 +1,6 @@
+from typing import Any, cast
+import pandas as pd
+
 from models.table import DatasetFilterSchema
 
 from modules.api.wrapper import ApiResult
@@ -6,11 +9,13 @@ from modules.table.engine import TableEngine
 from modules.table.pagination import PaginationParams, TablePaginationApiResult
 
 
-def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
+def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult[dict[str, Any]]:
   engine = TableEngine(cache.config)
   data, meta = engine.paginate_workspace(params)
-  return TablePaginationApiResult(
-    data=data.to_dict(orient="records"),
+  # for column in cache.config.data_schema.temporal():
+  #   data[column.name].replace("NaT", pd.NA, inplace=True)
+  return TablePaginationApiResult[dict[str, Any]](
+    data=cast(list[dict[str, Any]], data.to_dict(orient="records")),
     message=None,
     columns=cache.config.data_schema.columns,
     meta=meta
