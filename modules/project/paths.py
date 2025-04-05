@@ -16,6 +16,7 @@ class ProjectPaths(SimpleNamespace):
   
   Workspace = "workspace.parquet"
   TopicsFolder = "topics"
+  UserDataFolder = "userdata"
 
   @staticmethod
   def hash_name(name: str)->str:
@@ -76,6 +77,10 @@ class ProjectPaths(SimpleNamespace):
       ProjectPaths.UMAPEmbeddings(column),
       ProjectPaths.Topics(column),
     ]
+  
+  @staticmethod
+  def UserData(type: str):
+    return os.path.join(ProjectPaths.UserDataFolder, f"{type}.json")
 
 logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 
@@ -105,6 +110,7 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
       ProjectPaths.EmbeddingsFolder,
       ProjectPaths.BERTopicFolder,
       ProjectPaths.TopicsFolder,
+      ProjectPaths.UserDataFolder,
     ]
     files = [
       ProjectPaths.Workspace,
