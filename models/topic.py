@@ -27,7 +27,7 @@ class DocumentTopicAssignmentUpdateSchema(pydantic.BaseModel):
 
 class TopicUpdateSchema(pydantic.BaseModel):
   id: int
-  label: Optional[str]
+  label: Optional[str] = pydantic.Field(min_length=1)
   tags: Optional[list[str]]
   description: Optional[str]
 
