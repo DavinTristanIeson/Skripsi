@@ -41,7 +41,7 @@ def __extend_schema_manager_columns(value: list[SchemaColumn]):
     if additional_internal_columns is None or len(additional_internal_columns) == 0:
       continue
     for col in additional_internal_columns:
-      final_columns.insert(idx + offset, cast(SchemaColumn, col))
+      final_columns.insert(idx + offset + 1, cast(SchemaColumn, col))
       offset += 1
   return final_columns
 
@@ -139,7 +139,7 @@ class SchemaManager(pydantic.BaseModel):
   def fit(self, raw_df: pd.DataFrame)->pd.DataFrame:
     df = self._ensure_columns_in_df(raw_df)
     logger.debug(f"Fitting dataframe with columns: {raw_df.columns} with the following columns {list(map(lambda col: col.name, self.columns))}")
-    for col in self.columns:
+    for col in self.non_internal():
       self.__fit_column(df, col)
     return df
   

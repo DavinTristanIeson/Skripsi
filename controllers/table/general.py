@@ -8,14 +8,18 @@ from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
 from modules.table.pagination import PaginationParams, TablePaginationApiResult
 
+def serialize_pandas(data: pd.DataFrame)->list[dict[str, Any]]:
+  # Stupid way, but it's necessary to deal with serializing NaNs and NaTs.
+  import orjson
+  json_response = data.to_json(orient="records")
+  serialized_data = orjson.loads(json_response)
+  return serialized_data
 
 def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult[dict[str, Any]]:
   engine = TableEngine(cache.config)
   data, meta = engine.paginate_workspace(params)
-  # for column in cache.config.data_schema.temporal():
-  #   data[column.name].replace("NaT", pd.NA, inplace=True)
   return TablePaginationApiResult[dict[str, Any]](
-    data=cast(list[dict[str, Any]], data.to_dict(orient="records")),
+    data=serialize_pandas(data),
     message=None,
     columns=cache.config.data_schema.columns,
     meta=meta

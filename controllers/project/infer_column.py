@@ -4,6 +4,7 @@ from typing import Any, Optional, cast
 import pandas as pd
 import numpy as np
 
+from controllers.table.general import serialize_pandas
 from models.table import DescriptiveStatisticsResource
 from modules.api import ApiResult
 from modules.api.wrapper import ApiError
@@ -107,7 +108,7 @@ def get_dataset_preview(body: CheckDatasetSchema):
   df = df.head(15) 
   df["__index"] = df.index
 
-  preview_rows=cast(list[dict[str, Any]], df.to_dict(orient="records"))
+  preview_rows = serialize_pandas(df)
   return ApiResult(
     data=DatasetPreviewResource(
       dataset_columns=dataset_columns,

@@ -321,9 +321,9 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       df[self.date_column.name] = date_column
     
     if TemporalColumnFeatureEnum.Monthly in self.temporal_features:
-      month_column = pd.Categorical(datetime_column.dt.month)
-      month_column = month_column.rename_categories({k+1: v for k, v in enumerate(self.MONTHS)})
-      df[self.month_column.name] = month_column
+      monthly_column = pd.Categorical(datetime_column.dt.month)
+      monthly_column = monthly_column.rename_categories({k+1: v for k, v in enumerate(self.MONTHS)})
+      df[self.monthly_column.name] = monthly_column
     
     if TemporalColumnFeatureEnum.DayOfWeek in self.temporal_features:
       dayofweek_column = pd.Categorical(datetime_column.dt.dayofweek)
@@ -334,6 +334,8 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       hour_column = pd.Categorical(datetime_column.dt.hour)
       hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
       df[self.hour_column.name] = hour_column
+
+    print(df[self.year_column.name], df[self.month_column.name])
 
 class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
