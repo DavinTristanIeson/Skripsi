@@ -65,16 +65,16 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
       hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})" # Range
 
       # Give the bin an alphanumerically sortable prefix.
-      bin_name = str(category + 1).rjust(digit_length, '0')
+      bin_name = str(category).rjust(digit_length, '0')
       bin_categories[category] = f"Bin {bin_name}: {hist_range}"
     
     # Handle the first bin and last bin cases.
     first_histogram_edge_str = self.__format_3f(histogram_edges[0])
-    first_bin_id = str(1).rjust(digit_length, '0') 
+    first_bin_id = str(0).rjust(digit_length, '0') 
     bin_categories[0] = f"Bin {first_bin_id}: (-inf, {first_histogram_edge_str})"
 
     last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
-    last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
+    last_bin_id = str(len(histogram_edges)).rjust(digit_length, '0')
     bin_categories[len(histogram_edges)] = f"Bin {last_bin_id}: [{last_histogram_edge_str}, inf)"
     
     # Rename the categorical values
