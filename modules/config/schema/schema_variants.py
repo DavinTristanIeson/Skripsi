@@ -8,13 +8,14 @@ import pydantic
 import pandas as pd
 
 from modules.api.enum import ExposedEnum
+from modules.config.context import ConfigSerializationContext
 from modules.validation import DiscriminatedUnionValidator
 
 from .base import _BaseMultiCategoricalSchemaColumn, _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 
-class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Continuous]
   # Note: bins contain the bin edges. So this should have length bin_count + 1
   bins: Optional[list[float]] = None
@@ -35,7 +36,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       source_name=self.name,
     )
   
-  def get_internal_columns(self):
+  def get_internal_columns(self)->list["SchemaColumn"]:
     return [self.bins_column]
   
   def __format_3f(self, value: float)->str:
@@ -64,16 +65,16 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})" # Range
 
       # Give the bin an alphanumerically sortable prefix.
-      bin_name = str(category + 1).rjust(digit_length, '0')
+      bin_name = str(category).rjust(digit_length, '0')
       bin_categories[category] = f"Bin {bin_name}: {hist_range}"
     
     # Handle the first bin and last bin cases.
     first_histogram_edge_str = self.__format_3f(histogram_edges[0])
-    first_bin_id = str(1).rjust(digit_length, '0') 
+    first_bin_id = str(0).rjust(digit_length, '0') 
     bin_categories[0] = f"Bin {first_bin_id}: (-inf, {first_histogram_edge_str})"
 
     last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
-    last_bin_id = str(len(histogram_edges) + 1).rjust(digit_length, '0')
+    last_bin_id = str(len(histogram_edges)).rjust(digit_length, '0')
     bin_categories[len(histogram_edges)] = f"Bin {last_bin_id}: [{last_histogram_edge_str}, inf)"
     
     # Rename the categorical values
@@ -87,7 +88,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     df[self.name] = data
     df[self.bins_column.name] = self.__histogram(data)
   
-class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Categorical]
   def fit(self, df):
     raw_data = df[self.name]
@@ -97,7 +98,7 @@ class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       data = pd.Categorical(raw_data.astype(pd.StringDtype()))
     df[self.name] = data
   
-class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
 
@@ -135,12 +136,12 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
 # Topic column are special because they contain the topic IDs rather than the topic names.
 # Topic ID will be mapped by FE with the topic information.
 # This makes relabeling or recalculating topic representation much easier.
-class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Topic]
   def fit(self, df):
     df[self.name] = df[self.name].astype(pd.Int32Dtype())
 
-class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Textual]
   preprocessing: TextPreprocessingConfig
   topic_modeling: TopicModelingConfig
@@ -163,7 +164,7 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       source_name=self.name,
     )
   
-  def get_internal_columns(self):
+  def get_internal_columns(self)->list["SchemaColumn"]:
     return [
       self.preprocess_column,
       self.topic_column,
@@ -174,24 +175,48 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     df[self.name] = data
 
 
-class TemporalPrecisionEnum(str, Enum):
+class TemporalColumnFeatureEnum(str, Enum):
+  # Non-repeating
+  Year = "year"
+  Month = "month"
   Date = "date"
-  DateTime = "date-time"
+
+  Monthly = "monthly"
+  DayOfWeek = "day_of_week"
+  Hour = "hour"
+
+# Only used by FE for formatting purposes
+class TemporalPrecisionEnum(str, Enum):
+  Year = "year"
+  Month = "month"
+  Date = "date"
+
+ExposedEnum().register(TemporalColumnFeatureEnum)
 ExposedEnum().register(TemporalPrecisionEnum)
 
-class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Temporal]
   datetime_format: Optional[str]
-  temporal_precision: TemporalPrecisionEnum = TemporalPrecisionEnum.DateTime
+  temporal_features: list[TemporalColumnFeatureEnum]
+  temporal_precision: Optional[TemporalPrecisionEnum] = None
+
+  @pydantic.field_serializer("temporal_precision")
+  def __serialize_precision(value, info: pydantic.SerializationInfo):
+    if isinstance(info.context, ConfigSerializationContext) and info.context.is_save:
+      return None
+    return value
 
   MONTHS: ClassVar[list[str]] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-  DAYS_OF_WEEK: ClassVar[list[str]] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+  DAYS_OF_WEEK: ClassVar[list[str]] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
   HOURS: ClassVar[list[str]] = list(map(lambda x: f"{str(x).rjust(2, '0')}:00", range(0, 24)))
 
   @functools.cached_property
   def year_column(self):
-    return OrderedCategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.OrderedCategorical,
+    return TemporalSchemaColumn(
+      type=SchemaColumnTypeEnum.Temporal,
+      temporal_features=[],
+      temporal_precision=TemporalPrecisionEnum.Year,
+      datetime_format=None,
       name=f"{self.name} (Year)",
       internal=True,
       source_name=self.name,
@@ -199,9 +224,33 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
   
   @functools.cached_property
   def month_column(self):
+    return TemporalSchemaColumn(
+      type=SchemaColumnTypeEnum.Temporal,
+      temporal_precision=TemporalPrecisionEnum.Month,
+      temporal_features=[],
+      datetime_format=None,
+      name=f"{self.name} (Month)",
+      internal=True,
+      source_name=self.name,
+    )
+  
+  @functools.cached_property
+  def date_column(self):
+    return TemporalSchemaColumn(
+      type=SchemaColumnTypeEnum.Temporal,
+      temporal_precision=TemporalPrecisionEnum.Date,
+      temporal_features=[],
+      datetime_format=None,
+      name=f"{self.name} (Date)",
+      internal=True,
+      source_name=self.name,
+    )
+  
+  @functools.cached_property
+  def monthly_column(self):
     return OrderedCategoricalSchemaColumn(
       type=SchemaColumnTypeEnum.OrderedCategorical,
-      name=f"{self.name} (Month)",
+      name=f"{self.name} (Monthly)",
       category_order=self.MONTHS,
       internal=True,
       source_name=self.name,
@@ -227,14 +276,24 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       source_name=self.name,
     )
   
-  def get_internal_columns(self):
-    internal_columns = [
-      self.year_column,
-      self.month_column,
-      self.day_of_week_column,
-    ]
-    if self.temporal_precision:
+  def get_internal_columns(self)->list["SchemaColumn"]:
+    if self.internal:
+      return []
+    
+    internal_columns = []
+    if TemporalColumnFeatureEnum.Year in self.temporal_features:
+      internal_columns.append(self.year_column)
+    if TemporalColumnFeatureEnum.Month in self.temporal_features:
+      internal_columns.append(self.month_column)
+    if TemporalColumnFeatureEnum.Date in self.temporal_features:
+      internal_columns.append(self.date_column)
+    if TemporalColumnFeatureEnum.Monthly in self.temporal_features:
+      internal_columns.append(self.monthly_column)
+    if TemporalColumnFeatureEnum.DayOfWeek in self.temporal_features:
+      internal_columns.append(self.day_of_week_column)
+    if TemporalColumnFeatureEnum.Hour in self.temporal_features:
       internal_columns.append(self.hour_column)
+    
     return internal_columns
 
   def fit(self, df):
@@ -243,31 +302,42 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
       if self.datetime_format is not None:
         kwargs["format"] = self.datetime_format
       datetime_column = pd.to_datetime(df[self.name], **kwargs)
-
-      if self.temporal_precision == TemporalPrecisionEnum.Date:
-        datetime_column = datetime_column.dt.round("D")
-      df[self.name] = datetime_column
     else:
       datetime_column = df[self.name]
 
-    year_column = pd.Categorical(datetime_column.dt.year)
-    year_column = year_column.rename_categories({v: str(v) for v in year_column.categories})
-    year_column = year_column.reorder_categories(sorted(year_column.categories), ordered=True)
-    df[self.year_column.name] = year_column
+    df[self.name] = datetime_column
+    if TemporalColumnFeatureEnum.Year in self.temporal_features:
+      # https://github.com/pandas-dev/pandas/issues/15303
+      # Round doesn't work for Y and M since they're not fixed frequencies.
+      year_column = datetime_column.dt.to_period("M").dt.to_timestamp()
+      df[self.year_column.name] = year_column
+    
+    if TemporalColumnFeatureEnum.Month in self.temporal_features:
+      month_column = datetime_column.dt.to_period("M").dt.to_timestamp()
+      df[self.month_column.name] = month_column
+    
+    if TemporalColumnFeatureEnum.Date in self.temporal_features:
+      date_column = datetime_column.dt.round("D")
+      df[self.date_column.name] = date_column
+    
+    if TemporalColumnFeatureEnum.Monthly in self.temporal_features:
+      monthly_column = pd.Categorical(datetime_column.dt.month)
+      monthly_column = monthly_column.rename_categories({k+1: v for k, v in enumerate(self.MONTHS)})
+      df[self.monthly_column.name] = monthly_column
+    
+    if TemporalColumnFeatureEnum.DayOfWeek in self.temporal_features:
+      dayofweek_column = pd.Categorical(datetime_column.dt.dayofweek)
+      dayofweek_column = dayofweek_column.rename_categories({k: v for k, v in enumerate(self.DAYS_OF_WEEK)})
+      df[self.day_of_week_column.name] = dayofweek_column
+    
+    if TemporalColumnFeatureEnum.Hour in self.temporal_features:
+      hour_column = pd.Categorical(datetime_column.dt.hour)
+      hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
+      df[self.hour_column.name] = hour_column
 
-    month_column = pd.Categorical(datetime_column.dt.month)
-    month_column = month_column.rename_categories({k+1: v for k, v in enumerate(self.MONTHS)})
-    df[self.month_column.name] = month_column
+    print(df[self.year_column.name], df[self.month_column.name])
 
-    dayofweek_column = pd.Categorical(datetime_column.dt.dayofweek)
-    dayofweek_column = dayofweek_column.rename_categories({k: v for k, v in enumerate(self.DAYS_OF_WEEK)})
-    df[self.day_of_week_column.name] = dayofweek_column
-
-    hour_column = pd.Categorical(datetime_column.dt.hour)
-    hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
-    df[self.hour_column.name] = hour_column
-
-class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel):
+class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.MultiCategorical]
   delimiter: str = ","
   is_json: bool = True
@@ -278,7 +348,7 @@ class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.B
     json_strings = self.list2json(tags_list)
     df[self.name] = pd.Series(json_strings)
   
-class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Geospatial]
   role: GeospatialRoleEnum
 
@@ -286,7 +356,7 @@ class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
     data = df[self.name].astype(pd.Float64Dtype())
     df[self.name] = data
 
-class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel):
+class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Unique]
 
   def fit(self, df):

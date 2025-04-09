@@ -1,12 +1,9 @@
-import http
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 
-from controllers.project.crud import get_all_projects
+from controllers.project.crud import get_all_projects, reload_project
 from controllers.project.dependency import ProjectCacheDependency, ProjectExistsDependency
 from controllers.project.infer_column import get_dataset_preview
 from modules.api.wrapper import ApiResult
-from modules.config.config import Config
-from modules.logger import ProvisionedLogger
 
 from controllers.project import (
   infer_column_from_dataset,
@@ -66,6 +63,10 @@ async def create__project(body: ProjectMutationSchema)->ApiResult[ProjectResourc
 async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSchema)->ApiResult[ProjectResource]:
   config = cache.config
   return update_project(config, body)
+
+@router.patch('/{project_id}/reload')
+async def reload__project(cache: ProjectCacheDependency)->ApiResult[None]:
+  return reload_project(cache)
 
 @router.delete('/{project_id}')
 async def delete__project(config: ProjectExistsDependency)->ApiResult[None]:

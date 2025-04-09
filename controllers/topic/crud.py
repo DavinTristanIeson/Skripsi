@@ -3,6 +3,7 @@ from typing import Sequence, cast
 import numpy as np
 import pandas as pd
 
+from controllers.table.general import serialize_pandas
 from controllers.topic.dependency import _assert_dataframe_has_topic_columns
 from models.topic import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
@@ -33,13 +34,13 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   else:
     params.filter = not_empty_filter
 
-  filtered_df, meta = engine.paginate(df, params)
+  filtered_df, meta = engine.paginate_workspace(params)
 
   documents: list[DocumentPerTopicResource] = []
-  for row in filtered_df.to_dict(orient="records"):
+  for row in serialize_pandas(filtered_df):
     topic_id = row[column.topic_column.name]
     document = DocumentPerTopicResource(
-      id=row["__index"], # type: ignore
+      id=int(row["__index"]),
       original=row[column.name],
       preprocessed=row[column.preprocess_column.name],
       topic=None if pd.isna(topic_id) else topic_id,

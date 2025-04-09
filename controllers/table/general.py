@@ -1,3 +1,6 @@
+from typing import Any, cast
+import pandas as pd
+
 from models.table import DatasetFilterSchema
 
 from modules.api.wrapper import ApiResult
@@ -5,13 +8,18 @@ from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
 from modules.table.pagination import PaginationParams, TablePaginationApiResult
 
+def serialize_pandas(data: pd.DataFrame)->list[dict[str, Any]]:
+  # Stupid way, but it's necessary to deal with serializing NaNs and NaTs.
+  import orjson
+  json_response = data.to_json(orient="records")
+  serialized_data = orjson.loads(json_response)
+  return serialized_data
 
-def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult:
-  df = cache.load_workspace()
+def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult[dict[str, Any]]:
   engine = TableEngine(cache.config)
-  data, meta = engine.paginate(df, params)
-  return TablePaginationApiResult(
-    data=df.to_dict(orient="records"),
+  data, meta = engine.paginate_workspace(params)
+  return TablePaginationApiResult[dict[str, Any]](
+    data=serialize_pandas(data),
     message=None,
     columns=cache.config.data_schema.columns,
     meta=meta

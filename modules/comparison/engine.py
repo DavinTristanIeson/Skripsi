@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+import functools
 import numpy as np
 import pandas as pd
 import pydantic
 from typing import Sequence, cast
 
 from modules.config import Config, SchemaColumn, SchemaColumnTypeEnum, MultiCategoricalSchemaColumn
+from modules.project.cache import ProjectCacheManager
 from modules.table import TableEngine, NamedTableFilter
 from modules.logger import ProvisionedLogger
 
@@ -37,6 +39,10 @@ class TableComparisonEngine:
   engine: TableEngine
   groups: list[NamedTableFilter]
   exclude_overlapping_rows: bool = True
+  
+  @functools.cached_property
+  def cache(self):
+    return ProjectCacheManager().get(self.config.project_id)
 
   def _are_samples_large_enough(self, groups: list[pd.Series])->_StatisticTestValidityModel:
     warnings = []

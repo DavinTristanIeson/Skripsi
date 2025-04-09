@@ -5,7 +5,7 @@ from modules.api import ApiResult, ApiError
 from modules.config import Config
 from models.project import ProjectMutationSchema, ProjectResource
 from modules.config.schema.base import SchemaColumnTypeEnum
-from modules.project.cache import ProjectCacheManager, get_cached_data_source
+from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_data_source
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.engine import scheduler, topic_modeling_job_store
@@ -134,9 +134,26 @@ def delete_project(config: Config):
     message=f"Project \"{config.metadata.name}\" has been successfully deleted."
   )
 
+def reload_project(cache: ProjectCache):
+  config = cache.config
+  df = get_cached_data_source(config.source)
+
+  config.paths.cleanup()
+  scheduler.remove_all_jobs(topic_modeling_job_store)
+  ProjectCacheManager().invalidate(config.project_id)  
+
+  df = config.data_schema.fit(df)
+  cache.save_workspace(df)
+
+  return ApiResult(
+    data=None,
+    message=f"The dataset has been successfully reloaded from \"{config.source.path}\". All cached data has been removed; this includes the topic modeling results."
+  )
+
 __all__ = [
   "get_all_projects",
   "create_project",
   "update_project",
-  "delete_project"
+  "delete_project",
+  "reload_project",
 ]

@@ -35,6 +35,10 @@ class TableEngine:
       key=key,
       value=df
     ))
+
+  def get_cached_workspace(self, filter: Optional[TableFilter], sort: Optional[TableSort]):
+    key = self.workspace_key(filter, sort)
+    return self.cache.workspaces.get(key)
     
   def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
     if filter is None:
@@ -52,9 +56,32 @@ class TableEngine:
     with TimeLogger("TableEngine", title="Applying sort to dataset..."):
       return df.sort_values(by=sort.name, ascending=sort.asc)
     
-  def reorder(self, df: pd.DataFrame):
-    return self.config.data_schema.process_columns(df)
-  
+
+  def process_workspace(self, filter: Optional[TableFilter], sort: Optional[TableSort])->pd.DataFrame:
+    df = self.cache.load_workspace()
+
+    config_column_names = map(lambda x: x.name, self.config.data_schema.columns)
+    column_names = [col for col in config_column_names if col in df.columns]
+    df = df.loc[:, column_names]
+
+    cached_df = self.get_cached_workspace(filter, sort)
+    if cached_df is not None:
+      return cached_df
+
+    if filter is not None:
+      cached_filtered_df = self.get_cached_workspace(filter, None)
+      if cached_filtered_df is not None:
+        df = cached_filtered_df
+      else:
+        df = self.filter(df, filter)
+        self.save_to_cache(df, filter, None)
+    
+    if sort is not None:
+      df = self.sort(df, sort)
+      self.save_to_cache(df, filter, sort)
+
+    return df
+      
   def get_meta(self, df: Sequence[Any], params: PaginationParams)->PaginationMeta:
     if params.limit is None:
       return PaginationMeta(
@@ -67,36 +94,16 @@ class TableEngine:
       total=len(df)
     )
     
-  def paginate(self, df: pd.DataFrame, params: PaginationParams):
-    column_names = map(lambda x: x.name, self.config.data_schema.columns)
-    existent_column_names = filter(lambda col: col in df.columns, column_names)
-    columns = list(existent_column_names)
+  def paginate_workspace(self, params: PaginationParams):
+    df = self.process_workspace(params.filter, params.sort)
 
-    df = df.loc[:,columns]
-    if params.filter is not None:
-      filtered_df_key = self.workspace_key(params.filter, None)
-      cached_df = self.cache.workspaces.get(filtered_df_key)
-      if cached_df is None:
-        df = self.filter(df, params.filter)
-        self.save_to_cache(df, params.filter, None)
-      else:
-        df = cached_df
-    if params.sort is not None:
-      filtered_sorted_df_key = self.workspace_key(params.filter, params.sort)
-      cached_df = self.cache.workspaces.get(filtered_sorted_df_key)
-      if cached_df is None:
-        df = self.sort(df, params.sort)
-        self.save_to_cache(df, params.filter, params.sort)
-      else:
-        df = cached_df
     meta = self.get_meta(cast(Sequence[Any], df), params)
     if params.limit is not None:
       page = params.page or 0
       from_idx = page * params.limit
       to_idx = (page + 1) * params.limit
       df = df.iloc[from_idx:to_idx, :]
-    
-    df = self.reorder(df)
+
     df["__index"] = df.index
 
     return df, meta
