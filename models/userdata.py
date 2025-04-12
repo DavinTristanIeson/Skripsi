@@ -2,7 +2,6 @@
 from typing import Generic, Optional, TypeVar
 import pydantic
 
-from modules.dashboard.agg import DashboardItem
 from modules.table.filter_variants import NamedTableFilter, TableFilter
 
 # Validators
