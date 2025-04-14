@@ -10,7 +10,6 @@ class DashboardItemRect(pydantic.BaseModel):
 class DashboardItem(pydantic.BaseModel):
   model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
   id: str
-  title: str
   description: Optional[str]
   column: str
   rect: DashboardItemRect

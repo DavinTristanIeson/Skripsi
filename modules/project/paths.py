@@ -110,7 +110,6 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
       ProjectPaths.EmbeddingsFolder,
       ProjectPaths.BERTopicFolder,
       ProjectPaths.TopicsFolder,
-      ProjectPaths.UserDataFolder,
     ]
     files = [
       ProjectPaths.Workspace,
@@ -118,6 +117,7 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
 
     if all:
       files.extend([
+        ProjectPaths.UserDataFolder,
         ProjectPaths.Config,
       ])
     self._cleanup(directories, files)
