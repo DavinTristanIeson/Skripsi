@@ -1,27 +1,25 @@
 from typing import Any
-from fastapi import APIRouter, Response
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter
 
 from models.table import (
-  ComparisonGroupWordsSchema, DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
-  GetTableGeographicalColumnSchema, ComparisonStatisticTestSchema, TableColumnAggregateTotalsResource,
+  DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
+  GetTableGeographicalColumnSchema, TableColumnAggregateTotalsResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
   TableWordsResource
 )
 from modules.api.wrapper import ApiResult
-from modules.comparison.engine import TableComparisonResult
 from modules.table import PaginationParams
 
 from controllers.project import ProjectCacheDependency
 
 from controllers.table import (
   paginate_table, get_column_counts,
-  get_column_frequency_distribution, statistic_test,
+  get_column_frequency_distribution,
   get_column_geographical_points, get_column_aggregate_totals,
   get_column_descriptive_statistics, get_column_topic_words,
   get_column_unique_values, get_column_values, get_column_word_frequencies,
-  compare_group_words, get_affected_rows
+  get_affected_rows
 )
 from modules.table.filter_variants import TableFilter
 from modules.table.pagination import TablePaginationApiResult
@@ -79,11 +77,3 @@ async def post__get_table_column__word_frequencies(body: GetTableColumnSchema, c
 async def post__get_table_column__topic_words(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableTopicsResource]:
   return get_column_topic_words(body, cache)
 
-@router.post("/statistic-test")
-async def post__statistic_test(body: ComparisonStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[TableComparisonResult]:
-  return statistic_test(body, cache)
-
-@router.post("/compare-group-words")
-async def post__compare_group_words(body: ComparisonGroupWordsSchema, cache: ProjectCacheDependency)->ApiResult[TableTopicsResource]:
-  return compare_group_words(body, cache)
-  

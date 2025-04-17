@@ -2,10 +2,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 import pydantic
-from modules.comparison.effect_size import EffectSizeMethodEnum
-from modules.comparison.statistic_test import StatisticTestMethodEnum
 from modules.config import SchemaColumn
-from modules.table import NamedTableFilter, TableFilter
+from modules.table import TableFilter
 from modules.table.filter import TableSort
 from modules.topic.model import Topic
 
@@ -25,18 +23,6 @@ class GetTableGeographicalColumnSchema(pydantic.BaseModel):
   latitude_column: str
   longitude_column: str
 
-class ComparisonStatisticTestSchema(pydantic.BaseModel):
-  group1: NamedTableFilter
-  group2: NamedTableFilter
-  column: str
-
-  statistic_test_preference: StatisticTestMethodEnum
-  effect_size_preference: EffectSizeMethodEnum
-  exclude_overlapping_rows: bool
-
-class ComparisonGroupWordsSchema(pydantic.BaseModel):
-  groups: list[NamedTableFilter]
-  column: str
 
 # Resources
 
@@ -46,12 +32,12 @@ class TableColumnValuesResource(pydantic.BaseModel):
 
 class TableColumnFrequencyDistributionResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str]
+  values: list[str] | list[int]
   frequencies: list[int]
 
 class TableColumnAggregateTotalsResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str]
+  values: list[str] | list[int]
   totals: list[int]
 
 class TableColumnGeographicalPointsResource(pydantic.BaseModel):
