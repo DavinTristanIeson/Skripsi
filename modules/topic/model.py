@@ -14,6 +14,14 @@ class Topic(pydantic.BaseModel):
   description: Optional[str] = None
   tags: Optional[list[str]] = None
 
+  @property
+  def default_label(self)->str:
+    if self.label:
+      return self.label
+    if len(self.words) > 0:
+      return ', '.join(map(lambda x: x[0], self.words[:3]))
+    return f"Topic {self.id + 1}"
+
 class TopicModelingResult(pydantic.BaseModel):
   project_id: str
   topics: list[Topic]
@@ -69,6 +77,13 @@ class TopicModelingResult(pydantic.BaseModel):
       if topic.id == topic_id:
         return topic
     return None
+  
+  @property
+  def renamer(self):
+    renamer = {}
+    for topic in self.topics:
+      renamer[topic.id] = topic.default_label
+    return renamer
 
 __all__ = [
   "Topic",

@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 import http
 from typing import Optional, Sequence, cast
 import pandas as pd
 from modules.api import ApiResult
+from modules.table.filter_variants import TableFilter
 from routes.table.model import (
   DescriptiveStatisticsResource, GetTableColumnAggregateTotalsSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateTotalsResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
@@ -18,52 +20,53 @@ from modules.config.schema.base import GeospatialRoleEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table import TableEngine, TablePaginationApiResult, PaginationParams
 from modules.table.filter import TableSort
-from modules.topic.model import Topic
+from modules.topic.model import Topic, TopicModelingResult
 
-
-def _filter_table(params: GetTableColumnSchema, cache: ProjectCache, *, supported_types: Optional[list[SchemaColumnTypeEnum]] = None):
+def _filter_table(
+  *,
+  column_name: str,
+  filter: Optional[TableFilter],
+  cache: ProjectCache,
+  supported_types: Optional[list[SchemaColumnTypeEnum]] = None,
+):
   config = cache.config
   if supported_types is not None:
-    column = config.data_schema.assert_of_type(params.column, supported_types)
+    column = config.data_schema.assert_of_type(column_name, supported_types)
   else:
-    column = config.data_schema.assert_exists(params.column)
-
+    column = config.data_schema.assert_exists(column_name)
   engine = TableEngine(config=config)
-  df = engine.process_workspace(params.filter, None)
+
+  # Sort the results first for ordered categorical and temporal
+  sort: Optional[TableSort] = None
+  if sort is None and column.type == SchemaColumnTypeEnum.OrderedCategorical or column.type == SchemaColumnTypeEnum.Temporal:
+    sort = TableSort(name=column.name, asc=True)
+  df = engine.process_workspace(filter, sort)
+
+  if column.name not in df.columns:
+    raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
   data = df[column.name]
 
   mask = data.notna()
+  if column.type == SchemaColumnTypeEnum.Topic:
+    mask = data == -1
   data = data[mask]
   df = df[mask]
 
+  # Use categorical dtype for topic
+  if column.type == SchemaColumnTypeEnum.Topic:
+    tm_result = cache.load_topic(cast(str, column.source_name))
+    categorical_data = pd.Categorical(data)
+    data = cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
+
   return data, df, column
 
-def _filter_table_textual(params: GetTableColumnSchema, cache: ProjectCache):
-  config = cache.config
-  column = config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual])
-  
-  engine = TableEngine(config=config)
-  df = engine.process_workspace(params.filter, None)
-  column = cast(TextualSchemaColumn, column)
-  if column.preprocess_column.name not in df.categories:
-    raise ApiError("The topic modeling procedure has not been executed on this dataset.", http.HTTPStatus.BAD_REQUEST)
-  data = df[column.preprocess_column.name]
-  return data, df, column
-
-
-def _filter_table_textual_with_topic(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table_textual(params, cache)
-  if column.topic_column.name not in df.categories:
-    raise ApiError("The topic modeling procedure has not been executed on this dataset.", http.HTTPStatus.BAD_REQUEST)
-  topics = df[column.topic_column.name]
-  mask = topics.notna() & topics != -1
-  data = data[mask]
-  topics = topics[mask]
-  df = df[mask]
-  return data, topics, df, column
 
 def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(params, cache)
+  data, df, column = _filter_table(
+    column_name=params.column,
+    filter=params.filter,
+    cache=cache
+  )
 
   return ApiResult(
     data=TableColumnValuesResource(
@@ -74,13 +77,13 @@ def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
   )
 
 def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(params, cache)
+  data, df, column = _filter_table(
+    column_name=params.column,
+    filter=params.filter,
+    cache=cache
+  )
 
-  if column.type == SchemaColumnTypeEnum.MultiCategorical:
-    column = cast(MultiCategoricalSchemaColumn, column)
-    unique_values = list(column.count_categories(column.json2list(cast(Sequence[str], data))).keys())
-  else:
-    unique_values = data.sort_values().unique().tolist()
+  unique_values = data.unique().tolist()
 
   return ApiResult(
     data=TableColumnValuesResource(
@@ -91,19 +94,19 @@ def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
   )
 
 def get_column_frequency_distribution(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(params, cache, supported_types=[
-    SchemaColumnTypeEnum.Categorical,
-    SchemaColumnTypeEnum.OrderedCategorical,
-    SchemaColumnTypeEnum.Topic,
-    SchemaColumnTypeEnum.MultiCategorical,
-    SchemaColumnTypeEnum.Temporal,
-  ])
+  data, df, column = _filter_table(
+    column_name=params.column,
+    filter=params.filter,
+    cache=cache,
+    supported_types=[
+      SchemaColumnTypeEnum.Categorical,
+      SchemaColumnTypeEnum.OrderedCategorical,
+      SchemaColumnTypeEnum.Topic,
+      SchemaColumnTypeEnum.Temporal,
+    ]
+  )
 
-  if column.type == SchemaColumnTypeEnum.MultiCategorical:
-    _column = cast(MultiCategoricalSchemaColumn, column)
-    freqdist = pd.Series(_column.count_categories(data))
-  else:
-    freqdist = data.value_counts()
+  freqdist = data.value_counts()
 
   return ApiResult(
     data=TableColumnFrequencyDistributionResource(
@@ -116,27 +119,28 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
 
 def get_column_aggregate_totals(params: GetTableColumnAggregateTotalsSchema, cache: ProjectCache):
   config = cache.config
-  engine = TableEngine(config)
-  column = config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Continuous])
-  config.data_schema.assert_of_type(params.grouped_by.name, [
-    SchemaColumnTypeEnum.Categorical,
-    SchemaColumnTypeEnum.OrderedCategorical,
-    SchemaColumnTypeEnum.Topic,
-    SchemaColumnTypeEnum.MultiCategorical,
-    SchemaColumnTypeEnum.Temporal,
+  config.data_schema.assert_of_type(params.column, [
+    SchemaColumnTypeEnum.Continuous
   ])
 
-  engine = TableEngine(config=config)
-  df = engine.process_workspace(params.filter, params.grouped_by)
-  
-  data = df[column.name]
-  grouper = df[params.grouped_by.name]
-  mask = data.notna() & grouper.notna()
+  # We get the grouper instead since there are multiple behaviors for ordered categorical, topic, etc.
+  grouper, df, column = _filter_table(
+    column_name=params.grouped_by,
+    filter=params.filter,
+    cache=cache,
+    supported_types=[
+      SchemaColumnTypeEnum.Categorical,
+      SchemaColumnTypeEnum.OrderedCategorical,
+      SchemaColumnTypeEnum.Topic,
+      SchemaColumnTypeEnum.Temporal,
+    ]
+  )
 
-  data = data[mask]
-  df = df[mask]
+  continuous_data = df[params.column]
+  data = pd.concat([grouper, continuous_data], axis=1)
+  data.dropna()
 
-  totals = data.groupby(by=params.grouped_by.name).sum()
+  totals = df.groupby(by=params.grouped_by, sort=True, dropna=True).sum()
 
   return ApiResult(
     data=TableColumnAggregateTotalsResource(
@@ -171,7 +175,7 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
   longitude_valid_mask = (longitude_raw >= -180) & (longitude_raw <= 180)
   longitude_mask = longitude_not_na_mask & longitude_valid_mask
 
-  coordinate_mask = longitude_not_na_mask & longitude_valid_mask
+  coordinate_mask = longitude_mask & longitude_mask
 
   latitude_masked = latitude_raw[coordinate_mask]
   longitude_masked = longitude_raw[coordinate_mask]
@@ -197,7 +201,11 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
   )
 
 def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(params, cache)
+  data, df, column = _filter_table(
+    column_name=params.column,
+    filter=params.filter,
+    cache=cache,
+  )
 
   total_count = len(data)
   notna_count = data.count()
@@ -220,8 +228,16 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
   )
 
 def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCache):
+  config = cache.config
+  column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
+
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  data, df, column = _filter_table_textual(params, cache)
+  data, df, column = _filter_table(
+    column_name=column.preprocess_column.name,
+    filter=params.filter,
+    cache=cache,
+    supported_types=[SchemaColumnTypeEnum.Unique]
+  )
 
   bertopic_model = cache.load_bertopic(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
@@ -243,13 +259,23 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   ), message=None)
 
 def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
+  config = cache.config
+  column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
+
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  data, topics, df, column = _filter_table_textual_with_topic(params, cache)
+  topics, df, _ = _filter_table(
+    column_name=column.topic_column.name,
+    filter=params.filter,
+    cache=cache,
+    supported_types=[SchemaColumnTypeEnum.Topic]
+  )
+  documents = df[column.preprocess_column.name]
+
 
   bertopic_model = cache.load_bertopic(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
 
-  bow = interpreter.represent_as_bow(cast(Sequence[str], data))
+  bow = interpreter.represent_as_bow(cast(Sequence[str], documents))
   ctfidf = interpreter.represent_as_ctfidf(bow)
   topic_ctfidfs, unique_topics = interpreter.topic_ctfidfs_per_class(ctfidf, topics)
 

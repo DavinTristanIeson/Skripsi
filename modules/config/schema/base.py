@@ -14,6 +14,7 @@ class SchemaColumnTypeEnum(str, Enum):
   Categorical = "categorical"
   OrderedCategorical = "ordered-categorical"
   MultiCategorical = "multi-categorical"
+  Boolean = "boolean"
   Temporal = "temporal"
   Textual = "textual"
   Unique = "unique"

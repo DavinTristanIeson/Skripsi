@@ -4,7 +4,6 @@ import pandas as pd
 import pydantic
 from modules.config import SchemaColumn
 from modules.table import TableFilter
-from modules.table.filter import TableSort
 from modules.topic.model import Topic
 
 # Schema
@@ -13,7 +12,7 @@ class GetTableColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
 
 class GetTableColumnAggregateTotalsSchema(GetTableColumnSchema, pydantic.BaseModel):
-  grouped_by: TableSort
+  grouped_by: str
 
 class DatasetFilterSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]

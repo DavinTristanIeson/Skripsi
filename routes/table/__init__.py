@@ -1,6 +1,7 @@
 from typing import Any
 from fastapi import APIRouter
 
+from controllers.topic import OptionalTopicModelingResultDependency
 from routes.table.model import (
   DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
   GetTableGeographicalColumnSchema, TableColumnAggregateTotalsResource,

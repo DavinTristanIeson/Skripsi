@@ -51,7 +51,7 @@ class TableEngine:
       return df[mask]
   
   def sort(self, df: pd.DataFrame, sort: Optional[TableSort])->pd.DataFrame:
-    if sort is None:
+    if sort is None or sort.name not in df.columns:
       return df
     with TimeLogger("TableEngine", title="Applying sort to dataset..."):
       return df.sort_values(by=sort.name, ascending=sort.asc)

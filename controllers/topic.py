@@ -1,6 +1,6 @@
 import http
 import os
-from typing import Annotated
+from typing import Annotated, Optional, cast
 
 from fastapi import Depends, Query
 import pandas as pd
@@ -20,6 +20,16 @@ def _has_topic_modeling_result(column: str, cache: ProjectCacheDependency)->Topi
   return cache.load_topic(column)
 
 TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
+
+
+def _has_topic_modeling_result_if_topic(column: str, cache: ProjectCacheDependency)->Optional[TopicModelingResult]:
+  topic_column = cache.config.data_schema.assert_exists(column)
+  if topic_column.type == SchemaColumnTypeEnum.Topic:
+    return cache.load_topic(cast(str, topic_column.source_name))
+  else:
+    return None
+
+OptionalTopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
 
 def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: int = Query())->Topic:
   topic_obj = topic_modeling_result.find(topic)
