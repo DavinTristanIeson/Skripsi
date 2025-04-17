@@ -9,11 +9,11 @@ from modules.project.cache import ProjectCache
 from modules.table import TableEngine, AndTableFilter, NotEmptyTableFilter
 from modules.topic.bertopic_ext import BERTopicModelBuilder, BERTopicInterpreter
 
-from models.table import (
+from models.comparison import (
   ComparisonStatisticTestSchema,
   ComparisonGroupWordsSchema,
-  TableTopicsResource
 )
+from models.table import TableTopicsResource
 from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
 
 def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
