@@ -1,7 +1,7 @@
 # Don't touch this script if you're not the developer.
 
-READ_FILE = "routes/userdata.template.py"
-WRITE_FILE = "routes/userdata.py"
+READ_FILE = "routes/userdata/route.template.py"
+WRITE_FILE = "routes/userdata/__init__.py"
 
 SPLIT_MARKER = "#CODEGEN SPLIT#"
 
