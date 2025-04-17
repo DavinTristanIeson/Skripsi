@@ -1,7 +1,7 @@
 from enum import Enum
 import functools
 import math
-from typing import Annotated, ClassVar, Literal, Optional, Sequence, Union
+from typing import Annotated, ClassVar, Literal, Optional, Union
 
 import numpy as np
 import pydantic
@@ -11,7 +11,7 @@ from modules.api.enum import ExposedEnum
 from modules.config.context import ConfigSerializationContext
 from modules.validation import DiscriminatedUnionValidator
 
-from .base import _BaseMultiCategoricalSchemaColumn, _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
+from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 
@@ -337,17 +337,6 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
 
     print(df[self.year_column.name], df[self.month_column.name])
 
-class MultiCategoricalSchemaColumn(_BaseMultiCategoricalSchemaColumn, pydantic.BaseModel, frozen=True):
-  type: Literal[SchemaColumnTypeEnum.MultiCategorical]
-  delimiter: str = ","
-  is_json: bool = True
-
-  def fit(self, df):
-    data: Sequence[str] = df[self.name].astype(pd.StringDtype()) # type: ignore
-    tags_list = self.json2list(data)
-    json_strings = self.list2json(tags_list)
-    df[self.name] = pd.Series(json_strings)
-  
 class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Geospatial]
   role: GeospatialRoleEnum
@@ -372,7 +361,6 @@ SchemaColumn = Annotated[
     TemporalSchemaColumn,
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
-    MultiCategoricalSchemaColumn,
     TopicSchemaColumn,
   ],
   pydantic.Field(discriminator="type"),
@@ -385,7 +373,6 @@ __all__ = [
   "UniqueSchemaColumn",
   "OrderedCategoricalSchemaColumn",
   "CategoricalSchemaColumn",
-  "MultiCategoricalSchemaColumn",
   "ContinuousSchemaColumn",
   "GeospatialSchemaColumn",
 ]

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import http
 from typing import Optional, Sequence, cast
 import pandas as pd
@@ -13,14 +12,14 @@ from routes.table.model import (
 from modules.api.wrapper import ApiError
 from modules.config import (
   SchemaColumnTypeEnum,
-  MultiCategoricalSchemaColumn, GeospatialSchemaColumn
+  GeospatialSchemaColumn
 )
-from modules.project.cache import ProjectCache, ProjectCacheManager
+from modules.project.cache import ProjectCache
 from modules.config.schema.base import GeospatialRoleEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
-from modules.table import TableEngine, TablePaginationApiResult, PaginationParams
+from modules.table import TableEngine
 from modules.table.filter import TableSort
-from modules.topic.model import Topic, TopicModelingResult
+from modules.topic.model import Topic
 
 def _filter_table(
   *,
@@ -296,7 +295,12 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   ), message=None)
 
 def get_column_descriptive_statistics(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(params, cache, supported_types=[SchemaColumnTypeEnum.Continuous])
+  data, df, column = _filter_table(
+    column_name=params.column,
+    filter=params.filter,
+    cache=cache,
+    supported_types=[SchemaColumnTypeEnum.Continuous]
+  )
   return ApiResult(data=TableDescriptiveStatisticsResource(
     column=column,
     statistics=DescriptiveStatisticsResource.from_series(data),

@@ -122,7 +122,7 @@ class CramerVEffectSize(_BaseEffectSize):
   
   @classmethod
   def get_supported_types(cls):
-    return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Topic]
+    return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.Topic]
   
   def _check_is_valid(self):
     return _StatisticTestValidityModel()

@@ -13,8 +13,6 @@ class SchemaColumnTypeEnum(str, Enum):
   Continuous = "continuous"
   Categorical = "categorical"
   OrderedCategorical = "ordered-categorical"
-  MultiCategorical = "multi-categorical"
-  Boolean = "boolean"
   Temporal = "temporal"
   Textual = "textual"
   Unique = "unique"
@@ -46,43 +44,6 @@ class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC, frozen=True):
   @abc.abstractmethod
   def fit(self, df: pd.DataFrame)->None:
     ...
-
-
-class _BaseMultiCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, abc.ABC, frozen=True):
-  delimiter: str = ","
-  is_json: bool = True
-    
-  def json2list(self, data: Sequence[str]):
-    import orjson
-    for row in data:
-      row_categories: list[str]
-      if self.is_json:
-        row_categories = list(orjson.loads(row))
-      else:
-        row_categories = list(map(
-          lambda category: category.strip(),
-          str(row).split(self.delimiter)
-        ))
-      yield row_categories
-
-  def count_categories(self, data: Iterable[Sequence[str]])->Counter[str]:
-    global_counter = Counter()
-    for row_categories in data:
-      global_counter += Counter(row_categories)
-    return global_counter
-  
-  def flatten(self, data: Iterable[Sequence[str]]):
-    for row_categories in data:
-      for category in row_categories:
-        yield category
-    
-  def list2json(self, tags_list: Iterable[Sequence[str]]):
-    import orjson
-    return list(map(
-      lambda tags: orjson.dumps(tags),
-      tags_list
-    ))
-
 
 __all__ = [
   "GeospatialRoleEnum",

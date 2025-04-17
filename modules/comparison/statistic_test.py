@@ -100,7 +100,7 @@ class ChiSquaredStatisticTest(_BaseStatisticTest):
   
   @classmethod
   def get_supported_types(cls):
-    return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Topic]
+    return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.Topic]
 
   def _check_is_valid(self):
     contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=False)

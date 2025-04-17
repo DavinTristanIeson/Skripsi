@@ -31,12 +31,12 @@ class TableColumnValuesResource(pydantic.BaseModel):
 
 class TableColumnFrequencyDistributionResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str] | list[int]
+  values: list[str]
   frequencies: list[int]
 
 class TableColumnAggregateTotalsResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str] | list[int]
+  values: list[str]
   totals: list[int]
 
 class TableColumnGeographicalPointsResource(pydantic.BaseModel):

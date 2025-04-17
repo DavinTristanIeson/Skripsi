@@ -21,7 +21,6 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
   config.data_schema.assert_of_type(params.column, [
     SchemaColumnTypeEnum.Categorical,
     SchemaColumnTypeEnum.Continuous,
-    SchemaColumnTypeEnum.MultiCategorical,
     SchemaColumnTypeEnum.OrderedCategorical,
     SchemaColumnTypeEnum.Temporal,
     SchemaColumnTypeEnum.Topic,

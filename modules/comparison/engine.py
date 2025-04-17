@@ -3,9 +3,8 @@ import functools
 import numpy as np
 import pandas as pd
 import pydantic
-from typing import Sequence, cast
 
-from modules.config import Config, SchemaColumn, SchemaColumnTypeEnum, MultiCategoricalSchemaColumn
+from modules.config import Config, SchemaColumn
 from modules.project.cache import ProjectCacheManager
 from modules.table import TableEngine, NamedTableFilter
 from modules.logger import ProvisionedLogger
@@ -112,11 +111,6 @@ class TableComparisonEngine:
     self._exclude_na_rows(groups, group_info)
     for group, ginfo in zip(groups, group_info):
       ginfo.valid_count = len(group)
-
-    if column.type == SchemaColumnTypeEnum.MultiCategorical:
-      column = cast(MultiCategoricalSchemaColumn, column)
-      for i in range(len(groups)):
-        groups[i] = pd.Series(list(column.flatten(column.json2list(cast(Sequence[str], groups[i])))))
     return group_info
 
   def load(self, df: pd.DataFrame, column: SchemaColumn)->list[pd.Series]:

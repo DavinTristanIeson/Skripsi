@@ -1,11 +1,9 @@
-import itertools
-from typing import Annotated, Any, Literal, Sequence, Union, cast
+from typing import Annotated, Any, Literal, Union
 
 import pandas as pd
-import numpy as np
 import pydantic
 
-from modules.config import MultiCategoricalSchemaColumn, SchemaColumnTypeEnum
+from modules.config import SchemaColumnTypeEnum
 from modules.validation import DiscriminatedUnionValidator
 from modules.logger import ProvisionedLogger
 
@@ -151,66 +149,13 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     column = params.config.data_schema.assert_exists(self.target)
-    if column.type not in [SchemaColumnTypeEnum.Textual, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.MultiCategorical, SchemaColumnTypeEnum.Unique]:
+    if column.type not in [SchemaColumnTypeEnum.Textual, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Unique]:
       raise _TableFilterError.WrongColumnType(
         filter_type=self.type,
         column_type=column.type,
         target=self.target
       )
     return data.str.contains(self.value)
-
-class BaseMulticategoricalTableFilter(_BaseTableFilter, pydantic.BaseModel):
-  def iterate(self, params: _TableFilterParams):
-    column = params.config.data_schema.assert_exists(self.target)
-    if column.type != SchemaColumnTypeEnum.MultiCategorical:
-      raise _TableFilterError.WrongColumnType(
-        filter_type=self.type,
-        column_type=column.type,
-        target=self.target
-      )
-    
-    column = cast(MultiCategoricalSchemaColumn, column)
-    data = cast(Sequence[str], access_series(self, params))
-    mask = np.full(len(data), 1, dtype=np.bool_)
-    yield mask
-    for idx, tags in column.json2list(data):
-      mask[idx] = yield set(tags)
-
-class IncludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel):
-  type: Literal[TableFilterTypeEnum.Includes] = TableFilterTypeEnum.Includes
-  values: list[str]
-  def apply(self, params):
-    coroutine = self.iterate(params)
-    mask = cast(np.ndarray, next(coroutine))
-    values = set(map(str, self.values))
-    for raw_tags in coroutine:
-      tags = cast(list[str], raw_tags)
-      coroutine.send(len(values.intersection(tags)) > 0)
-    return mask
-
-class ExcludesTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel):
-  type: Literal[TableFilterTypeEnum.Excludes] = TableFilterTypeEnum.Excludes
-  values: list[str]
-  def apply(self, params):
-    coroutine = self.iterate(params)
-    mask = cast(np.ndarray, next(coroutine))
-    values = set(map(str, self.values))
-    for raw_tags in coroutine:
-      tags = cast(list[str], raw_tags)
-      coroutine.send(len(values.intersection(tags)) == 0)
-    return mask
-
-class OnlyTableFilter(BaseMulticategoricalTableFilter, pydantic.BaseModel):
-  type: Literal[TableFilterTypeEnum.Only] = TableFilterTypeEnum.Only
-  values: list[str]
-  def apply(self, params):
-    coroutine = self.iterate(params)
-    mask = cast(np.ndarray, next(coroutine))
-    values = set(map(str, self.values))
-    for raw_tags in coroutine:
-      tags = cast(list[str], raw_tags)
-      coroutine.send(len(values.symmetric_difference(tags)) == 0)
-    return mask
   
 TableFilterUnion = Union[
   AndTableFilter,
@@ -225,9 +170,6 @@ TableFilterUnion = Union[
   GreaterThanOrEqualToTableFilter,
   LessThanOrEqualToTableFilter,
   HasTextTableFilter,
-  IncludesTableFilter,
-  ExcludesTableFilter,
-  OnlyTableFilter,
 ]
 TableFilter = Annotated[TableFilterUnion, pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 class NamedTableFilter(pydantic.BaseModel):
@@ -248,9 +190,6 @@ __all__ = [
   "GreaterThanOrEqualToTableFilter",
   "LessThanOrEqualToTableFilter",
   "HasTextTableFilter",
-  "IncludesTableFilter",
-  "ExcludesTableFilter",
-  "OnlyTableFilter",
   "TableFilter",
   "NamedTableFilter"
 ]

@@ -66,12 +66,6 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   SchemaColumnTypeEnum.Continuous: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Geospatial: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
-  SchemaColumnTypeEnum.MultiCategorical: [
-    *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
-    TableFilterTypeEnum.Excludes,
-    TableFilterTypeEnum.Includes,
-    TableFilterTypeEnum.Only,
-  ],
 }
 
 @dataclass
