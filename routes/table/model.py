@@ -1,7 +1,9 @@
+from enum import Enum
 from typing import Any, Optional
 import numpy as np
 import pandas as pd
 import pydantic
+from modules.api.enum import ExposedEnum
 from modules.config import SchemaColumn
 from modules.table import TableFilter
 from modules.topic.model import Topic
@@ -11,8 +13,19 @@ class GetTableColumnSchema(pydantic.BaseModel):
   column: str
   filter: Optional[TableFilter]
 
-class GetTableColumnAggregateTotalsSchema(GetTableColumnSchema, pydantic.BaseModel):
+class TableColumnAggregateMethodEnum(str, Enum):
+  Sum = "sum"
+  Mean = "mean"
+  Median = "median"
+  StandardDeviation = "std-dev"
+  Max = "max"
+  Min = "min"
+
+ExposedEnum().register(TableColumnAggregateMethodEnum)
+
+class GetTableColumnAggregateValuesSchema(GetTableColumnSchema, pydantic.BaseModel):
   grouped_by: str
+  method: TableColumnAggregateMethodEnum
 
 class DatasetFilterSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
@@ -31,13 +44,13 @@ class TableColumnValuesResource(pydantic.BaseModel):
 
 class TableColumnFrequencyDistributionResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str]
+  categories: list[str]
   frequencies: list[int]
 
-class TableColumnAggregateTotalsResource(pydantic.BaseModel):
+class TableColumnAggregateValuesResource(pydantic.BaseModel):
   column: SchemaColumn
-  values: list[str]
-  totals: list[int]
+  categories: list[str]
+  values: list[float]
 
 class TableColumnGeographicalPointsResource(pydantic.BaseModel):
   latitude_column: SchemaColumn
@@ -49,6 +62,8 @@ class TableColumnGeographicalPointsResource(pydantic.BaseModel):
 class TableColumnCountsResource(pydantic.BaseModel):
   column: SchemaColumn
   total: int
+  inside: int
+  outside: int
   valid: int
   invalid: int
   # Only for topics

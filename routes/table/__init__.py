@@ -3,8 +3,8 @@ from fastapi import APIRouter
 
 from controllers.topic import OptionalTopicModelingResultDependency
 from routes.table.model import (
-  DatasetFilterSchema, GetTableColumnAggregateTotalsSchema, GetTableColumnSchema,
-  GetTableGeographicalColumnSchema, TableColumnAggregateTotalsResource,
+  DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema,
+  GetTableGeographicalColumnSchema, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
   TableWordsResource
@@ -17,7 +17,7 @@ from controllers.project import ProjectCacheDependency
 from .controller import (
   paginate_table, get_column_counts,
   get_column_frequency_distribution,
-  get_column_geographical_points, get_column_aggregate_totals,
+  get_column_geographical_points, get_column_aggregate_values,
   get_column_descriptive_statistics, get_column_topic_words,
   get_column_unique_values, get_column_values, get_column_word_frequencies,
   get_affected_rows
@@ -46,9 +46,9 @@ async def post__get_affected_rows(params: DatasetFilterSchema, cache: ProjectCac
 async def post__get_table_column__frequency_distribution(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnFrequencyDistributionResource]:
   return get_column_frequency_distribution(body, cache)
 
-@router.post("/column/aggregate-totals")
-async def post__get_table_column__aggregate_totals(body: GetTableColumnAggregateTotalsSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnAggregateTotalsResource]:
-  return get_column_aggregate_totals(body, cache)
+@router.post("/column/aggregate-values")
+async def post__get_table_column__aggregate_values(body: GetTableColumnAggregateValuesSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnAggregateValuesResource]:
+  return get_column_aggregate_values(body, cache)
 
 @router.post("/column/counts")
 async def post__get_table_column__counts(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnCountsResource]:

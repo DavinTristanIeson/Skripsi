@@ -11,6 +11,7 @@ class DashboardItem(pydantic.BaseModel):
   model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
   id: str
   description: Optional[str]
+  type: str
   column: str
   rect: DashboardItemRect
   # FE deals with validating this.

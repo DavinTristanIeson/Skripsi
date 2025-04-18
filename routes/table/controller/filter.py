@@ -1,10 +1,11 @@
+from dataclasses import dataclass
 import http
 from typing import Optional, Sequence, cast
 import pandas as pd
 from modules.api import ApiResult
 from modules.table.filter_variants import TableFilter
 from routes.table.model import (
-  DescriptiveStatisticsResource, GetTableColumnAggregateTotalsSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateTotalsResource,
+  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
   TableTopicsResource, TableWordsResource, TableWordItemResource
@@ -16,87 +17,100 @@ from modules.config import (
 )
 from modules.project.cache import ProjectCache
 from modules.config.schema.base import GeospatialRoleEnum
-from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.config.schema.schema_variants import SchemaColumn, TextualSchemaColumn
 from modules.table import TableEngine
 from modules.table.filter import TableSort
 from modules.topic.model import Topic
 
-def _filter_table(
-  *,
-  column_name: str,
-  filter: Optional[TableFilter],
-  cache: ProjectCache,
-  supported_types: Optional[list[SchemaColumnTypeEnum]] = None,
-):
-  config = cache.config
-  if supported_types is not None:
-    column = config.data_schema.assert_of_type(column_name, supported_types)
-  else:
-    column = config.data_schema.assert_exists(column_name)
-  engine = TableEngine(config=config)
 
-  # Sort the results first for ordered categorical and temporal
-  sort: Optional[TableSort] = None
-  if sort is None and column.type == SchemaColumnTypeEnum.OrderedCategorical or column.type == SchemaColumnTypeEnum.Temporal:
-    sort = TableSort(name=column.name, asc=True)
-  df = engine.process_workspace(filter, sort)
+@dataclass
+class _TableFilterPreprocessResult:
+  data: pd.Series
+  df: pd.DataFrame
+  column: SchemaColumn
 
-  if column.name not in df.columns:
-    raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
-  data = df[column.name]
+@dataclass
+class _TableFilterPreprocessModule:
+  cache: ProjectCache
+  filter: Optional[TableFilter]
+  def apply(self, *, column_name: str, supported_types: Optional[list[SchemaColumnTypeEnum]] = None,
+  exclude_invalid: bool = True)->_TableFilterPreprocessResult:
+    config = self.cache.config
+    if supported_types is not None:
+      column = config.data_schema.assert_of_type(column_name, supported_types)
+    else:
+      column = config.data_schema.assert_exists(column_name)
+    engine = TableEngine(config=config)
 
-  mask = data.notna()
-  if column.type == SchemaColumnTypeEnum.Topic:
-    mask = data == -1
-  data = data[mask]
-  df = df[mask]
+    # Sort the results first for ordered categorical and temporal
+    sort: Optional[TableSort] = None
+    if sort is None and column.type == SchemaColumnTypeEnum.OrderedCategorical or column.type == SchemaColumnTypeEnum.Temporal:
+      sort = TableSort(name=column.name, asc=True)
+    df = engine.process_workspace(self.filter, sort)
 
-  # Use categorical dtype for topic
-  if column.type == SchemaColumnTypeEnum.Topic:
-    tm_result = cache.load_topic(cast(str, column.source_name))
-    categorical_data = pd.Categorical(data)
-    data = cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
+    if column.name not in df.columns:
+      raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
+    data = df[column.name]
 
-  return data, df, column
+    if exclude_invalid:
+      mask = data.notna()
+      if column.type == SchemaColumnTypeEnum.Topic:
+        mask = data == -1
+      data = data[mask]
+      df = df[mask]
 
+    # Use categorical dtype for topic
+    if column.type == SchemaColumnTypeEnum.Topic:
+      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      categorical_data = pd.Categorical(data)
+      data = cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
+
+    return _TableFilterPreprocessResult(
+      column=column,
+      data=data,
+      df=df,
+    )
 
 def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(
-    column_name=params.column,
-    filter=params.filter,
-    cache=cache
+  result = _TableFilterPreprocessModule(
+    cache=cache,
+    filter=params.filter
+  ).apply(
+    column_name=params.column
   )
 
   return ApiResult(
     data=TableColumnValuesResource(
-      column=column,
-      values=data.to_list()
+      column=result.column,
+      values=result.data.to_list()
     ),
     message=None
   )
 
 def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(
-    column_name=params.column,
-    filter=params.filter,
-    cache=cache
+  result = _TableFilterPreprocessModule(
+    cache=cache,
+    filter=params.filter
+  ).apply(
+    column_name=params.column
   )
 
-  unique_values = data.unique().tolist()
+  unique_values = result.data.unique().tolist()
 
   return ApiResult(
     data=TableColumnValuesResource(
-      column=column,
+      column=result.column,
       values=unique_values
     ),
     message=None
   )
 
 def get_column_frequency_distribution(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(
-    column_name=params.column,
-    filter=params.filter,
+  result = _TableFilterPreprocessModule(
     cache=cache,
+    filter=params.filter
+  ).apply(
+    column_name=params.column,
     supported_types=[
       SchemaColumnTypeEnum.Categorical,
       SchemaColumnTypeEnum.OrderedCategorical,
@@ -105,28 +119,34 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
     ]
   )
 
+  column = result.column
+  data = result.data
+
   freqdist = data.value_counts()
+  # Ensure every value has a stable sort
+  freqdist = freqdist.sort_index()
 
   return ApiResult(
     data=TableColumnFrequencyDistributionResource(
       column=column,
       frequencies=freqdist.values.tolist(),
-      values=freqdist.index.tolist()
+      categories=list(map(str, freqdist.index.tolist()))
     ),
     message=None
   )
 
-def get_column_aggregate_totals(params: GetTableColumnAggregateTotalsSchema, cache: ProjectCache):
+def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cache: ProjectCache):
   config = cache.config
   config.data_schema.assert_of_type(params.column, [
     SchemaColumnTypeEnum.Continuous
   ])
 
   # We get the grouper instead since there are multiple behaviors for ordered categorical, topic, etc.
-  grouper, df, column = _filter_table(
-    column_name=params.grouped_by,
-    filter=params.filter,
+  preprocess = _TableFilterPreprocessModule(
     cache=cache,
+    filter=params.filter
+  ).apply(
+    column_name=params.grouped_by,
     supported_types=[
       SchemaColumnTypeEnum.Categorical,
       SchemaColumnTypeEnum.OrderedCategorical,
@@ -135,17 +155,36 @@ def get_column_aggregate_totals(params: GetTableColumnAggregateTotalsSchema, cac
     ]
   )
 
+  df = preprocess.df
+  grouper = preprocess.data
+  column = preprocess.column
+
   continuous_data = df[params.column]
   data = pd.concat([grouper, continuous_data], axis=1)
   data.dropna()
 
-  totals = df.groupby(by=params.grouped_by, sort=True, dropna=True).sum()
+  grouped = data.groupby(by=params.grouped_by, sort=True, dropna=True)
+  
+  if params.method == TableColumnAggregateMethodEnum.Sum:
+    data = grouped.sum()
+  elif params.method == TableColumnAggregateMethodEnum.StandardDeviation:
+    data = grouped.std()
+  elif params.method == TableColumnAggregateMethodEnum.Median:
+    data = grouped.median()
+  elif params.method == TableColumnAggregateMethodEnum.Max:
+    data = grouped.max()
+  elif params.method == TableColumnAggregateMethodEnum.Min:
+    data = grouped.min()
+  elif params.method == TableColumnAggregateMethodEnum.Mean:
+    data = grouped.mean()
+  else:
+    raise ValueError(f"\"{params.method}\" is not a valid aggregation method.")
 
   return ApiResult(
-    data=TableColumnAggregateTotalsResource(
+    data=TableColumnAggregateValuesResource(
       column=column,
-      totals=totals.values.tolist(),
-      values=totals.index.tolist(),
+      values=data[params.column].tolist(),
+      categories=list(map(str, data.index.tolist())),
     ),
     message=None
   )
@@ -200,15 +239,23 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
   )
 
 def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(
-    column_name=params.column,
-    filter=params.filter,
+  result = _TableFilterPreprocessModule(
     cache=cache,
+    filter=params.filter
+  ).apply(
+    column_name=params.column,
+    exclude_invalid=False,
   )
 
-  total_count = len(data)
+  data = result.data
+  column = result.column
+  
+  full_df = cache.load_workspace()
+  total_count = len(full_df)
+
+  inside_count = len(data)
   notna_count = data.count()
-  na_count = total_count - notna_count
+  na_count = inside_count - notna_count
 
   outlier_count: int | None = None
   if column.type == SchemaColumnTypeEnum.Topic:
@@ -218,6 +265,8 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
   return ApiResult(
     data=TableColumnCountsResource(
       column=column,
+      inside=inside_count,
+      outside=total_count - inside_count,
       invalid=na_count,
       valid=notna_count,
       total=total_count,
@@ -231,10 +280,11 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  data, df, column = _filter_table(
-    column_name=column.preprocess_column.name,
+  result = _TableFilterPreprocessModule(
     filter=params.filter,
     cache=cache,
+  ).apply(
+    column_name=column.preprocess_column.name,
     supported_types=[SchemaColumnTypeEnum.Unique]
   )
 
@@ -242,7 +292,7 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   interpreter = BERTopicInterpreter(bertopic_model)
   interpreter.top_n_words = 100
 
-  bow = interpreter.represent_as_bow(cast(Sequence[str], data))
+  bow = interpreter.represent_as_bow(cast(Sequence[str], result.data))
   # Intentionally only using the BOW rather than C-TF-IDF version
   highest_word_frequencies = interpreter.get_weighted_words(bow)
 
@@ -262,13 +312,15 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  topics, df, _ = _filter_table(
-    column_name=column.topic_column.name,
+  result = _TableFilterPreprocessModule(
     filter=params.filter,
     cache=cache,
+  ).apply(
+    column_name=column.topic_column.name,
     supported_types=[SchemaColumnTypeEnum.Topic]
   )
-  documents = df[column.preprocess_column.name]
+  topics = result.data
+  documents = result.df[column.preprocess_column.name]
 
 
   bertopic_model = cache.load_bertopic(column.name)
@@ -295,15 +347,16 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   ), message=None)
 
 def get_column_descriptive_statistics(params: GetTableColumnSchema, cache: ProjectCache):
-  data, df, column = _filter_table(
-    column_name=params.column,
+  result = _TableFilterPreprocessModule(
     filter=params.filter,
     cache=cache,
+  ).apply(
+    column_name=params.column,
     supported_types=[SchemaColumnTypeEnum.Continuous]
   )
   return ApiResult(data=TableDescriptiveStatisticsResource(
-    column=column,
-    statistics=DescriptiveStatisticsResource.from_series(data),
+    column=result.column,
+    statistics=DescriptiveStatisticsResource.from_series(result.data),
   ), message=None)
 
 __all__ = [
@@ -313,7 +366,7 @@ __all__ = [
   "get_column_topic_words",
   "get_column_word_frequencies",
   "get_column_descriptive_statistics",
-  "get_column_aggregate_totals",
+  "get_column_aggregate_values",
   "get_column_unique_values",
   "get_column_values",
 ]

@@ -309,7 +309,7 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
     if TemporalColumnFeatureEnum.Year in self.temporal_features:
       # https://github.com/pandas-dev/pandas/issues/15303
       # Round doesn't work for Y and M since they're not fixed frequencies.
-      year_column = datetime_column.dt.to_period("M").dt.to_timestamp()
+      year_column = datetime_column.dt.to_period("Y").dt.to_timestamp()
       df[self.year_column.name] = year_column
     
     if TemporalColumnFeatureEnum.Month in self.temporal_features:
@@ -334,8 +334,6 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       hour_column = pd.Categorical(datetime_column.dt.hour)
       hour_column = hour_column.rename_categories({k: v for k, v in enumerate(self.HOURS)})
       df[self.hour_column.name] = hour_column
-
-    print(df[self.year_column.name], df[self.month_column.name])
 
 class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Geospatial]
