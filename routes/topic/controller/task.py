@@ -87,12 +87,33 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     pass
 
   project_id = config.project_id
-  scheduler.add_job(topic_modeling_task, args=[request], max_instances=1)
+  scheduler.add_job(
+    topic_modeling_task,
+    args=[request],
+    # To enable sequential runs. The ID makes all topic modeling jobs the same, while misfire_grace_time prevents the jobs from being canceled
+    # This is necessary to avoid data races.
+    # https://stackoverflow.com/questions/65690003/how-to-manage-a-task-queue-using-apscheduler
+    id="topic_modeling",
+    misfire_grace_time=None,
+  )
+  store = TaskStorage()
+  with store.lock:
+    response = TaskResponse(
+      id=request.task_id,
+      logs=[
+        TaskLog(
+          status=TaskStatusEnum.Idle,
+          message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
+        )
+      ],
+      data=None,
+      status=TaskStatusEnum.Idle
+    )
 
   if has_pending_task:
-    return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to Project \"{project_id}\". Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
+    return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to \"{column.name}\". Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
   else:
-    return ApiResult(data=None, message=f"The topic modeling algorithm will be applied again to Project \"{project_id}\"; meanwhile, the previous pending topic modeling task will be canceled. Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
+    return ApiResult(data=None, message=f"The topic modeling algorithm will be applied again to \"{column.name}\". Please wait for the other topic modeling tasks to finish before we begin processing the documents in this column.")
   
 
 def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSchemaColumn)->TaskResponse[TopicModelingResult]:

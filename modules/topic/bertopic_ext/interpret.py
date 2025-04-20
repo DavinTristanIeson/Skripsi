@@ -12,6 +12,9 @@ from modules.api import ApiError
 from .builder import BERTopicIndividualModels
 from ..model import Topic
 
+import scipy.sparse
+from scipy.sparse import csr_matrix
+
 if TYPE_CHECKING:
   from bertopic import BERTopic
   from sklearn.feature_extraction.text import CountVectorizer
@@ -27,12 +30,11 @@ class BERTopicInterpreter:
   
   @property
   def ctfidf_model(self)->"ClassTfidfTransformer":
-    return self.ctfidf_model
+    return self.model.ctfidf_model # type: ignore
   
   @property
-  def topic_ctfidf(self)->np.ndarray:
-    # Always assume numpy array. Dealing with scipy sparse array typing is a pain.
-    return cast(np.ndarray, self.model.c_tf_idf_)
+  def topic_ctfidf(self)->csr_matrix:
+    return self.model.c_tf_idf_[self.model._outliers:] # type: ignore
   
   @functools.cached_property
   def top_n_words(self):
@@ -69,23 +71,33 @@ class BERTopicInterpreter:
     return (analyzer(doc) for doc in documents)
   
   def represent_as_bow(self, documents: Sequence[str])->np.ndarray:
-    return np.array(
-      # This yields an np.matrix, which is why we need to get [0]
-      self.vectorizer_model.transform(documents).sum(axis=0) # type: ignore
-    )[0]
+    # BERTopic's C-TF-IDF implementation uses csr_matrix rather than csr_array.
+    return np.array(self.vectorizer_model.transform(documents).sum(axis=0))[0] # type: ignore
   
-  def represent_as_ctfidf(self, bow: np.ndarray)->np.ndarray:
-    return cast(np.ndarray, self.ctfidf_model.transform([bow]))[0] # type: ignore
+  def represent_as_bow_sparse(self, documents: Sequence[str])->csr_matrix:
+    # BERTopic's C-TF-IDF implementation uses csr_matrix rather than csr_array.
+    return cast(np.ndarray, csr_matrix(self.vectorizer_model.transform(documents).sum(axis=0))) # type: ignore
   
-  def extract_topics(self)->list[Topic]:
+  def represent_as_ctfidf(self, bow: csr_matrix)->csr_matrix:
+    return self.ctfidf_model.transform(bow)
+  
+  def extract_topics(self, *, map_topics: bool = False)->list[Topic]:
     model = self.model
     topic_words_mapping = model.get_topics()
+    if map_topics and model.topic_mapper_ is not None:
+      topic_mapping = model.topic_mapper_.get_mappings()
+    else:
+      topic_mapping = None
     topics: list[Topic] = []
     for raw_key, raw_topic_words in topic_words_mapping.items():
       key = int(raw_key)
       # Don't store outliers as a topic
       if key == -1:
         continue
+      if map_topics and topic_mapping is not None:
+        # get original Y value
+        key = topic_mapping[key]
+
       topic_words = cast(list[tuple[str, float]], raw_topic_words)
       topic_words = list(filter(lambda x: len(x[0]) > 0, topic_words))
       topic_frequency = cast(int, model.get_topic_freq(int(key)))
@@ -102,7 +114,7 @@ class BERTopicInterpreter:
         continue
       topics.append(topic)
 
-    return topics
+    return sorted(topics, key=lambda topic: topic.id)
 
   @property
   def topic_count(self)->int:
@@ -112,27 +124,30 @@ class BERTopicInterpreter:
   def topic_embeddings(self)->np.ndarray:
     return self.model.topic_embeddings_[self.model._outliers:] # type: ignore
   
-  def topic_ctfidfs_per_class(self, ctfidf: np.ndarray, document_topic_assignments: np.ndarray | pd.Series):
+  def topic_ctfidfs_per_class(self, ctfidf: csr_matrix, document_topic_assignments: np.ndarray | pd.Series)->tuple[csr_matrix, Sequence[int]]:
     from sklearn.preprocessing import normalize
 
     # Normalize. This follows the code in BERTopic implementation
     global_ctfidf = normalize(self.topic_ctfidf, axis=1, norm="l1", copy=False)
+    if len(document_topic_assignments) == 0:
+      return global_ctfidf, []
+    # Turn the shape into (1, ctfidf.shape[0])
     local_ctfidf = normalize(ctfidf, axis=1, norm="l1", copy=False)
 
     # Filter out invalid topics
-    valid_topic_mask = np.bitwise_and(document_topic_assignments >= 0, document_topic_assignments < self.topic_ctfidf.shape[0])
+    topic_counts = global_ctfidf.shape[0]
+    valid_topic_mask = np.bitwise_and(document_topic_assignments >= 0, document_topic_assignments < topic_counts)
     document_topic_assignments = document_topic_assignments[valid_topic_mask]
 
     topic_assignment_aggregation = pd.Series(document_topic_assignments).value_counts(normalize=True)
     unique_topics = topic_assignment_aggregation.index
-    topic_proportions = topic_assignment_aggregation.values
 
-    # Get the average between global and local. This follows the code in BERTopic implementation
-    # Except for the topic proportions part. That one is ours.
-    global_ctfidf = global_ctfidf.take(unique_topics, axis=0) * topic_proportions
-    local_ctfidf = local_ctfidf.take(unique_topics, axis=0)
-    tuned_ctfidf = (global_ctfidf + local_ctfidf) / 2
-    return tuned_ctfidf, unique_topics
+    tuned_ctfidf_raw = []
+    for row in global_ctfidf:
+      tuned_ctfidf = (row + local_ctfidf) / 2
+      tuned_ctfidf_raw.append(tuned_ctfidf)
+    tuned_ctfidf = csr_matrix(scipy.sparse.vstack(tuned_ctfidf_raw))
+    return tuned_ctfidf, cast(Sequence[int], unique_topics)
 
 __all__ = [
   "BERTopicInterpreter",

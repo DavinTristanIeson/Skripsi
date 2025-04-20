@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import http
 from typing import Optional, Sequence, cast
+import numpy as np
 import pandas as pd
 from modules.api import ApiResult
 from modules.table.filter_variants import TableFilter
@@ -34,7 +35,7 @@ class _TableFilterPreprocessModule:
   cache: ProjectCache
   filter: Optional[TableFilter]
   def apply(self, *, column_name: str, supported_types: Optional[list[SchemaColumnTypeEnum]] = None,
-  exclude_invalid: bool = True)->_TableFilterPreprocessResult:
+  exclude_invalid: bool = True, transform_topics: bool = True)->_TableFilterPreprocessResult:
     config = self.cache.config
     if supported_types is not None:
       column = config.data_schema.assert_of_type(column_name, supported_types)
@@ -55,12 +56,12 @@ class _TableFilterPreprocessModule:
     if exclude_invalid:
       mask = data.notna()
       if column.type == SchemaColumnTypeEnum.Topic:
-        mask = data == -1
+        mask = mask & (data != -1)
       data = data[mask]
       df = df[mask]
 
     # Use categorical dtype for topic
-    if column.type == SchemaColumnTypeEnum.Topic:
+    if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
       tm_result = self.cache.load_topic(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
       data = cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
@@ -290,7 +291,7 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
 
   bertopic_model = cache.load_bertopic(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
-  interpreter.top_n_words = 100
+  interpreter.top_n_words = 50
 
   bow = interpreter.represent_as_bow(cast(Sequence[str], result.data))
   # Intentionally only using the BOW rather than C-TF-IDF version
@@ -317,22 +318,24 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
     cache=cache,
   ).apply(
     column_name=column.topic_column.name,
-    supported_types=[SchemaColumnTypeEnum.Topic]
+    supported_types=[SchemaColumnTypeEnum.Topic],
+    transform_topics=False
   )
   topics = result.data
   documents = result.df[column.preprocess_column.name]
 
-
   bertopic_model = cache.load_bertopic(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
 
-  bow = interpreter.represent_as_bow(cast(Sequence[str], documents))
+  bow = interpreter.represent_as_bow_sparse(cast(Sequence[str], documents))
   ctfidf = interpreter.represent_as_ctfidf(bow)
   topic_ctfidfs, unique_topics = interpreter.topic_ctfidfs_per_class(ctfidf, topics)
 
   tuned_topics: list[Topic] = []
   for topic_id in unique_topics:
-    words = interpreter.get_weighted_words(topic_ctfidfs[topic_id])
+    # We're gonna perform argsort, which sparse matrices don't really support. This has to be transformed to np.array
+    ctfidf_nparray_row = topic_ctfidfs.getrow(topic_id).toarray()[0]
+    words = interpreter.get_weighted_words(ctfidf_nparray_row)
     label = interpreter.get_label(words)
     tuned_topics.append(Topic(
       id=topic_id,

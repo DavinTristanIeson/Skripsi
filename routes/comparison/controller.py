@@ -57,7 +57,7 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
   )
   bertopic_model = builder.build()
 
-  document_batches: list[pd.Series] = []
+  documents: list[str] = []
   document_topics: list[int] = []
   for group_id, group in enumerate(params.groups):
     group_df = engine.filter(df, AndTableFilter(
@@ -69,17 +69,16 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
       ]
     ))
     subcorpus = cast(Sequence[str], group_df)
-    document_batches.append(group_df[column.preprocess_column.name])
+    documents.extend(group_df[column.preprocess_column.name])
     document_topics.extend([group_id] * len(subcorpus))
-  documents = pd.concat(document_batches, axis=0)
 
   bertopic_model.fit(
     cast(list[str], documents),
-    np.array(document_topics)
+    y=np.array(document_topics)
   )
   interpreter = BERTopicInterpreter(bertopic_model)
 
-  topics = interpreter.extract_topics()
+  topics = interpreter.extract_topics(map_topics=True)
 
   return ApiResult(data=TableTopicsResource(
     column=column,

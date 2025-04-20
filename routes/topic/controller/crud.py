@@ -124,17 +124,18 @@ def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchem
   bertopic_model.hierarchical_topics
 
   interpreter = BERTopicInterpreter(bertopic_model)
-  local_bow = interpreter.represent_as_bow(local_corpus)
+  local_bow = interpreter.represent_as_bow_sparse(local_corpus)
   local_ctfidf = interpreter.represent_as_ctfidf(local_bow)
-  local_ctfidf, unique_topics = interpreter.topic_ctfidfs_per_class(local_ctfidf, filtered_df[column.topic_column.name])
+  tuned_ctfidf, unique_topics = interpreter.topic_ctfidfs_per_class(local_ctfidf, filtered_df[column.topic_column.name])
 
   topics: list[Topic] = []
   for idx, topic in enumerate(unique_topics):
-    existing_topic = tm_result.find(topic.id)
+    existing_topic = tm_result.find(topic)
     if not existing_topic:
       continue
 
-    words = interpreter.get_weighted_words(local_ctfidf[idx])
+    tuned_ctfidf_nparray = tuned_ctfidf.getrow(idx).toarray()[0]
+    words = interpreter.get_weighted_words(tuned_ctfidf_nparray)
     topics.append(Topic(
       id=topic,
       frequency=existing_topic.frequency,

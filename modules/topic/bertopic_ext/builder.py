@@ -71,6 +71,7 @@ class EmptyBERTopicModelBuilder:
       hdbscan_model=BaseCluster(),
       vectorizer_model=self.build_vectorizer_model(),
       ctfidf_model=self.build_ctfidf_model(),
+      top_n_words=self.column.topic_modeling.top_n_words,
     )
 
 @dataclass

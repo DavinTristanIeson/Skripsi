@@ -10,7 +10,7 @@ scheduler = AsyncIOScheduler(
   jobstores=dict(
     default=MemoryJobStore(),
     topic_modeling=topic_modeling_job_store
-  )
+  ),
 )
 
 # Register apscheduler logger
