@@ -15,7 +15,7 @@ router = APIRouter(
 def post__topics_correlation(body: TopicCorrelationSchema, cache: ProjectCacheDependency)->ApiResult[StatisticTestOnDistributionResource]:
   ...
 
-@router.post("/topics/contingency-table")
+@router.post("/contingency-table")
 def post__topics_contingency_table(body: TopicCorrelationSchema, cache: ProjectCacheDependency)->ApiResult[ContingencyTableResource]:
   return ApiResult(data=contingency_table(cache, body), message=None)
   

@@ -5,7 +5,7 @@ from modules.comparison.effect_size import EffectSizeMethodEnum
 from modules.comparison.statistic_test import StatisticTestMethodEnum
 from modules.config.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
-from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.config.schema.schema_variants import SchemaColumn, TextualSchemaColumn
 
 # Schema
 class TopicCorrelationSchema(pydantic.BaseModel):
@@ -26,6 +26,8 @@ class StatisticTestOnDistributionResource(pydantic.BaseModel):
   effect_sizes: list[float]
 
 class ContingencyTableResource(pydantic.BaseModel):
+  column1: SchemaColumn
+  column2: SchemaColumn
   rows: list[str]
   columns: list[str]
   observed: list[list[int]]
