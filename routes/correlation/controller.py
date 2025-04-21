@@ -4,10 +4,13 @@ from typing import cast
 import numpy as np
 import pandas as pd
 from modules.api.wrapper import ApiError
-from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
+from modules.comparison.engine import TableComparisonEngine
+from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.project.cache import ProjectCache
-from routes.correlation.model import ContingencyTableResource, TopicCorrelationSchema
+from modules.table.engine import TableEngine
+from modules.table.filter_variants import AndTableFilter, EqualToTableFilter, NamedTableFilter, NotTableFilter, OrTableFilter
+from routes.correlation.model import BinaryStatisticTestOnContingencyTableResource, BinaryStatisticTestOnDistributionResource, BinaryStatisticTestSchema, ContingencyTableResource, TopicCorrelationSchema
 
 @dataclass
 class TableCorrelationPreprocessPartialResult:
@@ -39,15 +42,42 @@ class TableCorrelationPreprocessModule:
   def consume(self, partial1: TableCorrelationPreprocessPartialResult, partial2: TableCorrelationPreprocessPartialResult):
     workspace = self.cache.load_workspace()
     mask = partial1.mask & partial2.mask
-    return workspace.loc[mask, :]
+    df = workspace.loc[mask, :]
 
-  def extract(self, df: pd.DataFrame, column: SchemaColumn):
-    if column.type == SchemaColumnTypeEnum.Topic:
+    sort_by = []
+    if partial1.column.is_ordered:
+      sort_by.append(partial1.column.name)
+    if partial2.column.is_ordered:
+      sort_by.append(partial2.column.name)
+
+    df.sort_values(by=sort_by, inplace=True)
+    return df 
+
+  def extract(self, df: pd.DataFrame, column: SchemaColumn, *, transform_topics: bool = True):
+    if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
       tm_result = self.cache.load_topic(cast(str, column.source_name))
       categorical_data = pd.Categorical(df[column.name])
       return cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
-    return df[column.name]
-
+    
+    data = df[column.name]
+    uniques = data.unique()
+    if len(uniques) == 0:
+      raise ApiError(
+        f"It seems that {column.name} doesn't contain any values at all in the dataset so we cannot proceed with this operation.",
+        HTTPStatus.BAD_REQUEST
+      )
+    return data
+  
+  
+  def label_binary_variable(self, binary_variables: pd.Series | np.ndarray, column: SchemaColumn):
+    if column.type == SchemaColumnTypeEnum.Topic:
+      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      get_topics = map(lambda var: tm_result.find(var), binary_variables)
+      topic_labels = map(lambda topic: topic.default_label if topic else None, get_topics)
+      topic_default_labels = map(lambda label, value: label or str(value), topic_labels, binary_variables)
+      return list(topic_default_labels)
+    else:
+      return list(map(str, binary_variables))
 
 def contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
   from scipy.cluster.hierarchy import linkage, leaves_list
@@ -57,25 +87,9 @@ def contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
   supported_types = CATEGORICAL_SCHEMA_COLUMN_TYPES
   partial1 = preprocess.apply_partial(input.column1, supported_types=supported_types)
   partial2 = preprocess.apply_partial(input.column2, supported_types=supported_types)
-
   df = preprocess.consume(partial1, partial2)
-
   data1 = preprocess.extract(df, partial1.column)
   data2 = preprocess.extract(df, partial2.column)
-
-  uniques1 = data1.unique()
-  uniques2 = data2.unique()
-
-  if len(uniques1) == 0:
-    raise ApiError(
-      f"It seems that {input.column1} doesn't contain any categories at all in the dataset so we cannot calculate the contingency table.",
-      HTTPStatus.BAD_REQUEST
-    )
-  if len(uniques2) == 0:
-    raise ApiError(
-      f"It seems that {input.column2} doesn't contain any categories at all in the dataset so we cannot calculate the contingency table.",
-      HTTPStatus.BAD_REQUEST
-    )
 
   observed = pd.crosstab(data1, data2)
   observed.fillna(0, inplace=True)
@@ -119,3 +133,106 @@ def contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
     residuals=absolute_residuals.tolist(),
     standardized_residuals=standardized_residuals.tolist(),
   )
+
+def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStatisticTestSchema):
+  preprocess = TableCorrelationPreprocessModule(cache=cache)
+  partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
+  partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
+
+  workspace = cache.load_workspace()
+  total_count = len(workspace)
+
+  df = preprocess.consume(partial1, partial2)
+
+  discriminator = preprocess.extract(df, partial1.column, transform_topics=False)
+  binary_variables = discriminator.unique()
+  binary_variable_labels = preprocess.label_binary_variable(binary_variables, partial1.column)
+
+  results: list[BinaryStatisticTestOnDistributionResource] = []
+  for variable, label in zip(binary_variables, binary_variable_labels):
+    filter = EqualToTableFilter(target=input.column1, value=variable)
+    anti_filter = NotTableFilter(operand=filter)
+    treatment_group = NamedTableFilter(name=label, filter=filter)
+    control_group = NamedTableFilter(name=label, filter=anti_filter)
+    engine = TableComparisonEngine(
+      config=cache.config,
+      engine=TableEngine(config=cache.config),
+      groups=[treatment_group, control_group],
+      exclude_overlapping_rows=True,
+    )
+    result = engine.compare(
+      df,
+      column_name=input.column2,
+      statistic_test_preference=input.statistic_test_preference,
+      effect_size_preference=input.effect_size_preference,
+    )
+
+    yes_count = result.groups[0].valid_count
+    no_count = result.groups[1].valid_count
+    results.append(BinaryStatisticTestOnDistributionResource(
+      warnings=result.warnings,
+      effect_size=result.effect_size,
+      significance=result.significance,
+      yes_count=yes_count,
+      no_count=no_count,
+      invalid_count=total_count - yes_count - no_count,
+      discriminator=label,
+    ))
+  return results
+  
+def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: BinaryStatisticTestSchema):
+  preprocess = TableCorrelationPreprocessModule(cache=cache)
+  partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
+  partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
+
+  workspace = cache.load_workspace()
+  total_count = len(workspace)
+
+  df = preprocess.consume(partial1, partial2)
+
+  discriminator1 = preprocess.extract(df, partial1.column, transform_topics=False)
+  discriminator2 = preprocess.extract(df, partial1.column, transform_topics=False)
+
+  binary_variables1 = discriminator1.unique()
+  binary_variables2 = discriminator2.unique()
+
+  binary_variable_names1 = preprocess.label_binary_variable(binary_variables1, partial1.column)
+  binary_variable_names2 = preprocess.label_binary_variable(binary_variables2, partial2.column)
+
+  results: list[BinaryStatisticTestOnContingencyTableResource] = []
+  for variable1, label1 in zip(binary_variables1, binary_variable_names1):
+    filter1 = EqualToTableFilter(target=input.column1, value=variable1)
+    anti_filter1 = NotTableFilter(operand=filter1)
+    for variable2, label2 in zip(binary_variables2, binary_variable_names2):
+      filter2 = EqualToTableFilter(target=input.column1, value=variable2)
+      anti_filter2 = NotTableFilter(operand=filter2)
+
+      engine = TableComparisonEngine(
+        config=cache.config,
+        engine=TableEngine(config=cache.config),
+        groups=[
+        NamedTableFilter(name=f"{label1} x {label2}", filter=AndTableFilter(operands=[filter1, filter2])),
+        NamedTableFilter(name=f"NOT {label1} x {label2}", filter=OrTableFilter(operands=[anti_filter1, anti_filter2])),
+      ],
+        exclude_overlapping_rows=True,
+      )
+      result = engine.compare(
+        df,
+        column_name=input.column2,
+        statistic_test_preference=input.statistic_test_preference,
+        effect_size_preference=input.effect_size_preference,
+      )
+
+      yes_count = result.groups[0].valid_count
+      no_count = result.groups[1].valid_count
+      results.append(BinaryStatisticTestOnDistributionResource(
+        warnings=result.warnings,
+        effect_size=result.effect_size,
+        significance=result.significance,
+        yes_count=yes_count,
+        no_count=no_count,
+        invalid_count=total_count - yes_count - no_count,
+        discriminator=label or str(variable),
+      ))
+  return results
+  
