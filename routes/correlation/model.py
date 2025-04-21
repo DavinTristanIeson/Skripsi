@@ -18,21 +18,23 @@ class TopicCorrelationSchema(pydantic.BaseModel):
     return textual_column.topic_column
 
 # Resource
-class TopicCorrelationResource(pydantic.BaseModel):
+class StatisticTestOnDistributionResource(pydantic.BaseModel):
   statistic_test_method: StatisticTestMethodEnum
   effect_size_method: EffectSizeMethodEnum
   p_values: list[float]
   statistics: list[float]
   effect_sizes: list[float]
 
-class TopicCorrelationCrossTabResource(pydantic.BaseModel):
+class ContingencyTableResource(pydantic.BaseModel):
+  rows: list[str]
+  columns: list[str]
   observed: list[list[int]]
   expected: list[list[float]]
   residuals: list[list[float]]
   # Standardized residuals.
   standardized_residuals: list[list[float]]
 
-class TopicCorrelationFineGrainedCategoricalResource(pydantic.BaseModel):
+class FineGrainedStatisticTestOnCategoriesResource(pydantic.BaseModel):
   statistic_test_method: StatisticTestMethodEnum
   effect_size_method: EffectSizeMethodEnum  
   p_values: list[list[float]]

@@ -21,6 +21,10 @@ class SchemaColumnTypeEnum(str, Enum):
   # Internal
   Topic = "topic"
 
+CATEGORICAL_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Topic]
+ORDERED_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical]
+ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.OrderedCategorical]
+
 ExposedEnum().register(SchemaColumnTypeEnum)
 
 class GeospatialRoleEnum(str, Enum):
@@ -40,6 +44,14 @@ class _BaseSchemaColumn(pydantic.BaseModel, abc.ABC, frozen=True):
 
   def get_internal_columns(self)->Sequence["_BaseSchemaColumn"]:
     return []
+
+  @property
+  def is_ordered(self)->bool:
+    return False
+  
+  @property
+  def is_categorical(self)->bool:
+    return False
 
   @abc.abstractmethod
   def fit(self, df: pd.DataFrame)->None:

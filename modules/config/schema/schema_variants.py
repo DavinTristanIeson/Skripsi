@@ -14,12 +14,15 @@ from modules.validation import DiscriminatedUnionValidator
 from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
 from .textual import TextPreprocessingConfig, TopicModelingConfig
 
-
 class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Continuous]
   # Note: bins contain the bin edges. So this should have length bin_count + 1
   bins: Optional[list[float]] = None
   bin_count: int = pydantic.Field(default=3, ge=2)
+  
+  @property
+  def is_ordered(self)->bool:
+    return True
 
   @pydantic.field_validator("bins", mode="after")
   def __validate_bins(cls, value: Optional[list[float]]):
@@ -90,6 +93,11 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
   
 class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Categorical]
+
+  @property
+  def is_categorical(self)->bool:
+    return True
+  
   def fit(self, df):
     raw_data = df[self.name]
     if raw_data.dtype == 'category':
@@ -101,6 +109,14 @@ class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True
 class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
+
+  @property
+  def is_ordered(self)->bool:
+    return True
+
+  @property
+  def is_categorical(self)->bool:
+    return True
 
   def fit(self, df):
     raw_data = df[self.name]
@@ -138,6 +154,11 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, froz
 # This makes relabeling or recalculating topic representation much easier.
 class TopicSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Topic]
+
+  @property
+  def is_categorical(self)->bool:
+    return True
+
   def fit(self, df):
     df[self.name] = df[self.name].astype(pd.Int32Dtype())
 
@@ -199,6 +220,14 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   datetime_format: Optional[str]
   temporal_features: list[TemporalColumnFeatureEnum]
   temporal_precision: Optional[TemporalPrecisionEnum] = None
+
+  @property
+  def is_categorical(self)->bool:
+    return True
+
+  @property
+  def is_ordered(self)->bool:
+    return True
 
   @pydantic.field_serializer("temporal_precision")
   def __serialize_precision(value, info: pydantic.SerializationInfo):

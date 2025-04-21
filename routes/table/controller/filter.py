@@ -17,7 +17,7 @@ from modules.config import (
   GeospatialSchemaColumn
 )
 from modules.project.cache import ProjectCache
-from modules.config.schema.base import GeospatialRoleEnum
+from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, GeospatialRoleEnum
 from modules.config.schema.schema_variants import SchemaColumn, TextualSchemaColumn
 from modules.table import TableEngine
 from modules.table.filter import TableSort
@@ -45,7 +45,7 @@ class _TableFilterPreprocessModule:
 
     # Sort the results first for ordered categorical and temporal
     sort: Optional[TableSort] = None
-    if sort is None and column.type == SchemaColumnTypeEnum.OrderedCategorical or column.type == SchemaColumnTypeEnum.Temporal:
+    if sort is None and column.is_ordered:
       sort = TableSort(name=column.name, asc=True)
     df = engine.process_workspace(self.filter, sort)
 
@@ -112,12 +112,7 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
     filter=params.filter
   ).apply(
     column_name=params.column,
-    supported_types=[
-      SchemaColumnTypeEnum.Categorical,
-      SchemaColumnTypeEnum.OrderedCategorical,
-      SchemaColumnTypeEnum.Topic,
-      SchemaColumnTypeEnum.Temporal,
-    ]
+    supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES
   )
 
   column = result.column
@@ -148,12 +143,7 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
     filter=params.filter
   ).apply(
     column_name=params.grouped_by,
-    supported_types=[
-      SchemaColumnTypeEnum.Categorical,
-      SchemaColumnTypeEnum.OrderedCategorical,
-      SchemaColumnTypeEnum.Topic,
-      SchemaColumnTypeEnum.Temporal,
-    ]
+    supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES
   )
 
   df = preprocess.df
