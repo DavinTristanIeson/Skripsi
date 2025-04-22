@@ -199,6 +199,10 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
   binary_variable_names1 = preprocess.label_binary_variable(binary_variables1, partial1.column)
   binary_variable_names2 = preprocess.label_binary_variable(binary_variables2, partial2.column)
 
+  grand_contingency_table = pd.crosstab(discriminator1, discriminator2)
+  grand_contingency_table.fillna(0, inplace=True)
+  grand_total = grand_contingency_table.sum().sum()
+
   results: list[BinaryStatisticTestOnContingencyTableResource] = []
   for variable1, label1 in zip(binary_variables1, binary_variable_names1):
     filter1 = EqualToTableFilter(target=input.column1, value=variable1)
@@ -206,6 +210,16 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
     for variable2, label2 in zip(binary_variables2, binary_variable_names2):
       filter2 = EqualToTableFilter(target=input.column1, value=variable2)
       anti_filter2 = NotTableFilter(operand=filter2)
+
+      freq_both_true = grand_contingency_table.at[variable1, variable2] # Get value at (x, y)
+      freq_both_false = grand_total - freq_both_true # Get all values except (x, y)
+      freq_true_false = grand_contingency_table.loc[variable1, :].sum() - freq_both_true # Get values at (x, :), except for (x, y)
+      freq_false_true = grand_contingency_table.loc[:, variable2].sum() - freq_both_true # Get values at (:, y) except for (x, y)
+      local_contingency_table = (
+        (freq_both_true, freq_true_false),
+        (freq_false_true, freq_both_false)
+      )
+      local_total = freq_both_true + freq_both_false + freq_true_false + freq_false_true
 
       engine = TableComparisonEngine(
         config=cache.config,
@@ -223,16 +237,14 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
         effect_size_preference=input.effect_size_preference,
       )
 
-      yes_count = result.groups[0].valid_count
-      no_count = result.groups[1].valid_count
-      results.append(BinaryStatisticTestOnDistributionResource(
+      results.append(BinaryStatisticTestOnContingencyTableResource(
         warnings=result.warnings,
         effect_size=result.effect_size,
         significance=result.significance,
-        yes_count=yes_count,
-        no_count=no_count,
-        invalid_count=total_count - yes_count - no_count,
-        discriminator=label or str(variable),
+        contingency_table=local_contingency_table,
+        invalid_count=total_count - local_total,
+        discriminator1=label1,
+        discriminator2=label2,
       ))
   return results
   

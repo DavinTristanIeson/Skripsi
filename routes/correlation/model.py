@@ -42,8 +42,12 @@ class ContingencyTableResource(pydantic.BaseModel):
   standardized_residuals: list[list[float]]
 
 class BinaryStatisticTestOnContingencyTableResource(pydantic.BaseModel):
-  statistic_test_method: StatisticTestMethodEnum
-  effect_size_method: EffectSizeMethodEnum  
-  p_values: list[list[float]]
-  statistics: list[list[float]]
-  effect_sizes: list[list[float]]
+  discriminator1: str
+  discriminator2: str
+
+  contingency_table: tuple[tuple[int, int], tuple[int, int]]
+  invalid_count: int
+  
+  warnings: list[str]
+  significance: SignificanceResult
+  effect_size: EffectSizeResult
