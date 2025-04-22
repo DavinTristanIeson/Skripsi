@@ -19,7 +19,7 @@ class Topic(pydantic.BaseModel):
     if self.label:
       return self.label
     if len(self.words) > 0:
-      return ', '.join(map(lambda x: x[0], self.words[:3]))
+      return f'({self.id + 1}) ' + ', '.join(map(lambda x: x[0], self.words[:3]))
     return f"Topic {self.id + 1}"
 
 class TopicModelingResult(pydantic.BaseModel):

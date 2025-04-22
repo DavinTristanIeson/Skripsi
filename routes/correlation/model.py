@@ -44,10 +44,15 @@ class ContingencyTableResource(pydantic.BaseModel):
 class BinaryStatisticTestOnContingencyTableResource(pydantic.BaseModel):
   discriminator1: str
   discriminator2: str
-
-  contingency_table: tuple[tuple[int, int], tuple[int, int]]
-  invalid_count: int
+  frequency: int
   
   warnings: list[str]
   significance: SignificanceResult
   effect_size: EffectSizeResult
+
+class BinaryStatisticTestOnContingencyTableMainResource(pydantic.BaseModel):
+  rows: list[str] 
+  columns: list[str]
+  column1: SchemaColumn
+  column2: SchemaColumn
+  results: list[list[BinaryStatisticTestOnContingencyTableResource]]

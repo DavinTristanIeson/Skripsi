@@ -6,10 +6,10 @@ from controllers.project import ProjectCacheDependency
 from routes.correlation.controller import binary_statistic_test_on_contingency_table, binary_statistic_test_on_distribution, contingency_table
 
 from .model import (
+  BinaryStatisticTestOnContingencyTableMainResource,
   BinaryStatisticTestOnDistributionResource,
   BinaryStatisticTestSchema,
   ContingencyTableResource,
-  BinaryStatisticTestOnContingencyTableResource,
   TopicCorrelationSchema
 )
 
@@ -26,5 +26,5 @@ def post__topics_contingency_table(body: TopicCorrelationSchema, cache: ProjectC
   return ApiResult(data=contingency_table(cache, body), message=None)
   
 @router.post("/binary/test-contingency-table")
-def post__test_contingency_table(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[list[BinaryStatisticTestOnContingencyTableResource]]:
+def post__test_contingency_table(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableMainResource]:
   return ApiResult(data=binary_statistic_test_on_contingency_table(cache, body), message=None)
