@@ -1,5 +1,6 @@
 from typing import Annotated, Any, Literal, Union
 
+import numpy as np
 import pandas as pd
 import pydantic
 
@@ -61,7 +62,7 @@ class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
     mask = params.mask(True)
     for operand in self.operands:
       new_mask = operand.apply(params)
-      mask &= new_mask
+      mask = np.bitwise_and(mask, new_mask)
     return mask
   
 class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
@@ -72,14 +73,15 @@ class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
       return params.mask(True)
     mask = params.mask(False)
     for operand in self.operands:
-      mask |= operand.apply(params)
+      new_mask = operand.apply(params)
+      mask = np.bitwise_or(mask, new_mask)
     return mask
 
 class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.Not] = TableFilterTypeEnum.Not
   operand: "TableFilter"
   def apply(self, params):
-    return ~self.operand.apply(params)
+    return np.bitwise_not(self.operand.apply(params))
   
 class EmptyTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.Empty] = TableFilterTypeEnum.Empty

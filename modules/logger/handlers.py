@@ -15,6 +15,13 @@ class LoggingBehaviorManager:
     else:
       logger.removeHandler(TERMINAL_STREAM_HANDLER)
 
+  @staticmethod
+  def infer(logger: logging.Logger):
+    return LoggingBehaviorManager(
+      level=logger.level,
+      terminal=TERMINAL_STREAM_HANDLER in logger.handlers
+    )
+
 __all__ = [
   "LoggingBehaviorManager"
 ]

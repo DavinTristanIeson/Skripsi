@@ -48,6 +48,7 @@ class TableEngine:
         config=self.config,
         data=df
       ))
+      print(filter, df.shape, mask.shape)
       return df[mask]
   
   def sort(self, df: pd.DataFrame, sort: Optional[TableSort])->pd.DataFrame:

@@ -64,10 +64,11 @@ class MannWhitneyUStatisticTest(_BaseStatisticTest):
     if not pd.api.types.is_numeric_dtype(data.dtype):
       return warnings
     
-    normaltest_result = scipy.stats.normaltest(data).pvalue
-    is_normal = normaltest_result < 0.05
-    if is_normal:
-      warnings.append(f"Mann-Whitney U Test is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using T-Test instead.")
+    if len(data) >= 20:
+      normaltest_result = scipy.stats.normaltest(data).pvalue
+      is_normal = normaltest_result < 0.05
+      if is_normal:
+        warnings.append(f"Mann-Whitney U Test is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using T-Test instead.")
 
     return warnings
   

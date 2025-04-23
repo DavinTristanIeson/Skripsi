@@ -59,12 +59,16 @@ class _TableFilterPreprocessModule:
         mask = mask & (data != -1)
       data = data[mask]
       df = df[mask]
+    
+    if len(df) == 0:
+      raise ApiError("There are no rows that can be visualized. Perhaps the filter is too strict; try adjusting the filter to be more lax.", http.HTTPStatus.BAD_REQUEST)
 
     # Use categorical dtype for topic
     if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
       tm_result = self.cache.load_topic(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
-      data = cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
+      categorical_data = categorical_data.rename_categories(tm_result.renamer)
+      data = pd.Series(categorical_data, name=column.name)
 
     return _TableFilterPreprocessResult(
       column=column,
@@ -170,6 +174,10 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
     data = grouped.mean()
   else:
     raise ValueError(f"\"{params.method}\" is not a valid aggregation method.")
+  
+  data.dropna(inplace=True)
+  if len(data) == 0:
+    raise ApiError(f"Oops, there are no valid values in \"{params.grouped_by}\" to group \"{params.column}\".", http.HTTPStatus.BAD_REQUEST)
 
   return ApiResult(
     data=TableColumnAggregateValuesResource(

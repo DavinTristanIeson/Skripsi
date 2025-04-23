@@ -16,7 +16,6 @@ from .statistic_test import StatisticTestFactory, StatisticTestMethodEnum
 
 logger = ProvisionedLogger().provision("TableComparisonEngine")
 
-
 class TableComparisonGroupInfo(pydantic.BaseModel):
   name: str
   empty_count: int

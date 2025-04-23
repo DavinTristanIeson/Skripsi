@@ -7,6 +7,7 @@ from modules.api.wrapper import ApiError
 from modules.comparison.engine import TableComparisonEngine
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
+from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
 from modules.table.filter_variants import AndTableFilter, EqualToTableFilter, NamedTableFilter, NotTableFilter, OrTableFilter
@@ -43,6 +44,9 @@ class TableCorrelationPreprocessModule:
     workspace = self.cache.load_workspace()
     mask = partial1.mask & partial2.mask
     df = workspace.loc[mask, :]
+        
+    if len(df) == 0:
+      raise ApiError("There are no rows that can be visualized. Perhaps the filter is too strict; try adjusting the filter to be more lax.", HTTPStatus.BAD_REQUEST)
 
     sort_by = []
     if partial1.column.is_ordered:
@@ -185,13 +189,10 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
   partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
   partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
 
-  workspace = cache.load_workspace()
-  total_count = len(workspace)
-
   df = preprocess.consume(partial1, partial2)
 
   discriminator1 = preprocess.extract(df, partial1.column, transform_topics=False)
-  discriminator2 = preprocess.extract(df, partial1.column, transform_topics=False)
+  discriminator2 = preprocess.extract(df, partial2.column, transform_topics=False)
 
   binary_variables1 = discriminator1.unique()
   binary_variables2 = discriminator2.unique()
@@ -199,41 +200,43 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
   binary_variable_names1 = preprocess.label_binary_variable(binary_variables1, partial1.column)
   binary_variable_names2 = preprocess.label_binary_variable(binary_variables2, partial2.column)
 
-  results: list[list[BinaryStatisticTestOnContingencyTableResource]] = []
-  for variable1, label1 in zip(binary_variables1, binary_variable_names1):
-    filter1 = EqualToTableFilter(target=input.column1, value=variable1)
-    anti_filter1 = NotTableFilter(operand=filter1)
+  with ProvisionedLogger().disable(["TableEngine", "TableComparisonEngine"]):
+    results: list[list[BinaryStatisticTestOnContingencyTableResource]] = []
+    for variable1, label1 in zip(binary_variables1, binary_variable_names1):
+      filter1 = EqualToTableFilter(target=input.column1, value=variable1)
+      anti_filter1 = NotTableFilter(operand=filter1)
 
-    results_row: list[BinaryStatisticTestOnContingencyTableResource] = []
-    for variable2, label2 in zip(binary_variables2, binary_variable_names2):
-      filter2 = EqualToTableFilter(target=input.column1, value=variable2)
-      anti_filter2 = NotTableFilter(operand=filter2)
+      results_row: list[BinaryStatisticTestOnContingencyTableResource] = []
+      for variable2, label2 in zip(binary_variables2, binary_variable_names2):
+        filter2 = EqualToTableFilter(target=input.column2, value=variable2)
+        anti_filter2 = NotTableFilter(operand=filter2)
 
-      engine = TableComparisonEngine(
-        config=cache.config,
-        engine=TableEngine(config=cache.config),
-        groups=[
-        NamedTableFilter(name=f"{label1} x {label2}", filter=AndTableFilter(operands=[filter1, filter2])),
-        NamedTableFilter(name=f"NOT {label1} x {label2}", filter=OrTableFilter(operands=[anti_filter1, anti_filter2])),
-      ],
-        exclude_overlapping_rows=True,
-      )
-      result = engine.compare(
-        df,
-        column_name=input.column2,
-        statistic_test_preference=input.statistic_test_preference,
-        effect_size_preference=input.effect_size_preference,
-      )
+        engine = TableComparisonEngine(
+          config=cache.config,
+          engine=TableEngine(config=cache.config),
+          groups=[
+          NamedTableFilter(name=f"{label1} x {label2}", filter=AndTableFilter(operands=[filter1, filter2])),
+          NamedTableFilter(name=f"NOT {label1} x {label2}", filter=OrTableFilter(operands=[anti_filter1, anti_filter2])),
+        ],
+          exclude_overlapping_rows=True,
+        )
+        result = engine.compare(
+          df,
+          column_name=input.column2,
+          statistic_test_preference=input.statistic_test_preference,
+          effect_size_preference=input.effect_size_preference,
+        )
 
-      results_row.append(BinaryStatisticTestOnContingencyTableResource(
-        warnings=result.warnings,
-        effect_size=result.effect_size,
-        significance=result.significance,
-        frequency=result.groups[0].valid_count,
-        discriminator1=label1,
-        discriminator2=label2,
-      ))
-    results.append(results_row)
+        results_row.append(BinaryStatisticTestOnContingencyTableResource(
+          warnings=result.warnings,
+          effect_size=result.effect_size,
+          significance=result.significance,
+          frequency=result.groups[0].valid_count,
+          discriminator1=label1,
+          discriminator2=label2,
+        ))
+      results.append(results_row)
+
   return BinaryStatisticTestOnContingencyTableMainResource(
     results=results,
     rows=binary_variable_names1,

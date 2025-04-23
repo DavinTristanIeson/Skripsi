@@ -74,7 +74,7 @@ class _TableFilterParams:
   config: Config
 
   def mask(self, flag: bool):
-    return pd.Series(np.full(len(self.data), flag, dtype=np.bool_), dtype="boolean")
+    return np.full(len(self.data), flag, dtype=np.bool_)
   
 class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   target: str
