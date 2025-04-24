@@ -109,8 +109,8 @@ class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel):
     values = list(map(lambda value: parse_value(self, params, value=value, operand="values"), self.values))
     mask = params.mask(False)
     for value in values:
-      new_mask = (data == value)
-      mask |= new_mask
+      new_mask = np.bitwise_and(data.notna(), (data == value))
+      mask = np.bitwise_or(mask, new_mask)
     return mask
 
 class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel):

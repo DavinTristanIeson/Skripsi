@@ -47,11 +47,11 @@ def get__all_filters(storage: FiltersStorageDependency)->ApiResult[list[UserData
     message=None
   )
 
-@router.get("/filters/{name}")
-def get__filters(storage: FiltersStorageDependency, name: str)->ApiResult[UserDataResource[TableFilter]]:
-  data = storage.get(name)
+@router.get("/filters/{id}")
+def get__filters(storage: FiltersStorageDependency, id: str)->ApiResult[UserDataResource[TableFilter]]:
+  data = storage.get(id)
   if data is None:
-    raise ApiError(f"We were not able to find any filter with name \"{name}\".", HTTPStatus.NOT_FOUND)
+    raise ApiError(f"We were not able to find any filter with ID \"{id}\".", HTTPStatus.NOT_FOUND)
   return ApiResult(
     data=data,
     message=None
@@ -92,11 +92,11 @@ def get__all_comparison_state(storage: ComparisonStateStorageDependency)->ApiRes
     message=None
   )
 
-@router.get("/comparison-state/{name}")
-def get__comparison_state(storage: ComparisonStateStorageDependency, name: str)->ApiResult[UserDataResource[ComparisonState]]:
-  data = storage.get(name)
+@router.get("/comparison-state/{id}")
+def get__comparison_state(storage: ComparisonStateStorageDependency, id: str)->ApiResult[UserDataResource[ComparisonState]]:
+  data = storage.get(id)
   if data is None:
-    raise ApiError(f"We were not able to find any comparison groups with name \"{name}\".", HTTPStatus.NOT_FOUND)
+    raise ApiError(f"We were not able to find any comparison groups with ID \"{id}\".", HTTPStatus.NOT_FOUND)
   return ApiResult(
     data=data,
     message=None
@@ -119,135 +119,45 @@ def delete__comparison_state(storage: ComparisonStateStorageDependency, id: str)
 
 
 #====================#
-# TableDashboard
+# Dashboard
 #====================#
 
-def get_table_dashboard_storage_controller(cache: ProjectCacheDependency):
+def get_dashboard_storage_controller(cache: ProjectCacheDependency):
   return UserDataStorageController[Dashboard](
-    path=cache.config.paths.full_path(ProjectPaths.UserData("table_dashboard")),
+    path=cache.config.paths.full_path(ProjectPaths.UserData("dashboard")),
     validator=dashboard_validator,
   )
 
-TableDashboardStorageDependency = Annotated[UserDataStorageController, Depends(get_table_dashboard_storage_controller)]
+DashboardStorageDependency = Annotated[UserDataStorageController, Depends(get_dashboard_storage_controller)]
 
-@router.get("/dashboard/table")
-def get__all_table_dashboard(storage: TableDashboardStorageDependency)->ApiResult[list[UserDataResource[Dashboard]]]:
+@router.get("/dashboard")
+def get__all_dashboard(storage: DashboardStorageDependency)->ApiResult[list[UserDataResource[Dashboard]]]:
   return ApiResult(
     data=storage.all(),
     message=None
   )
 
-@router.get("/dashboard/table/{name}")
-def get__table_dashboard(storage: TableDashboardStorageDependency, name: str)->ApiResult[UserDataResource[Dashboard]]:
-  data = storage.get(name)
+@router.get("/dashboard/{id}")
+def get__dashboard(storage: DashboardStorageDependency, id: str)->ApiResult[UserDataResource[Dashboard]]:
+  data = storage.get(id)
   if data is None:
-    raise ApiError(f"We were not able to find any table dashboard with name \"{name}\".", HTTPStatus.NOT_FOUND)
+    raise ApiError(f"We were not able to find any dashboard with ID \"{id}\".", HTTPStatus.NOT_FOUND)
   return ApiResult(
     data=data,
     message=None
   )
 
-@router.post("/dashboard/table")
-def post__table_dashboard(storage: TableDashboardStorageDependency, body: UserDataSchema[Dashboard])->ApiResult[None]:
+@router.post("/dashboard")
+def post__dashboard(storage: DashboardStorageDependency, body: UserDataSchema[Dashboard])->ApiResult[None]:
   storage.create(body)
-  return ApiResult(data=None, message="The table dashboard has been successfully created.")
+  return ApiResult(data=None, message="The dashboard has been successfully created.")
 
-@router.put("/dashboard/table/{id}")
-def put__table_dashboard(storage: TableDashboardStorageDependency, id: str, body: UserDataSchema[Dashboard])->ApiResult[None]:
+@router.put("/dashboard/{id}")
+def put__dashboard(storage: DashboardStorageDependency, id: str, body: UserDataSchema[Dashboard])->ApiResult[None]:
   storage.update(id, body)
-  return ApiResult(data=None, message="The table dashboard has been successfully updated.")
+  return ApiResult(data=None, message="The dashboard has been successfully updated.")
   
-@router.delete("/dashboard/table/{id}")
-def delete__table_dashboard(storage: TableDashboardStorageDependency, id: str)->ApiResult[None]:
+@router.delete("/dashboard/{id}")
+def delete__dashboard(storage: DashboardStorageDependency, id: str)->ApiResult[None]:
   storage.delete(id)
-  return ApiResult(data=None, message="The table dashboard has been successfully removed.")
-
-
-#====================#
-# ComparisonDashboard
-#====================#
-
-def get_comparison_dashboard_storage_controller(cache: ProjectCacheDependency):
-  return UserDataStorageController[Dashboard](
-    path=cache.config.paths.full_path(ProjectPaths.UserData("comparison_dashboard")),
-    validator=dashboard_validator,
-  )
-
-ComparisonDashboardStorageDependency = Annotated[UserDataStorageController, Depends(get_comparison_dashboard_storage_controller)]
-
-@router.get("/dashboard/comparison")
-def get__all_comparison_dashboard(storage: ComparisonDashboardStorageDependency)->ApiResult[list[UserDataResource[Dashboard]]]:
-  return ApiResult(
-    data=storage.all(),
-    message=None
-  )
-
-@router.get("/dashboard/comparison/{name}")
-def get__comparison_dashboard(storage: ComparisonDashboardStorageDependency, name: str)->ApiResult[UserDataResource[Dashboard]]:
-  data = storage.get(name)
-  if data is None:
-    raise ApiError(f"We were not able to find any comparison dashboard with name \"{name}\".", HTTPStatus.NOT_FOUND)
-  return ApiResult(
-    data=data,
-    message=None
-  )
-
-@router.post("/dashboard/comparison")
-def post__comparison_dashboard(storage: ComparisonDashboardStorageDependency, body: UserDataSchema[Dashboard])->ApiResult[None]:
-  storage.create(body)
-  return ApiResult(data=None, message="The comparison dashboard has been successfully created.")
-
-@router.put("/dashboard/comparison/{id}")
-def put__comparison_dashboard(storage: ComparisonDashboardStorageDependency, id: str, body: UserDataSchema[Dashboard])->ApiResult[None]:
-  storage.update(id, body)
-  return ApiResult(data=None, message="The comparison dashboard has been successfully updated.")
-  
-@router.delete("/dashboard/comparison/{id}")
-def delete__comparison_dashboard(storage: ComparisonDashboardStorageDependency, id: str)->ApiResult[None]:
-  storage.delete(id)
-  return ApiResult(data=None, message="The comparison dashboard has been successfully removed.")
-
-
-#====================#
-# CorrelationDashboard
-#====================#
-
-def get_correlation_dashboard_storage_controller(cache: ProjectCacheDependency):
-  return UserDataStorageController[Dashboard](
-    path=cache.config.paths.full_path(ProjectPaths.UserData("correlation_dashboard")),
-    validator=dashboard_validator,
-  )
-
-CorrelationDashboardStorageDependency = Annotated[UserDataStorageController, Depends(get_correlation_dashboard_storage_controller)]
-
-@router.get("/dashboard/correlation")
-def get__all_correlation_dashboard(storage: CorrelationDashboardStorageDependency)->ApiResult[list[UserDataResource[Dashboard]]]:
-  return ApiResult(
-    data=storage.all(),
-    message=None
-  )
-
-@router.get("/dashboard/correlation/{name}")
-def get__correlation_dashboard(storage: CorrelationDashboardStorageDependency, name: str)->ApiResult[UserDataResource[Dashboard]]:
-  data = storage.get(name)
-  if data is None:
-    raise ApiError(f"We were not able to find any topic correlation dashboard with name \"{name}\".", HTTPStatus.NOT_FOUND)
-  return ApiResult(
-    data=data,
-    message=None
-  )
-
-@router.post("/dashboard/correlation")
-def post__correlation_dashboard(storage: CorrelationDashboardStorageDependency, body: UserDataSchema[Dashboard])->ApiResult[None]:
-  storage.create(body)
-  return ApiResult(data=None, message="The topic correlation dashboard has been successfully created.")
-
-@router.put("/dashboard/correlation/{id}")
-def put__correlation_dashboard(storage: CorrelationDashboardStorageDependency, id: str, body: UserDataSchema[Dashboard])->ApiResult[None]:
-  storage.update(id, body)
-  return ApiResult(data=None, message="The topic correlation dashboard has been successfully updated.")
-  
-@router.delete("/dashboard/correlation/{id}")
-def delete__correlation_dashboard(storage: CorrelationDashboardStorageDependency, id: str)->ApiResult[None]:
-  storage.delete(id)
-  return ApiResult(data=None, message="The topic correlation dashboard has been successfully removed.")
+  return ApiResult(data=None, message="The dashboard has been successfully removed.")

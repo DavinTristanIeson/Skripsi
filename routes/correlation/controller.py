@@ -4,13 +4,15 @@ from typing import cast
 import numpy as np
 import pandas as pd
 from modules.api.wrapper import ApiError
+from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.engine import TableComparisonEngine
+from modules.comparison.statistic_test import StatisticTestMethodEnum
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
-from modules.table.filter_variants import AndTableFilter, EqualToTableFilter, NamedTableFilter, NotTableFilter, OrTableFilter
+from modules.table.filter_variants import EqualToTableFilter, NotTableFilter
 from routes.correlation.model import BinaryStatisticTestOnContingencyTableMainResource, BinaryStatisticTestOnContingencyTableResource, BinaryStatisticTestOnDistributionResource, BinaryStatisticTestSchema, ContingencyTableResource, TopicCorrelationSchema
 
 @dataclass
@@ -153,38 +155,40 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
   binary_variable_labels = preprocess.label_binary_variable(binary_variables, partial1.column)
 
   results: list[BinaryStatisticTestOnDistributionResource] = []
-  for variable, label in zip(binary_variables, binary_variable_labels):
-    filter = EqualToTableFilter(target=input.column1, value=variable)
-    anti_filter = NotTableFilter(operand=filter)
-    treatment_group = NamedTableFilter(name=label, filter=filter)
-    control_group = NamedTableFilter(name=label, filter=anti_filter)
-    engine = TableComparisonEngine(
-      config=cache.config,
-      engine=TableEngine(config=cache.config),
-      groups=[treatment_group, control_group],
-      exclude_overlapping_rows=True,
-    )
-    result = engine.compare(
-      df,
-      column_name=input.column2,
-      statistic_test_preference=input.statistic_test_preference,
-      effect_size_preference=input.effect_size_preference,
-    )
+  with ProvisionedLogger().disable(["TableEngine", "TableComparisonEngine"]):
+    for variable, label in zip(binary_variables, binary_variable_labels):
+      filter = EqualToTableFilter(target=input.column1, value=variable)
+      anti_filter = NotTableFilter(operand=filter)
+      treatment_group = NamedTableFilter(name=label, filter=filter)
+      control_group = NamedTableFilter(name=label, filter=anti_filter)
+      engine = TableComparisonEngine(
+        config=cache.config,
+        engine=TableEngine(config=cache.config),
+        groups=[treatment_group, control_group],
+        exclude_overlapping_rows=True,
+      )
+      result = engine.compare(
+        df,
+        column_name=input.column2,
+        statistic_test_preference=input.statistic_test_preference,
+        effect_size_preference=input.effect_size_preference,
+      )
 
-    yes_count = result.groups[0].valid_count
-    no_count = result.groups[1].valid_count
-    results.append(BinaryStatisticTestOnDistributionResource(
-      warnings=result.warnings,
-      effect_size=result.effect_size,
-      significance=result.significance,
-      yes_count=yes_count,
-      no_count=no_count,
-      invalid_count=total_count - yes_count - no_count,
-      discriminator=label,
-    ))
+      yes_count = result.groups[0].valid_count
+      no_count = result.groups[1].valid_count
+      results.append(BinaryStatisticTestOnDistributionResource(
+        warnings=result.warnings,
+        effect_size=result.effect_size,
+        significance=result.significance,
+        yes_count=yes_count,
+        no_count=no_count,
+        invalid_count=total_count - yes_count - no_count,
+        discriminator=label,
+      ))
   return results
   
 def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: BinaryStatisticTestSchema):
+  import scipy.stats
   preprocess = TableCorrelationPreprocessModule(cache=cache)
   partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
   partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
@@ -200,42 +204,49 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Binar
   binary_variable_names1 = preprocess.label_binary_variable(binary_variables1, partial1.column)
   binary_variable_names2 = preprocess.label_binary_variable(binary_variables2, partial2.column)
 
-  with ProvisionedLogger().disable(["TableEngine", "TableComparisonEngine"]):
-    results: list[list[BinaryStatisticTestOnContingencyTableResource]] = []
-    for variable1, label1 in zip(binary_variables1, binary_variable_names1):
-      filter1 = EqualToTableFilter(target=input.column1, value=variable1)
-      anti_filter1 = NotTableFilter(operand=filter1)
+  global_contingency_table = pd.crosstab(discriminator1, discriminator2)
+  results: list[list[BinaryStatisticTestOnContingencyTableResource]] = []
+  for variable1, label1 in zip(binary_variables1, binary_variable_names1):
+    results_row: list[BinaryStatisticTestOnContingencyTableResource] = []
+    for variable2, label2 in zip(binary_variables2, binary_variable_names2):
+      TT = global_contingency_table.at[variable1, variable2]
+      TF = global_contingency_table.loc[variable1, :].sum()
+      FT = global_contingency_table.loc[:, variable2].sum()
+      FF = global_contingency_table.sum().sum() - TT
+      contingency_table = pd.DataFrame([
+        [TT, TF],
+        [FT, FF],
+      ], index=[label1, f"NOT {label1}"], columns=[label2, f"NOT {label2}"])
 
-      results_row: list[BinaryStatisticTestOnContingencyTableResource] = []
-      for variable2, label2 in zip(binary_variables2, binary_variable_names2):
-        filter2 = EqualToTableFilter(target=input.column2, value=variable2)
-        anti_filter2 = NotTableFilter(operand=filter2)
+      warnings = []
+      has_zero_values = (contingency_table == 0).sum().sum() > 0
+      has_less_than_five = (contingency_table < 5).sum().sum() > 0
+      if has_zero_values:
+        contingency_table += 0.5
+      if has_less_than_five:
+        warnings.append(f"There's a cell that contains a frequency less than 5 ({contingency_table.min().min()}). Results may not be accurate.")
 
-        engine = TableComparisonEngine(
-          config=cache.config,
-          engine=TableEngine(config=cache.config),
-          groups=[
-          NamedTableFilter(name=f"{label1} x {label2}", filter=AndTableFilter(operands=[filter1, filter2])),
-          NamedTableFilter(name=f"NOT {label1} x {label2}", filter=OrTableFilter(operands=[anti_filter1, anti_filter2])),
-        ],
-          exclude_overlapping_rows=True,
-        )
-        result = engine.compare(
-          df,
-          column_name=input.column2,
-          statistic_test_preference=input.statistic_test_preference,
-          effect_size_preference=input.effect_size_preference,
-        )
+      OR = (TT * FF) / (TF * FT)
+      Q = (OR - 1) / (OR + 1)
 
-        results_row.append(BinaryStatisticTestOnContingencyTableResource(
-          warnings=result.warnings,
-          effect_size=result.effect_size,
-          significance=result.significance,
-          frequency=result.groups[0].valid_count,
-          discriminator1=label1,
-          discriminator2=label2,
-        ))
-      results.append(results_row)
+      chisq_result = scipy.stats.chi2_contingency(contingency_table)
+
+      results_row.append(BinaryStatisticTestOnContingencyTableResource(
+        warnings=warnings,
+        effect_size=EffectSizeResult(
+          type="yule_q",
+          value=Q,
+        ),
+        significance=SignificanceResult(
+          type=StatisticTestMethodEnum.ChiSquared,
+          statistic=chisq_result.statistic, # type: ignore
+          p_value=chisq_result.pvalue # type: ignore
+        ),
+        frequency=TT,
+        discriminator1=label1,
+        discriminator2=label2,
+      ))
+    results.append(results_row)
 
   return BinaryStatisticTestOnContingencyTableMainResource(
     results=results,

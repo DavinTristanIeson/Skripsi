@@ -33,12 +33,12 @@ def dashboard_validator(model: Any)->UserDataResource[Dashboard]:
 #====================#
 
 def get_CODEGEN_NAME_storage_controller(cache: ProjectCacheDependency):
-  return JSONStorageController[CODEGEN_CLASSNAME](
+  return UserDataStorageController[CODEGEN_CLASSNAME](
     path=cache.config.paths.full_path(ProjectPaths.UserData("CODEGEN_NAME")),
     validator=CODEGEN_VALIDATOR,
   )
 
-CODEGEN_PASCALNAMEStorageDependency = Annotated[JSONStorageController, Depends(get_CODEGEN_NAME_storage_controller)]
+CODEGEN_PASCALNAMEStorageDependency = Annotated[UserDataStorageController, Depends(get_CODEGEN_NAME_storage_controller)]
 
 @router.get("/CODEGEN_URL")
 def get__all_CODEGEN_NAME(storage: CODEGEN_PASCALNAMEStorageDependency)->ApiResult[list[UserDataResource[CODEGEN_CLASSNAME]]]:
@@ -47,11 +47,11 @@ def get__all_CODEGEN_NAME(storage: CODEGEN_PASCALNAMEStorageDependency)->ApiResu
     message=None
   )
 
-@router.get("/CODEGEN_URL/{name}")
-def get__CODEGEN_NAME(storage: CODEGEN_PASCALNAMEStorageDependency, name: str)->ApiResult[UserDataResource[CODEGEN_CLASSNAME]]:
-  data = storage.get(name)
+@router.get("/CODEGEN_URL/{id}")
+def get__CODEGEN_NAME(storage: CODEGEN_PASCALNAMEStorageDependency, id: str)->ApiResult[UserDataResource[CODEGEN_CLASSNAME]]:
+  data = storage.get(id)
   if data is None:
-    raise ApiError(f"We were not able to find any CODEGEN_LABEL with name \"{name}\".", HTTPStatus.NOT_FOUND)
+    raise ApiError(f"We were not able to find any CODEGEN_LABEL with ID \"{id}\".", HTTPStatus.NOT_FOUND)
   return ApiResult(
     data=data,
     message=None

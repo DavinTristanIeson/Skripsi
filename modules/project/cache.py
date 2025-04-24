@@ -27,7 +27,7 @@ logger = ProvisionedLogger().provision("CacheClient")
 class ProjectCache:
   id: str
   workspaces: CacheClient[pd.DataFrame] = field(
-    default_factory=lambda: CacheClient(name="Workspace", maxsize=5, ttl=5 * 60),
+    default_factory=lambda: CacheClient(name="Workspace", maxsize=20, ttl=5 * 60),
     init=False,
   )
   topics: CacheClient[TopicModelingResult] = field(
