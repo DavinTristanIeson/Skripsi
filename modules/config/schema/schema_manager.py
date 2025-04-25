@@ -172,7 +172,7 @@ class SchemaManager(pydantic.BaseModel):
       return df, column_diffs
     
     source_df = self._ensure_columns_in_df(source_df)
-    df = self._ensure_columns_in_df(workspace_df)
+    df = workspace_df
 
     # Invariants:
     # 1. There are no new columns added/removed.

@@ -36,13 +36,14 @@ class BERTopicCachedUMAP(__CachedUMAP):
   def __model(self):
     from umap import UMAP
     return UMAP(
+      random_state=2025,
       n_neighbors=self.column.topic_modeling.reference_document_count
         or self.column.topic_modeling.min_topic_size,
       min_dist=0.1,
       n_jobs=1,
       # BERTopic uses 5 dimensions
       n_components=5,
-      metric="euclidean",
+      metric="cosine",
       low_memory=self.low_memory
     )
   
@@ -66,10 +67,13 @@ class VisualizationCachedUMAP(__CachedUMAP):
   def __model(self):
     from umap import UMAP
     return UMAP(
+      random_state=2025,
       n_neighbors=self.column.topic_modeling.reference_document_count
         or self.column.topic_modeling.min_topic_size,
       min_dist=0.1,
       n_components=2,
+      n_jobs=1,
+      # This performs dimensionality reduction on UMAP vectors, so we use euclidean metric rather than cosine distance.
       metric="euclidean",
       low_memory=self.low_memory
     )

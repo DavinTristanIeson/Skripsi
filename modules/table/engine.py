@@ -80,6 +80,7 @@ class TableEngine:
       df = self.sort(df, sort)
       self.save_to_cache(df, filter, sort)
 
+    df = self.config.data_schema.process_columns(df)
     return df
       
   def get_meta(self, df: Sequence[Any], params: PaginationParams)->PaginationMeta:
