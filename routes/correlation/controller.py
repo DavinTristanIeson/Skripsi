@@ -12,7 +12,7 @@ from modules.config.schema.schema_variants import SchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
-from modules.table.filter_variants import EqualToTableFilter, NotTableFilter
+from modules.table.filter_variants import EqualToTableFilter, NamedTableFilter, NotTableFilter
 from routes.correlation.model import BinaryStatisticTestOnContingencyTableMainResource, BinaryStatisticTestOnContingencyTableResource, BinaryStatisticTestOnDistributionResource, BinaryStatisticTestSchema, ContingencyTableResource, TopicCorrelationSchema
 
 @dataclass
