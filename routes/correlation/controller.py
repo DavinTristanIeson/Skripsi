@@ -78,10 +78,8 @@ class TableCorrelationPreprocessModule:
   def label_binary_variable(self, binary_variables: pd.Series | np.ndarray, column: SchemaColumn):
     if column.type == SchemaColumnTypeEnum.Topic:
       tm_result = self.cache.load_topic(cast(str, column.source_name))
-      get_topics = map(lambda var: tm_result.find(var), binary_variables)
-      topic_labels = map(lambda topic: topic.default_label if topic else None, get_topics)
-      topic_default_labels = map(lambda label, value: label or str(value), topic_labels, binary_variables)
-      return list(topic_default_labels)
+      categorical_column = pd.Categorical(binary_variables).rename_categories(tm_result.renamer)
+      return list(categorical_column.categories)
     else:
       return list(map(str, binary_variables))
 

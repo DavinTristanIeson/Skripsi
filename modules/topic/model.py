@@ -19,7 +19,7 @@ class Topic(pydantic.BaseModel):
     if self.label:
       return self.label
     if len(self.words) > 0:
-      return f'({self.id + 1}) ' + ', '.join(map(lambda x: x[0], self.words[:3]))
+      return ', '.join(map(lambda x: x[0], self.words[:3]))
     return f"Topic {self.id + 1}"
 
 class TopicModelingResult(pydantic.BaseModel):
@@ -80,9 +80,15 @@ class TopicModelingResult(pydantic.BaseModel):
   
   @property
   def renamer(self):
-    renamer = {}
+    renamer: dict[int, str] = {}
+    unique_labels: dict[str, int] = {}
     for topic in self.topics:
-      renamer[topic.id] = topic.default_label
+      label = topic.default_label
+      if label in unique_labels:
+        new_label_suffix = unique_labels.get(label, 1) + 1
+        unique_labels[label] = new_label_suffix
+        label = f"{label} ({new_label_suffix})"
+      renamer[topic.id] = label
     return renamer
 
 __all__ = [
