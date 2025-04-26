@@ -330,7 +330,9 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       kwargs = dict()
       if self.datetime_format is not None:
         kwargs["format"] = self.datetime_format
-      datetime_column = pd.to_datetime(df[self.name], **kwargs)
+      datetime_column = pd.to_datetime(df[self.name], errors="coerce", **kwargs)
+      # Not gonna deal with timezones today, no thank you
+      datetime_column = datetime_column.tz_localize('UTC')
     else:
       datetime_column = df[self.name]
 

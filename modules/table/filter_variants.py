@@ -1,3 +1,4 @@
+import datetime
 from typing import Annotated, Any, Literal, Union
 
 import numpy as np
@@ -36,18 +37,23 @@ def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: 
     try:
       if data.dtype == "Int32" or data.dtype == "Int64":
         return int(value)
-      return float(value) # type: ignore
+      return float(value)
     except ValueError:
       raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="numeric_value")
   elif pd.api.types.is_datetime64_any_dtype(data.dtype):
     try:
-      return datetime.datetime.fromisoformat(value) # type: ignore
+      # Python fromisoformat doesn't recognize Z.
+      value = str(value).replace("Z", "+00:00")
+      date_value = np.datetime64(value)
+      if np.isnat(date_value):
+        raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="a valid datetime string in ISO format")
+      return date_value
     except ValueError:
       raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="datetime string in ISO format")
   elif data.dtype == 'category':
     value = str(value)
     if str(value) not in data.cat.categories:
-      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="valid category")
+      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type=f"valid category (one of {data.cat.categories})")
     return value
   elif value is None:
     return None

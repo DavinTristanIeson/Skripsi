@@ -52,9 +52,10 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     column = self.state.column
     config = self.state.config
+    cache = self.state.cache
     documents = self.state.documents
     model = self.state.model
-    df = self.state.df
+    df = cache.load_workspace()
     mask = self.state.mask
 
     self.task.log_pending(f"Applying post-processing on the topics of \"{column.name}\"...")

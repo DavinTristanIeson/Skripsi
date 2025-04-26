@@ -26,5 +26,5 @@ def post__topics_contingency_table(body: TopicCorrelationSchema, cache: ProjectC
   return ApiResult(data=contingency_table(cache, body), message=None)
   
 @router.post("/binary/test-contingency-table")
-def post__test_contingency_table(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableMainResource]:
+def post__test_contingency_table(body: TopicCorrelationSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableMainResource]:
   return ApiResult(data=binary_statistic_test_on_contingency_table(cache, body), message=None)

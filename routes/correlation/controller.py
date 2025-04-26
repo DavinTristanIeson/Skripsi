@@ -185,7 +185,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
       ))
   return results
   
-def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: BinaryStatisticTestSchema):
+def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
   import scipy.stats
   preprocess = TableCorrelationPreprocessModule(cache=cache)
   partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)

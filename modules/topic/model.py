@@ -88,6 +88,8 @@ class TopicModelingResult(pydantic.BaseModel):
         new_label_suffix = unique_labels.get(label, 1) + 1
         unique_labels[label] = new_label_suffix
         label = f"{label} ({new_label_suffix})"
+      else:
+        unique_labels[label] = 1
       renamer[topic.id] = label
     return renamer
 

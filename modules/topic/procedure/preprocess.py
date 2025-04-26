@@ -1,7 +1,5 @@
-import pandas as pd
 from typing import Sequence
 
-from modules.api.wrapper import ApiError
 from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
@@ -12,25 +10,22 @@ class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
   def run(self):
     # Dependencies
     config = self.state.config
-    cache = ProjectCacheManager().get(config.project_id)
 
     # Compute
     workspace_path = config.paths.full_path(ProjectPaths.Workspace)
     self.task.log_pending(f"Loading cached dataset from \"{workspace_path}\"...")
-    df = cache.load_workspace()
+    self.state.cache.load_workspace() # Load workspace in cache
     self.task.log_success(f"Loaded cached dataset from \"{workspace_path}\"...")
 
-    # Effect
-    self.state.df = df
 
 class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
   def run(self):
     # Dependencies
     column = self.state.column
-    df = self.state.df
+    cache = self.state.cache
+    df = cache.load_workspace()
     config = self.state.config
     preprocess_name = column.preprocess_column.name
-    cache = ProjectCacheManager().get(config.project_id)
 
     raw_documents = df[column.name]
     if column.preprocess_column.name in df.columns:
