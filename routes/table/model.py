@@ -34,6 +34,7 @@ class GetTableGeographicalColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
   latitude_column: str
   longitude_column: str
+  label_column: Optional[str]
 
 
 # Resources
@@ -55,8 +56,9 @@ class TableColumnAggregateValuesResource(pydantic.BaseModel):
 class TableColumnGeographicalPointsResource(pydantic.BaseModel):
   latitude_column: SchemaColumn
   longitude_column: SchemaColumn
-  latitude: list[float]
-  longitude: list[float]
+  latitudes: list[float]
+  longitudes: list[float]
+  labels: Optional[list[str]]
   sizes: list[int]
 
 class TableColumnCountsResource(pydantic.BaseModel):

@@ -191,8 +191,10 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
 def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cache: ProjectCache):
   df = cache.load_workspace()
   config = cache.config
-  latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_exists(params.latitude_column))
-  longitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_exists(params.longitude_column))
+  latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(params.latitude_column, [SchemaColumnTypeEnum.Geospatial]))
+  longitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(params.longitude_column, [SchemaColumnTypeEnum.Geospatial]))
+  label_column = config.data_schema.assert_exists(params.label_column) if params.label_column is not None else None
+
   if latitude_column.role != GeospatialRoleEnum.Latitude:
     raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain latitude values. Perhaps you meant to use this column as a longitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
   if longitude_column.role != GeospatialRoleEnum.Longitude:
@@ -201,37 +203,56 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
   engine = TableEngine(config=config)
   filtered_df = engine.filter(df, params.filter)
 
+  check_these_columns = [latitude_column.name, longitude_column.name]
+  if label_column is not None:
+    check_these_columns.append(label_column.name)
+  for column in check_these_columns:
+    if column not in filtered_df.columns:
+      raise ApiError(f"The column \"{column}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
+
   # Remove NA and invalid values
-  latitude_raw = filtered_df[latitude_column]
-  latitude_not_na_mask = latitude_raw.notna()
-  latitude_valid_mask = (latitude_raw >= -90) & (latitude_raw <= 90)
-  latitude_mask = latitude_not_na_mask & latitude_valid_mask
+  latitude_raw = filtered_df[latitude_column.name]
+  latitude_mask = latitude_raw.notna()
+  longitude_raw = filtered_df[longitude_column.name]
+  longitude_mask = longitude_raw.notna()
 
-  longitude_raw = filtered_df[longitude_column]
-  longitude_not_na_mask = longitude_raw.notna()
-  longitude_valid_mask = (longitude_raw >= -180) & (longitude_raw <= 180)
-  longitude_mask = longitude_not_na_mask & longitude_valid_mask
-
-  coordinate_mask = longitude_mask & longitude_mask
+  coordinate_mask = latitude_mask & longitude_mask
 
   latitude_masked = latitude_raw[coordinate_mask]
   longitude_masked = longitude_raw[coordinate_mask]
+  labels_masked = filtered_df[label_column.name] if label_column is not None else None
 
   # Count duplicates
   # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
-  coordinates = pd.concat([latitude_masked, longitude_masked], axis=1)
-  unique_coordinates = coordinates.groupby(coordinates.columns.tolist(), as_index=False).size()
+  coordinates_raw = [latitude_masked, longitude_masked]
+  if labels_masked is not None:
+    coordinates_raw.append(labels_masked)
+  coordinates = pd.concat(coordinates_raw, axis=1)
+
+  aggregator = dict(size=pd.NamedAgg(column="latitude", aggfunc="size"))
+  if label_column is not None:
+    aggregator[label_column.name] = pd.NamedAgg(column=label_column.name, aggfunc="first")
+  unique_coordinates = (coordinates
+    .groupby([latitude_masked.name, longitude_masked.name], as_index=False)
+    .agg(**aggregator)) # type: ignore
   
-  latitude = unique_coordinates.iloc[:, 0].to_list()
-  longitude = unique_coordinates.iloc[:, 1].to_list()
-  sizes = unique_coordinates.iloc[:, 2].to_list()
+  latitude = unique_coordinates.loc[:, latitude_column.name].to_list()
+  longitude = unique_coordinates.loc[:, longitude_column.name].to_list()
+  sizes = unique_coordinates.loc[:, "size"].to_list()
+  labels: Optional[list[str]] = None
+  if label_column is not None:
+    labels = list(map(
+      lambda label: str(label) if not pd.isna(label) else "Unnamed Location",
+      unique_coordinates.loc[:, label_column.name].to_list())
+    )
 
   return ApiResult(
     data=TableColumnGeographicalPointsResource(
       latitude_column=latitude_column,
       longitude_column=longitude_column,
-      latitude=latitude,
-      longitude=longitude,
+      latitudes=latitude,
+      longitudes=longitude,
+      labels=labels,
       sizes=sizes,
     ),
     message=None

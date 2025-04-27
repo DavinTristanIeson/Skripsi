@@ -51,7 +51,8 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
       histogram_edges = np.array(self.bins)
       histogram_edges.sort()
     else:
-      histogram_edges = np.histogram_bin_edges(data, self.bin_count)
+      histogram_data = data[data.notna()]
+      histogram_edges = np.histogram_bin_edges(histogram_data, self.bin_count)
 
     # Split data to bins
     bins = np.digitize(data, histogram_edges)
@@ -193,6 +194,8 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   
   def fit(self, df):
     data = df[self.name].astype(pd.StringDtype())
+    mask = data.str.len() == 0
+    data[mask] = pd.NA 
     df[self.name] = data
 
 
@@ -330,9 +333,8 @@ class TemporalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       kwargs = dict()
       if self.datetime_format is not None:
         kwargs["format"] = self.datetime_format
-      datetime_column = pd.to_datetime(df[self.name], errors="coerce", **kwargs)
-      # Not gonna deal with timezones today, no thank you
-      datetime_column = datetime_column.tz_localize('UTC')
+      # Not gonna deal with timezones today, no thank you. Everything is set to UTC.
+      datetime_column = pd.to_datetime(df[self.name], errors="coerce", utc=True, **kwargs)
     else:
       datetime_column = df[self.name]
 
@@ -372,13 +374,24 @@ class GeospatialSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
 
   def fit(self, df):
     data = df[self.name].astype(pd.Float64Dtype())
+
+    if self.role == GeospatialRoleEnum.Latitude:
+      latitude_invalid_mask = (data < -90) | (data > 90)
+      data[latitude_invalid_mask] = pd.NA
+    elif self.role == GeospatialRoleEnum.Longitude:
+      longitude_invalid_mask = (data < -180) | (data > 180)
+      data[longitude_invalid_mask] = pd.NA
+
     df[self.name] = data
 
 class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Unique]
 
   def fit(self, df):
-    df[self.name] = df[self.name].astype(pd.StringDtype())
+    data = df[self.name].astype(pd.StringDtype())
+    mask = data.str.len() == 0
+    data[mask] = pd.NA 
+    df[self.name] = data
   
 SchemaColumn = Annotated[
   Union[

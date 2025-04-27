@@ -30,7 +30,7 @@ class CSVDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   delimiter: str = ','
 
   def load(self)->pd.DataFrame:
-    df = pd.read_csv(self.path, delimiter=self.delimiter, on_bad_lines="skip")
+    df = pd.read_csv(self.path, delimiter=self.delimiter, on_bad_lines="skip", encoding='utf-8')
     logger.info(f"Loaded data source from {self.path}")
     return df
 
