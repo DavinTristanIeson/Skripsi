@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from modules.api.wrapper import ApiError
 from modules.comparison.base import EffectSizeResult, SignificanceResult
+from modules.comparison.effect_size import CramerVEffectSize, GroupEffectSizeFactory, GroupEffectSizeMethodEnum
 from modules.comparison.engine import TableComparisonEmptyException, TableComparisonEngine
 from modules.comparison.statistic_test import ChiSquaredStatisticTest, GroupStatisticTestFactory, StatisticTestMethodEnum
-from modules.comparison.utils import _chisq_prepare_contingency_table
+from modules.comparison.utils import _check_chisq_contingency_table
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
@@ -107,7 +108,7 @@ def contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
   absolute_residuals: np.ndarray = observed_npy - expected
   standardized_residuals: np.ndarray = absolute_residuals / np.sqrt(expected)
 
-   # hierarchical clustering
+  # hierarchical clustering
   if not partial1.column.is_ordered:
     # Compute linkage for rows
     row_linkage = linkage(pdist(absolute_residuals), method='average')
@@ -165,8 +166,10 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
       control_group = NamedTableFilter(name=label, filter=anti_filter)
       table_engine = TableEngine(config=cache.config)
 
-      discriminated_data = table_engine.process_workspace(filter, None)
-      discriminated_groups.append(discriminated_data[input.column2])
+      discriminated_df = table_engine.process_workspace(filter, None)
+      discriminated_group = discriminated_df[input.column2]
+      discriminated_group.name = label
+      discriminated_groups.append(discriminated_group)
       comparison_engine = TableComparisonEngine(
         config=cache.config,
         engine=table_engine,
@@ -198,14 +201,30 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
   if len(results) == 0:
     raise ValueError(f"There are no valid subdatasets that can be made using {partial1.column.name}. This might be a developer error.")
   
-  statistic_test = GroupStatisticTestFactory(column=partial2.column, groups=discriminated_groups, preference=input.column_statistic_test_preference).build()
+  statistic_test_method = GroupStatisticTestFactory(
+    column=partial2.column,
+    groups=discriminated_groups,
+    preference=input.main_statistic_test_preference
+  ).build()
+  statistic_test_method_validity = statistic_test_method.check_is_valid()
+  effect_size_method = GroupEffectSizeFactory(
+    column=partial2.column,
+    groups=discriminated_groups,
+    # Placeholder. Actual method is created from the statistic test preference.
+    preference=GroupEffectSizeMethodEnum.EtaSquared
+  ).from_statistic_test(input.main_statistic_test_preference)
+  effect_size_method_validity = effect_size_method.check_is_valid()
+
+  warnings = statistic_test_method_validity.merge(effect_size_method_validity).warnings
   
   return BinaryStatisticTestOnDistributionMainResource(
     discriminator_column=partial1.column,
     target_column=partial2.column,
     discriminators=binary_variable_labels,
     results=results,
-    significance=statistic_test.significance(),
+    significance=statistic_test_method.significance(),
+    effect_size=effect_size_method.effect_size(),
+    warnings=warnings
   )
   
 def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
@@ -269,9 +288,17 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Topic
       ))
     results.append(results_row)
 
-  significance = ChiSquaredStatisticTest(column=partial2.column, groups=[]).significance_contingency_table(
-    _chisq_prepare_contingency_table(global_contingency_table)
+  significance_method = ChiSquaredStatisticTest(
+    column=partial2.column,
+    groups=[]
   )
+  effect_size_method = CramerVEffectSize(
+    column=partial2.column,
+    groups=[]
+  )
+  significance = significance_method.significance_contingency(global_contingency_table)
+  effect_size = effect_size_method.effect_size_contingency(global_contingency_table)
+  warnings = _check_chisq_contingency_table(global_contingency_table)
 
   return BinaryStatisticTestOnContingencyTableMainResource(
     results=results,
@@ -280,5 +307,7 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Topic
     column1=partial1.column,
     column2=partial2.column,
     significance=significance,
+    effect_size=effect_size,
+    warnings=warnings,
   )
   

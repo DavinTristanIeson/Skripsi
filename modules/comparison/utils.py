@@ -22,7 +22,8 @@ def _chisq_prepare(groups: list[pd.Series], *, with_correction: bool = False):
     group_frequencies.append(frequencies)
 
   crosstab = pd.concat(group_frequencies, axis=1)
-  return _chisq_prepare_contingency_table(crosstab)
+  crosstab = crosstab.fillna(0)
+  return _chisq_prepare_contingency_table(crosstab, with_correction=with_correction)
 
 def _mann_whitney_u_prepare(groups: list[pd.Series])->list[np.ndarray]:
   return list(map(
@@ -76,3 +77,20 @@ def _check_non_normal_distribution(groups: list[pd.Series], name: str)->list[str
         warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using parametric statistic tests instead.")
 
   return warnings
+
+def cramer_v(contingency_table: pd.DataFrame):
+  # Cramer V with bias correction (https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V)
+  chi2_result = scipy.stats.chi2_contingency(contingency_table)
+  chi2 = chi2_result.statistic # type: ignore
+
+  n = contingency_table.sum().sum()
+  psi2 = chi2 / n
+  k = contingency_table.shape[1]
+  r = contingency_table.shape[0]
+
+  k_tilde = k - (np.power(k - 1, 2) / (n - 1))
+  r_tilde = r - (np.power(r - 1, 2) / (n - 1))
+  psi2_tilde = max(0, psi2 - ((k-1) * (r-1) / (n-1)))
+
+  V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
+  return V

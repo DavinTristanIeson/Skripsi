@@ -6,7 +6,8 @@ import pandas as pd
 import scipy.stats
 
 from modules.api import ExposedEnum
-from modules.comparison.utils import _chisq_prepare, _mann_whitney_u_prepare
+from modules.comparison.statistic_test import GroupStatisticTestMethodEnum
+from modules.comparison.utils import _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare, cramer_v
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 
 from .base import _BaseEffectSize, EffectSizeResult, _StatisticTestValidityModel
@@ -18,7 +19,15 @@ class EffectSizeMethodEnum(str, Enum):
   RankBiserialCorrelation = "rank-biserial-correlation"
   CramerV = "cramer-v"
 
+class GroupEffectSizeMethodEnum(str, Enum):
+  # For ANOVA
+  EtaSquared = "eta-squared"
+  # For Kruskal-Wallis
+  EpsilonSquared = "epsilon-squared"
+  CramerV = "cramer-v"
+
 ExposedEnum().register(EffectSizeMethodEnum)
+ExposedEnum().register(GroupEffectSizeMethodEnum)
 
 class MeanDifferenceEffectSize(_BaseEffectSize):
   @classmethod
@@ -131,26 +140,24 @@ class CramerVEffectSize(_BaseEffectSize):
 
   def effect_size(self):
     contingency_table = _chisq_prepare(self.groups, with_correction=True)
-
-    # Cramer V with bias correction (https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V)
-    chi2_result = scipy.stats.chi2_contingency(contingency_table)
-    chi2 = chi2_result.statistic # type: ignore
-
-    n = contingency_table.sum().sum()
-    psi2 = chi2 / n
-    k = contingency_table.shape[1]
-    r = contingency_table.shape[0]
-
-    k_tilde = k - (np.power(k - 1, 2) / (n - 1))
-    r_tilde = r - (np.power(r - 1, 2) / (n - 1))
-    psi2_tilde = max(0, psi2 - ((k-1) * (r-1) / (n-1)))
-
-    V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
+    V = cramer_v(contingency_table)
+    
     # V = scipy.stats.contingency.association(contingency_table, method="cramer")
     return EffectSizeResult(
       type=EffectSizeMethodEnum.CramerV,
       value=V,
     )
+  
+  def effect_size_contingency(self, contingency_table: pd.DataFrame):
+    contingency_table = _chisq_prepare_contingency_table(contingency_table, with_correction=True)
+    V = cramer_v(contingency_table)
+    
+    # V = scipy.stats.contingency.association(contingency_table, method="cramer")
+    return EffectSizeResult(
+      type=EffectSizeMethodEnum.CramerV,
+      value=V,
+    )
+
 
 @dataclass
 class EffectSizeFactory:
@@ -171,7 +178,88 @@ class EffectSizeFactory:
     else:
       raise ValueError(f"\"{self.preference}\" is not a valid effect size.")
     
+class EtaSquaredEffectSize(_BaseEffectSize):
+  @classmethod
+  def get_name(cls):
+    return "Eta-Squared"
+  
+  @classmethod
+  def get_supported_types(cls):
+    return [SchemaColumnTypeEnum.Continuous]
+  
+  def _check_is_valid(self):
+    return _StatisticTestValidityModel()
+
+  def effect_size(self):
+    # https://stackoverflow.com/questions/52083501/how-to-compute-correlation-ratio-or-eta-in-python
+    ssw = 0
+    ssb = 0
+    for group in self.groups:
+      ssw += np.power(group - group.mean(), 2).sum()
+      ssb += len(group) * np.power(np.mean(group) - np.mean(group), 2)
+    eta_squared = np.power(ssb / (ssb + ssw), 0.5)
+
+    return EffectSizeResult(
+      type=GroupEffectSizeMethodEnum.EtaSquared,
+      value=eta_squared,
+    )
+    
+class EpsilonSquaredEffectSize(_BaseEffectSize):
+  @classmethod
+  def get_name(cls):
+    return "Epsilon-Squared"
+  
+  @classmethod
+  def get_supported_types(cls):
+    return [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical]
+  
+  def _check_is_valid(self):
+    return _StatisticTestValidityModel()
+
+  def effect_size(self):
+    groups = _mann_whitney_u_prepare(self.groups)
+    H, p_value = scipy.stats.kruskal(*groups)
+
+    # https://www.researchgate.net/post/Anyone-know-how-to-calculate-eta-squared-for-a-Kruskal-Wallis-analysis
+    N = sum(map(len, groups))
+    epsilon_squared = H / (
+      (pow(N, 2) - 1) /
+      (N + 1)
+    )
+    return EffectSizeResult(
+      type=GroupEffectSizeMethodEnum.EpsilonSquared,
+      value=epsilon_squared,
+    )
+    
+@dataclass
+class GroupEffectSizeFactory:
+  column: SchemaColumn
+  groups: list[pd.Series]
+  preference: GroupEffectSizeMethodEnum
+  def build(self)->_BaseEffectSize:
+    if self.preference == GroupEffectSizeMethodEnum.EtaSquared:
+      return EtaSquaredEffectSize(column=self.column, groups=self.groups)
+    elif self.preference == GroupEffectSizeMethodEnum.EpsilonSquared:
+      return EpsilonSquaredEffectSize(column=self.column, groups=self.groups)
+    elif self.preference == GroupEffectSizeMethodEnum.CramerV:
+      return CramerVEffectSize(column=self.column, groups=self.groups)
+    else:
+      raise ValueError(f"\"{self.preference}\" is not a valid effect size.")
+    
+  def from_statistic_test(self, method: GroupStatisticTestMethodEnum):
+    if method == GroupStatisticTestMethodEnum.ANOVA:
+      return EtaSquaredEffectSize(column=self.column, groups=self.groups)
+    elif method == GroupStatisticTestMethodEnum.KruskalWallis:
+      return EpsilonSquaredEffectSize(column=self.column, groups=self.groups)
+    elif method == GroupStatisticTestMethodEnum.ChiSquared:
+      return CramerVEffectSize(column=self.column, groups=self.groups)
+    else:
+      raise ValueError(f"\"{method}\" is not a valid statistic test method.")
+    
+    
 __all__ = [
   "EffectSizeFactory",
-  "EffectSizeMethodEnum"
+  "EffectSizeMethodEnum",
+  "GroupEffectSizeFactory",
+  "GroupEffectSizeMethodEnum",
 ]

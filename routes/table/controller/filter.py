@@ -36,8 +36,8 @@ class _TableFilterGeographicalPreprocessResult:
   df: pd.DataFrame
   latitude_column: SchemaColumn
   longitude_column: SchemaColumn
-  latitudes: pd.Series
-  longitudes: pd.Series
+  latitudes: list[float]
+  longitudes: list[float]
 
 @dataclass
 class _TableFilterPreprocessModule:
@@ -278,8 +278,8 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
     data=TableColumnGeographicalPointsResource(
       latitude_column=preprocess.latitude_column,
       longitude_column=preprocess.longitude_column,
-      latitudes=preprocess.latitudes.tolist(),
-      longitudes=preprocess.longitudes.tolist(),
+      latitudes=preprocess.latitudes,
+      longitudes=preprocess.longitudes,
       labels=labels,
       values=sizes,
     ),
@@ -307,7 +307,7 @@ def get_column_geographical_aggregate_values(params: GetTableGeographicalAggrega
     longitude_column_name=params.longitude_column,
   )
 
-  values = preprocess.df.loc[:, params.target_column].to_list()
+  values = preprocess.df.loc[:, params.target_column].fillna(0).to_list()
   labels: Optional[list[str]] = None
   if params.label_column is not None:
     labels = list(map(
@@ -319,8 +319,8 @@ def get_column_geographical_aggregate_values(params: GetTableGeographicalAggrega
     data=TableColumnGeographicalPointsResource(
       latitude_column=preprocess.latitude_column,
       longitude_column=preprocess.longitude_column,
-      latitudes=preprocess.latitudes.tolist(),
-      longitudes=preprocess.longitudes.tolist(),
+      latitudes=preprocess.latitudes,
+      longitudes=preprocess.longitudes,
       labels=labels,
       values=values,
     ),

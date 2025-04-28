@@ -17,7 +17,7 @@ class TopicCorrelationSchema(pydantic.BaseModel):
 class BinaryStatisticTestSchema(TopicCorrelationSchema, pydantic.BaseModel):
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
-  column_statistic_test_preference: GroupStatisticTestMethodEnum
+  main_statistic_test_preference: GroupStatisticTestMethodEnum
 
 # Resource
 class BinaryStatisticTestOnDistributionResource(pydantic.BaseModel):
@@ -37,6 +37,8 @@ class BinaryStatisticTestOnDistributionMainResource(pydantic.BaseModel):
   target_column: SchemaColumn
   results: list[BinaryStatisticTestOnDistributionResource]
   significance: SignificanceResult
+  effect_size: EffectSizeResult
+  warnings: list[str]
 
 class ContingencyTableResource(pydantic.BaseModel):
   column1: SchemaColumn
@@ -64,4 +66,6 @@ class BinaryStatisticTestOnContingencyTableMainResource(pydantic.BaseModel):
   column1: SchemaColumn
   column2: SchemaColumn
   results: list[list[BinaryStatisticTestOnContingencyTableResource]]
+  warnings: list[str]
   significance: SignificanceResult
+  effect_size: EffectSizeResult

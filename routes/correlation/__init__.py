@@ -7,6 +7,7 @@ from routes.correlation.controller import binary_statistic_test_on_contingency_t
 
 from .model import (
   BinaryStatisticTestOnContingencyTableMainResource,
+  BinaryStatisticTestOnDistributionMainResource,
   BinaryStatisticTestOnDistributionResource,
   BinaryStatisticTestSchema,
   ContingencyTableResource,
@@ -18,7 +19,7 @@ router = APIRouter(
 )
 
 @router.post("/binary/test-distribution")
-def post__test_distribution(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[list[BinaryStatisticTestOnDistributionResource]]:
+def post__test_distribution(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnDistributionMainResource]:
   return ApiResult(data=binary_statistic_test_on_distribution(cache, body), message=None)
 
 @router.post("/contingency-table")

@@ -42,7 +42,6 @@ class _BaseValidatedComparison(abc.ABC):
   @abc.abstractmethod
   def get_supported_types(cls)->list[SchemaColumnTypeEnum]:
     ...
-
   
   @abc.abstractmethod
   def _check_is_valid(self)->_StatisticTestValidityModel:
@@ -50,8 +49,8 @@ class _BaseValidatedComparison(abc.ABC):
 
   def check_is_valid(self)->_StatisticTestValidityModel:
     # For now we only support comparing two groups
-    if len(self.groups) != 2:
-      raise ApiError(f"{self.get_name()} can only be used to compare two groups.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+    if len(self.groups) < 2:
+      raise ApiError(f"At least two groups has to be provided for a statistic test.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
     supported_types = self.get_supported_types()
     if self.column.type not in supported_types:
       raise ApiError(f"{self.get_name()} can only be used to compare columns of type {', '.join(supported_types)}, but received \"{self.column.type}\" instead.", http.HTTPStatus.UNPROCESSABLE_ENTITY)

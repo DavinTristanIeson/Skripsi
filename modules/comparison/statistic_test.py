@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-from modules.comparison.utils import _check_chisq_contingency_table, _check_non_normal_distribution, _check_normal_distribution, _chisq_prepare, _mann_whitney_u_prepare
+from modules.comparison.utils import _check_chisq_contingency_table, _check_non_normal_distribution, _check_normal_distribution, _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare
 from modules.logger import ProvisionedLogger
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
@@ -100,10 +100,10 @@ class ChiSquaredStatisticTest(_BaseStatisticTest):
       statistic=res.statistic, # type: ignore
       p_value=res.pvalue # type: ignore
     )
-  
-  def significance_contingency_table(self, contingency_table: pd.DataFrame):
+
+  def significance_contingency(self, contingency_table: pd.DataFrame):
     res = scipy.stats.chi2_contingency(
-      _chisq_prepare(self.groups, with_correction=True),
+      _chisq_prepare_contingency_table(contingency_table, with_correction=True),
     )
     return SignificanceResult(
       type=StatisticTestMethodEnum.ChiSquared,
@@ -141,7 +141,7 @@ class ANOVAStatisticTest(_BaseStatisticTest):
     )
 
   def significance(self):
-    statistic, p_value = scipy.stats.f_oneway(self.groups)
+    statistic, p_value = scipy.stats.f_oneway(*self.groups)
     return SignificanceResult(
       type=GroupStatisticTestMethodEnum.ANOVA,
       statistic=statistic, # type: ignore
@@ -165,7 +165,7 @@ class KruskalWallisStatisticTest(_BaseStatisticTest):
 
   def significance(self):
     groups = _mann_whitney_u_prepare(self.groups)
-    statistic, p_value = scipy.stats.kruskal(groups)
+    statistic, p_value = scipy.stats.kruskal(*groups)
     return SignificanceResult(
       type=GroupStatisticTestMethodEnum.KruskalWallis,
       statistic=statistic, # type: ignore

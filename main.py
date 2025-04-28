@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 import os
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,12 +38,15 @@ ProvisionedLogger().configure(
 )
 
 api_app = FastAPI(lifespan=lifespan, responses={
-  400: dict(model=ApiErrorResult),
-  403: dict(model=ApiErrorResult),
-  404: dict(model=ApiErrorResult),
-  422: dict(model=ApiErrorResult),
-  500: dict(model=ApiErrorResult),
-})
+    400: dict(model=ApiErrorResult),
+    403: dict(model=ApiErrorResult),
+    404: dict(model=ApiErrorResult),
+    422: dict(model=ApiErrorResult),
+    500: dict(model=ApiErrorResult),
+  },
+  # transforms nan to null
+  default_response_class=ORJSONResponse
+)
 api_app.include_router(routes.project.router, prefix="/projects")
 api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.table.router, prefix="/table/{project_id}")

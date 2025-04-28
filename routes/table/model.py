@@ -17,7 +17,7 @@ class TableColumnAggregateMethodEnum(str, Enum):
   Sum = "sum"
   Mean = "mean"
   Median = "median"
-  StandardDeviation = "std-dev"
+  StandardDeviation = "std"
   Max = "max"
   Min = "min"
 
