@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-from modules.comparison.utils import _chisq_prepare, _mann_whitney_u_prepare
+from modules.comparison.utils import _check_chisq_contingency_table, _check_non_normal_distribution, _check_normal_distribution, _chisq_prepare, _mann_whitney_u_prepare
 from modules.logger import ProvisionedLogger
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
@@ -20,7 +20,13 @@ class StatisticTestMethodEnum(str, Enum):
   MannWhitneyU = "mann-whitney-u"
   ChiSquared = "chi-squared"
 
+class GroupStatisticTestMethodEnum(str, Enum):
+  ANOVA = "anova"
+  KruskalWallis = "kruskal-wallis"
+  ChiSquared = "chi-squared"
+
 ExposedEnum().register(StatisticTestMethodEnum)
+ExposedEnum().register(GroupStatisticTestMethodEnum)
 
 class TStatisticTest(_BaseStatisticTest):
   @classmethod
@@ -32,18 +38,14 @@ class TStatisticTest(_BaseStatisticTest):
     return [SchemaColumnTypeEnum.Continuous]
 
   def _check_is_valid(self):
-    A = self.groups[0]
-    B = self.groups[1]
-    warnings = [
-      *self.check_normality(A),
-      *self.check_normality(B),
-    ]
-    return _StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(
+      warnings=_check_normal_distribution(name=self.get_name(), groups=self.groups)
+    )
 
   def significance(self):
     A = self.groups[0]
     B = self.groups[1]
-    statistic, p_value = scipy.stats.ttest_ind(A, B)
+    statistic, p_value = scipy.stats.ttest_ind(A, B, nan_policy="omit")
     return SignificanceResult(
       type=StatisticTestMethodEnum.T,
       statistic=statistic, # type: ignore
@@ -59,32 +61,14 @@ class MannWhitneyUStatisticTest(_BaseStatisticTest):
   def get_supported_types(cls):
     return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous]
   
-  def check_normality(self, data: pd.Series)->list[str]:
-    warnings = []
-    if not pd.api.types.is_numeric_dtype(data.dtype):
-      return warnings
-    
-    if len(data) >= 20:
-      normaltest_result = scipy.stats.normaltest(data).pvalue
-      is_normal = normaltest_result < 0.05
-      if is_normal:
-        warnings.append(f"Mann-Whitney U Test is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using T-Test instead.")
-
-    return warnings
-  
   def _check_is_valid(self):
-    A = self.groups[0]
-    B = self.groups[1]
-    warnings = [
-      *self.check_normality(A),
-      *self.check_normality(B),
-    ]
-
-    return _StatisticTestValidityModel(warnings=warnings)
+    return _StatisticTestValidityModel(
+      warnings=_check_non_normal_distribution(name=self.get_name(), groups=self.groups)
+    )
 
   def significance(self):
-    A, B = _mann_whitney_u_prepare(self.groups[0], self.groups[1])
-    statistic, p_value = scipy.stats.mannwhitneyu(A, B)
+    groups = _mann_whitney_u_prepare(self.groups)
+    statistic, p_value = scipy.stats.mannwhitneyu(groups[0], groups[1])
 
     return SignificanceResult(
       type=StatisticTestMethodEnum.MannWhitneyU,
@@ -104,26 +88,22 @@ class ChiSquaredStatisticTest(_BaseStatisticTest):
     return [SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.Topic]
 
   def _check_is_valid(self):
-    contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=False)
-    less_than_5 = contingency_table < 5
-    less_than_5_indices = np.argwhere(less_than_5)
-    less_than_5_count: int = less_than_5.sum().sum()
-
-    warnings: list[str] = []
-    if less_than_5_count >= less_than_5.size * 0.2:
-      observations: list[str] = []
-      for index in less_than_5_indices:
-        group_name = contingency_table.columns[index[1]]
-        row_name = contingency_table.index[index[0]]
-        observations.append(f"{group_name} - {row_name} ({contingency_table.iat[index[0], index[1]]} obs.)")
-
-      warnings.append(f"More than 20% of the contingency table has less than 5 observations: {', '.join(observations[:5])}")
-
-    return _StatisticTestValidityModel(warnings=warnings)
+    contingency_table = _chisq_prepare(self.groups, with_correction=False)
+    return _StatisticTestValidityModel(warnings=_check_chisq_contingency_table(contingency_table))
   
   def significance(self):
     res = scipy.stats.chi2_contingency(
-      _chisq_prepare(self.groups[0], self.groups[1], with_correction=True)
+      _chisq_prepare(self.groups, with_correction=True),
+    )
+    return SignificanceResult(
+      type=StatisticTestMethodEnum.ChiSquared,
+      statistic=res.statistic, # type: ignore
+      p_value=res.pvalue # type: ignore
+    )
+  
+  def significance_contingency_table(self, contingency_table: pd.DataFrame):
+    res = scipy.stats.chi2_contingency(
+      _chisq_prepare(self.groups, with_correction=True),
     )
     return SignificanceResult(
       type=StatisticTestMethodEnum.ChiSquared,
@@ -145,7 +125,68 @@ class StatisticTestFactory:
       return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
       raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+    
+class ANOVAStatisticTest(_BaseStatisticTest):
+  @classmethod
+  def get_name(cls):
+    return "One-Way ANOVA F-Test"
+  
+  @classmethod
+  def get_supported_types(cls):
+    return [SchemaColumnTypeEnum.Continuous]
 
+  def _check_is_valid(self):
+    return _StatisticTestValidityModel(
+      warnings=_check_normal_distribution(groups=self.groups, name=self.get_name())
+    )
+
+  def significance(self):
+    statistic, p_value = scipy.stats.f_oneway(self.groups)
+    return SignificanceResult(
+      type=GroupStatisticTestMethodEnum.ANOVA,
+      statistic=statistic, # type: ignore
+      p_value=p_value # type: ignore
+    )
+  
+
+class KruskalWallisStatisticTest(_BaseStatisticTest):
+  @classmethod
+  def get_name(cls):
+    return "Kruskal-Wallis H Test"
+  
+  @classmethod
+  def get_supported_types(cls):
+    return [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical]
+
+  def _check_is_valid(self):
+    return _StatisticTestValidityModel(
+      warnings=_check_non_normal_distribution(groups=self.groups, name=self.get_name())
+    )
+
+  def significance(self):
+    groups = _mann_whitney_u_prepare(self.groups)
+    statistic, p_value = scipy.stats.kruskal(groups)
+    return SignificanceResult(
+      type=GroupStatisticTestMethodEnum.KruskalWallis,
+      statistic=statistic, # type: ignore
+      p_value=p_value # type: ignore
+    )
+
+@dataclass
+class GroupStatisticTestFactory:
+  column: SchemaColumn
+  groups: list[pd.Series]
+  preference: GroupStatisticTestMethodEnum
+  def build(self)->_BaseStatisticTest:
+    if self.preference == GroupStatisticTestMethodEnum.ANOVA:
+      return ANOVAStatisticTest(column=self.column, groups=self.groups)
+    elif self.preference == GroupStatisticTestMethodEnum.KruskalWallis:
+      return KruskalWallisStatisticTest(column=self.column, groups=self.groups)
+    elif self.preference == GroupStatisticTestMethodEnum.ChiSquared:
+      return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
+    else:
+      raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+   
 
 __all__ = [
   "StatisticTestFactory",

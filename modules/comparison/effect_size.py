@@ -104,7 +104,9 @@ class RankBiserialEffectSize(_BaseEffectSize):
     return _StatisticTestValidityModel()
 
   def effect_size(self):
-    A, B = _mann_whitney_u_prepare(self.groups[0], self.groups[1])
+    groups = _mann_whitney_u_prepare(self.groups)
+    A = groups[0]
+    B = groups[1]
     full_data = np.hstack([A, B])
     ranks = scipy.stats.rankdata(full_data)
     ranks_a = ranks[:len(A)]
@@ -128,7 +130,7 @@ class CramerVEffectSize(_BaseEffectSize):
     return _StatisticTestValidityModel()
 
   def effect_size(self):
-    contingency_table = _chisq_prepare(self.groups[0], self.groups[1], with_correction=True)
+    contingency_table = _chisq_prepare(self.groups, with_correction=True)
 
     # Cramer V with bias correction (https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V)
     chi2_result = scipy.stats.chi2_contingency(contingency_table)

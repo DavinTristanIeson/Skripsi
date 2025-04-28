@@ -43,18 +43,7 @@ class _BaseValidatedComparison(abc.ABC):
   def get_supported_types(cls)->list[SchemaColumnTypeEnum]:
     ...
 
-  def check_normality(self, data: pd.Series)->list[str]:
-    warnings = []
-    if len(data) < 20:
-      warnings.append(f"There are too few samples ({len(data)} rows) to expect that the data follows a normal distribution.")
-    else:
-      normaltest_result = scipy.stats.normaltest(data).pvalue
-      is_normal = normaltest_result < 0.05
-      if not is_normal:
-        warnings.append(f"{self.get_name()} expects the samples to be normally distributed, but \"{data.name}\" does not follow a normal distribution (confidence: {(1 - normaltest_result)*100:.2f}%).")
-
-    return warnings
-
+  
   @abc.abstractmethod
   def _check_is_valid(self)->_StatisticTestValidityModel:
     ...

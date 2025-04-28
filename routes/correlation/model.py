@@ -4,7 +4,7 @@ import pydantic
 from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.effect_size import EffectSizeMethodEnum
 from modules.comparison.engine import TableComparisonResult
-from modules.comparison.statistic_test import StatisticTestMethodEnum
+from modules.comparison.statistic_test import GroupStatisticTestMethodEnum, StatisticTestMethodEnum
 from modules.config.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn, TextualSchemaColumn
@@ -17,6 +17,7 @@ class TopicCorrelationSchema(pydantic.BaseModel):
 class BinaryStatisticTestSchema(TopicCorrelationSchema, pydantic.BaseModel):
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
+  column_statistic_test_preference: GroupStatisticTestMethodEnum
 
 # Resource
 class BinaryStatisticTestOnDistributionResource(pydantic.BaseModel):
@@ -29,6 +30,13 @@ class BinaryStatisticTestOnDistributionResource(pydantic.BaseModel):
   warnings: list[str]
   significance: SignificanceResult
   effect_size: EffectSizeResult
+
+class BinaryStatisticTestOnDistributionMainResource(pydantic.BaseModel):
+  discriminators: list[str]
+  discriminator_column: SchemaColumn
+  target_column: SchemaColumn
+  results: list[BinaryStatisticTestOnDistributionResource]
+  significance: SignificanceResult
 
 class ContingencyTableResource(pydantic.BaseModel):
   column1: SchemaColumn
@@ -56,3 +64,4 @@ class BinaryStatisticTestOnContingencyTableMainResource(pydantic.BaseModel):
   column1: SchemaColumn
   column2: SchemaColumn
   results: list[list[BinaryStatisticTestOnContingencyTableResource]]
+  significance: SignificanceResult

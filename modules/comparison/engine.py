@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pydantic
 
+from modules.api.wrapper import ApiError
 from modules.config import Config, SchemaColumn
 from modules.project.cache import ProjectCacheManager
 from modules.table import TableEngine, NamedTableFilter
@@ -30,6 +31,9 @@ class TableComparisonResult(pydantic.BaseModel):
   significance: SignificanceResult
   effect_size: EffectSizeResult
 
+
+class TableComparisonEmptyException(Exception):
+  pass
 
 @dataclass
 class TableComparisonEngine:
@@ -108,6 +112,10 @@ class TableComparisonEngine:
     if self.exclude_overlapping_rows:
       self._exclude_overlapping_rows(groups, group_info)
     self._exclude_na_rows(groups, group_info)
+    for group in groups:
+      if len(group) == 0:
+        raise TableComparisonEmptyException(f"{group.name} does not have any values that can be compared.")
+
     for group, ginfo in zip(groups, group_info):
       ginfo.valid_count = len(group)
     return group_info
@@ -156,5 +164,6 @@ class TableComparisonEngine:
 __all__ = [
   "TableComparisonEngine",
   "TableComparisonResult",
-  "TableComparisonGroupInfo"
+  "TableComparisonGroupInfo",
+  "TableComparisonEmptyException"
 ]

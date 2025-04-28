@@ -5,15 +5,16 @@ import numpy as np
 import pandas as pd
 from modules.api.wrapper import ApiError
 from modules.comparison.base import EffectSizeResult, SignificanceResult
-from modules.comparison.engine import TableComparisonEngine
-from modules.comparison.statistic_test import StatisticTestMethodEnum
+from modules.comparison.engine import TableComparisonEmptyException, TableComparisonEngine
+from modules.comparison.statistic_test import ChiSquaredStatisticTest, GroupStatisticTestFactory, StatisticTestMethodEnum
+from modules.comparison.utils import _chisq_prepare_contingency_table
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.table.engine import TableEngine
 from modules.table.filter_variants import EqualToTableFilter, NamedTableFilter, NotTableFilter
-from routes.correlation.model import BinaryStatisticTestOnContingencyTableMainResource, BinaryStatisticTestOnContingencyTableResource, BinaryStatisticTestOnDistributionResource, BinaryStatisticTestSchema, ContingencyTableResource, TopicCorrelationSchema
+from routes.correlation.model import BinaryStatisticTestOnContingencyTableMainResource, BinaryStatisticTestOnContingencyTableResource, BinaryStatisticTestOnDistributionMainResource, BinaryStatisticTestOnDistributionResource, BinaryStatisticTestSchema, ContingencyTableResource, TopicCorrelationSchema
 
 @dataclass
 class TableCorrelationPreprocessPartialResult:
@@ -151,26 +152,36 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
   discriminator = preprocess.extract(df, partial1.column, transform_topics=False)
   binary_variables = discriminator.unique()
   binary_variable_labels = preprocess.label_binary_variable(binary_variables, partial1.column)
+  if len(binary_variables) == 0:
+    raise ApiError(f"{partial1.column.name} does not contain any values that can be used to discriminate {partial2.column.name}.", HTTPStatus.BAD_REQUEST)
 
   results: list[BinaryStatisticTestOnDistributionResource] = []
+  discriminated_groups: list[pd.Series] = []
   with ProvisionedLogger().disable(["TableEngine", "TableComparisonEngine"]):
     for variable, label in zip(binary_variables, binary_variable_labels):
       filter = EqualToTableFilter(target=input.column1, value=variable)
       anti_filter = NotTableFilter(operand=filter)
       treatment_group = NamedTableFilter(name=label, filter=filter)
       control_group = NamedTableFilter(name=label, filter=anti_filter)
-      engine = TableComparisonEngine(
+      table_engine = TableEngine(config=cache.config)
+
+      discriminated_data = table_engine.process_workspace(filter, None)
+      discriminated_groups.append(discriminated_data[input.column2])
+      comparison_engine = TableComparisonEngine(
         config=cache.config,
-        engine=TableEngine(config=cache.config),
+        engine=table_engine,
         groups=[treatment_group, control_group],
         exclude_overlapping_rows=True,
       )
-      result = engine.compare(
-        df,
-        column_name=input.column2,
-        statistic_test_preference=input.statistic_test_preference,
-        effect_size_preference=input.effect_size_preference,
-      )
+      try:
+        result = comparison_engine.compare(
+          df,
+          column_name=input.column2,
+          statistic_test_preference=input.statistic_test_preference,
+          effect_size_preference=input.effect_size_preference,
+        )
+      except TableComparisonEmptyException as e:
+        continue
 
       yes_count = result.groups[0].valid_count
       no_count = result.groups[1].valid_count
@@ -183,7 +194,19 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
         invalid_count=total_count - yes_count - no_count,
         discriminator=label,
       ))
-  return results
+
+  if len(results) == 0:
+    raise ValueError(f"There are no valid subdatasets that can be made using {partial1.column.name}. This might be a developer error.")
+  
+  statistic_test = GroupStatisticTestFactory(column=partial2.column, groups=discriminated_groups, preference=input.column_statistic_test_preference).build()
+  
+  return BinaryStatisticTestOnDistributionMainResource(
+    discriminator_column=partial1.column,
+    target_column=partial2.column,
+    discriminators=binary_variable_labels,
+    results=results,
+    significance=statistic_test.significance(),
+  )
   
 def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: TopicCorrelationSchema):
   import scipy.stats
@@ -246,11 +269,16 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: Topic
       ))
     results.append(results_row)
 
+  significance = ChiSquaredStatisticTest(column=partial2.column, groups=[]).significance_contingency_table(
+    _chisq_prepare_contingency_table(global_contingency_table)
+  )
+
   return BinaryStatisticTestOnContingencyTableMainResource(
     results=results,
     rows=binary_variable_names1,
     columns=binary_variable_names2,
     column1=partial1.column,
     column2=partial2.column,
+    significance=significance,
   )
   
