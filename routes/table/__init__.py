@@ -2,8 +2,9 @@ from typing import Any
 from fastapi import APIRouter
 
 from controllers.topic import OptionalTopicModelingResultDependency
+from routes.table.controller.filter import get_column_geographical_aggregate_values
 from routes.table.model import (
-  DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema,
+  DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema, GetTableGeographicalAggregateValuesSchema,
   GetTableGeographicalColumnSchema, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
@@ -61,6 +62,10 @@ async def post__get_table_column(body: GetTableColumnSchema, cache: ProjectCache
 @router.post("/column/geographical")
 async def post__get_table_column__geographical(body: GetTableGeographicalColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnGeographicalPointsResource]:
   return get_column_geographical_points(body, cache)
+
+@router.post("/column/geographical/aggregate-values")
+async def post__get_table_column__geographical__aggregate_values(body: GetTableGeographicalAggregateValuesSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnGeographicalPointsResource]:
+  return get_column_geographical_aggregate_values(body, cache)
 
 @router.post("/column/descriptive-statistics")
 async def post__get_table_column__descriptive_statistics(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableDescriptiveStatisticsResource]:

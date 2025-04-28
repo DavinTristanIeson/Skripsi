@@ -6,7 +6,7 @@ import pandas as pd
 from modules.api import ApiResult
 from modules.table.filter_variants import TableFilter
 from routes.table.model import (
-  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
+  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
   TableTopicsResource, TableWordsResource, TableWordItemResource
@@ -29,6 +29,15 @@ class _TableFilterPreprocessResult:
   data: pd.Series
   df: pd.DataFrame
   column: SchemaColumn
+
+
+@dataclass
+class _TableFilterGeographicalPreprocessResult:
+  df: pd.DataFrame
+  latitude_column: SchemaColumn
+  longitude_column: SchemaColumn
+  latitudes: pd.Series
+  longitudes: pd.Series
 
 @dataclass
 class _TableFilterPreprocessModule:
@@ -74,6 +83,58 @@ class _TableFilterPreprocessModule:
       column=column,
       data=data,
       df=df,
+    )
+
+  def apply_geographical(self, *, latitude_column_name: str, longitude_column_name: str, additional_column_constraints: dict[str, list[SchemaColumnTypeEnum]], aggregator: dict[str, pd.NamedAgg]):
+    df = self.cache.load_workspace()
+    config = self.cache.config
+
+    latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(latitude_column_name, [SchemaColumnTypeEnum.Geospatial]))
+    longitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(longitude_column_name, [SchemaColumnTypeEnum.Geospatial]))
+
+    additional_columns = []
+    for (column_name, column_type_constraints) in additional_column_constraints.items():
+      additional_column = config.data_schema.assert_of_type(column_name, column_type_constraints)
+      additional_columns.append(additional_column)
+
+    if latitude_column.role != GeospatialRoleEnum.Latitude:
+      raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain latitude values. Perhaps you meant to use this column as a longitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+    if longitude_column.role != GeospatialRoleEnum.Longitude:
+      raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain longitude values. Perhaps you meant to use this column as a latitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    engine = TableEngine(config=config)
+    filtered_df = engine.filter(df, self.filter)
+
+    check_these_columns = [latitude_column.name, longitude_column.name]
+    check_these_columns.extend(additional_column_constraints.keys())
+    for column in check_these_columns:
+      if column not in filtered_df.columns:
+        raise ApiError(f"The column \"{column}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
+
+    # Remove NA and invalid values
+    latitude_raw = filtered_df[latitude_column.name]
+    latitude_mask = latitude_raw.notna()
+    longitude_raw = filtered_df[longitude_column.name]
+    longitude_mask = longitude_raw.notna()
+
+    coordinate_mask = latitude_mask & longitude_mask
+    coordinates = filtered_df[coordinate_mask]
+
+    # Count duplicates
+    # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
+    unique_coordinates = (coordinates
+      .groupby([latitude_column.name, longitude_column.name], as_index=False)
+      .agg(**aggregator)) # type: ignore
+        
+    latitudes = unique_coordinates.loc[:, latitude_column.name].to_list()
+    longitudes = unique_coordinates.loc[:, longitude_column.name].to_list()
+    
+    return _TableFilterGeographicalPreprocessResult(
+      latitude_column=latitude_column,
+      longitude_column=longitude_column,
+      latitudes=latitudes,
+      longitudes=longitudes,
+      df=unique_coordinates
     )
 
 def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
@@ -138,7 +199,7 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
 def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cache: ProjectCache):
   config = cache.config
   config.data_schema.assert_of_type(params.column, [
-    SchemaColumnTypeEnum.Continuous
+    SchemaColumnTypeEnum.Continuous,
   ])
 
   # We get the grouper instead since there are multiple behaviors for ordered categorical, topic, etc.
@@ -189,71 +250,79 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
   )
 
 def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cache: ProjectCache):
-  df = cache.load_workspace()
-  config = cache.config
-  latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(params.latitude_column, [SchemaColumnTypeEnum.Geospatial]))
-  longitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(params.longitude_column, [SchemaColumnTypeEnum.Geospatial]))
-  label_column = config.data_schema.assert_exists(params.label_column) if params.label_column is not None else None
+  aggregator = dict(size=pd.NamedAgg(column=params.latitude_column, aggfunc="size"))
+  column_constraints: dict[str, list[SchemaColumnTypeEnum]] = dict()
+  if params.label_column is not None:
+    aggregator[params.label_column] = pd.NamedAgg(column=params.label_column, aggfunc="first")
+    column_constraints[params.label_column] = [SchemaColumnTypeEnum.Unique, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical]
 
-  if latitude_column.role != GeospatialRoleEnum.Latitude:
-    raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain latitude values. Perhaps you meant to use this column as a longitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-  if longitude_column.role != GeospatialRoleEnum.Longitude:
-    raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain longitude values. Perhaps you meant to use this column as a latitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-
-  engine = TableEngine(config=config)
-  filtered_df = engine.filter(df, params.filter)
-
-  check_these_columns = [latitude_column.name, longitude_column.name]
-  if label_column is not None:
-    check_these_columns.append(label_column.name)
-  for column in check_these_columns:
-    if column not in filtered_df.columns:
-      raise ApiError(f"The column \"{column}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
-
-  # Remove NA and invalid values
-  latitude_raw = filtered_df[latitude_column.name]
-  latitude_mask = latitude_raw.notna()
-  longitude_raw = filtered_df[longitude_column.name]
-  longitude_mask = longitude_raw.notna()
-
-  coordinate_mask = latitude_mask & longitude_mask
-
-  latitude_masked = latitude_raw[coordinate_mask]
-  longitude_masked = longitude_raw[coordinate_mask]
-  labels_masked = filtered_df[label_column.name] if label_column is not None else None
-
-  # Count duplicates
-  # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
-  coordinates_raw = [latitude_masked, longitude_masked]
-  if labels_masked is not None:
-    coordinates_raw.append(labels_masked)
-  coordinates = pd.concat(coordinates_raw, axis=1)
-
-  aggregator = dict(size=pd.NamedAgg(column="latitude", aggfunc="size"))
-  if label_column is not None:
-    aggregator[label_column.name] = pd.NamedAgg(column=label_column.name, aggfunc="first")
-  unique_coordinates = (coordinates
-    .groupby([latitude_masked.name, longitude_masked.name], as_index=False)
-    .agg(**aggregator)) # type: ignore
+  preprocess = _TableFilterPreprocessModule(
+    cache=cache,
+    filter=params.filter
+  ).apply_geographical(
+    additional_column_constraints=column_constraints,
+    aggregator=aggregator,
+    latitude_column_name=params.latitude_column,
+    longitude_column_name=params.longitude_column,
+  )
   
-  latitude = unique_coordinates.loc[:, latitude_column.name].to_list()
-  longitude = unique_coordinates.loc[:, longitude_column.name].to_list()
-  sizes = unique_coordinates.loc[:, "size"].to_list()
+  sizes = preprocess.df.loc[:, "size"].to_list()
   labels: Optional[list[str]] = None
-  if label_column is not None:
+  if params.label_column is not None:
     labels = list(map(
       lambda label: str(label) if not pd.isna(label) else "Unnamed Location",
-      unique_coordinates.loc[:, label_column.name].to_list())
+      preprocess.df.loc[:, params.label_column].to_list())
     )
 
   return ApiResult(
     data=TableColumnGeographicalPointsResource(
-      latitude_column=latitude_column,
-      longitude_column=longitude_column,
-      latitudes=latitude,
-      longitudes=longitude,
+      latitude_column=preprocess.latitude_column,
+      longitude_column=preprocess.longitude_column,
+      latitudes=preprocess.latitudes.tolist(),
+      longitudes=preprocess.longitudes.tolist(),
       labels=labels,
-      sizes=sizes,
+      values=sizes,
+    ),
+    message=None
+  )
+
+def get_column_geographical_aggregate_values(params: GetTableGeographicalAggregateValuesSchema, cache: ProjectCache):
+  aggregator = {
+    params.target_column: pd.NamedAgg(column=params.target_column, aggfunc=params.method),
+  }
+  column_constraints: dict[str, list[SchemaColumnTypeEnum]] = {
+    params.target_column: [SchemaColumnTypeEnum.Continuous]
+  }
+  if params.label_column is not None:
+    aggregator[params.label_column] = pd.NamedAgg(column=params.label_column, aggfunc="first")
+    column_constraints[params.label_column] = [SchemaColumnTypeEnum.Unique, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical]
+
+  preprocess = _TableFilterPreprocessModule(
+    cache=cache,
+    filter=params.filter
+  ).apply_geographical(
+    additional_column_constraints=column_constraints,
+    aggregator=aggregator,
+    latitude_column_name=params.latitude_column,
+    longitude_column_name=params.longitude_column,
+  )
+
+  values = preprocess.df.loc[:, params.target_column].to_list()
+  labels: Optional[list[str]] = None
+  if params.label_column is not None:
+    labels = list(map(
+      lambda label: str(label) if not pd.isna(label) else "Unnamed Location",
+      preprocess.df.loc[:, params.label_column].to_list())
+    )
+
+  return ApiResult(
+    data=TableColumnGeographicalPointsResource(
+      latitude_column=preprocess.latitude_column,
+      longitude_column=preprocess.longitude_column,
+      latitudes=preprocess.latitudes.tolist(),
+      longitudes=preprocess.longitudes.tolist(),
+      labels=labels,
+      values=values,
     ),
     message=None
   )
