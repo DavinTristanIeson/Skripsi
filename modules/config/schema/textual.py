@@ -158,7 +158,7 @@ class TopicModelingConfig(pydantic.BaseModel):
   
   # Corresponds to UMAP n_neighbors parameter. By default we set this equal to min_topic_size. We keep min_dist=0.1 to help clustering since higher min_dist softens the grouping.
   # This determines the shape of the embedding. Higher values means UMAP will consider the global structure more when reducing the dimensions of the embedding.
-  reference_document_count: Optional[int] = pydantic.Field(default=None, gt=1)
+  reference_document_count: int = pydantic.Field(default=15, gt=1)
 
   max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
 

@@ -6,7 +6,6 @@ from modules.table.filter_variants import TableFilter
 class ComparisonStateItem(pydantic.BaseModel):
   name: str
   filter: TableFilter
-  visible: bool
 
 class ComparisonState(pydantic.BaseModel):
   groups: list[ComparisonStateItem]
