@@ -81,14 +81,9 @@ class TableColumnCountsResource(pydantic.BaseModel):
   # Only for topics
   outlier: Optional[int]
 
-class TableWordItemResource(pydantic.BaseModel):
-  group: int
-  word: str
-  size: int
-
-class TableWordsResource(pydantic.BaseModel):
+class TableWordFrequenciesResource(pydantic.BaseModel):
   column: SchemaColumn
-  words: list[TableWordItemResource]
+  words: list[tuple[str, int]]
 
 class TableTopicsResource(pydantic.BaseModel):
   column: SchemaColumn

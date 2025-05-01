@@ -9,7 +9,7 @@ from routes.table.model import (
   DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
-  TableTopicsResource, TableWordsResource, TableWordItemResource
+  TableTopicsResource, TableWordFrequenciesResource
 )
 from modules.api.wrapper import ApiError
 from modules.config import (
@@ -385,13 +385,9 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   # Intentionally only using the BOW rather than C-TF-IDF version
   highest_word_frequencies = interpreter.get_weighted_words(bow)
 
-  word_cloud_items = list(map(lambda word: TableWordItemResource(
-    group=0,
-    word=word[0],
-    size=int(word[1]),
-  ), highest_word_frequencies))
+  word_cloud_items = list(map(lambda word: (word[0], int(word[1])), highest_word_frequencies))
   
-  return ApiResult(data=TableWordsResource(
+  return ApiResult(data=TableWordFrequenciesResource(
     column=column,
     words=word_cloud_items,
   ), message=None)
