@@ -68,6 +68,11 @@ class ProjectPaths(SimpleNamespace):
   def BERTopic(column: str):
     return os.path.join(ProjectPaths.BERTopicFolder, ProjectPaths.hash_name(column))
   
+  BERTopicExperimentsFolder = 'bertopic_experiments'
+  @staticmethod
+  def BERTopicExperiments(column: str):
+    return os.path.join(ProjectPaths.BERTopicExperimentsFolder, f"{ProjectPaths.hash_name(column)}.json")
+  
   @staticmethod
   def TopicModelingPaths(column: str):
     return [

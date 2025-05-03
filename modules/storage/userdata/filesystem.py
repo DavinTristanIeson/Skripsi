@@ -17,7 +17,7 @@ from modules.logger.provisioner import ProvisionedLogger
 T = TypeVar("T")
 JSONStorageControllerValidator = Callable[[Any], UserDataResource[T]]
 
-logger = ProvisionedLogger().provision("JSONStorageController")
+logger = ProvisionedLogger().provision("UserDataStorageController")
 
         
 class _UserDataStorageLockManager(metaclass=Singleton):
@@ -111,7 +111,7 @@ class UserDataStorageController(Generic[T]):
       current_state.append(addition)
       self.write_file(current_state)
 
-  def update(self, id: str, item: UserDataSchema[T]):
+  def update(self, id: str, item: UserDataSchema[T], *, create_if_not_exist: bool = False):
     logger.info(f"{self.path} - UPDATE {id} WITH {item}")
     with self.lock:
       current_state = self.read_file()
@@ -127,9 +127,14 @@ class UserDataStorageController(Generic[T]):
           __has_update = True
           break
 
-      # If no update just treat this as a create
       if not __has_update:
-        raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
+        if create_if_not_exist:
+          new_data = UserDataResource[T].from_schema(item, id)
+          new_data = self.validator(new_data)
+          self.__assert_uniqueness_constraint(current_state, new_data)
+          current_state.append(new_data)
+        else:
+          raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
 
       self.write_file(current_state)
     
@@ -149,6 +154,11 @@ class UserDataStorageController(Generic[T]):
         raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
 
       self.write_file(current_state)
+
+  def clear(self):
+    logger.info(f"{self.path} - CLEAR")
+    with self.lock:
+      self.write_file([])
   
 __all__ = [
   "UserDataStorageController",

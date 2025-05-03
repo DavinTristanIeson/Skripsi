@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
@@ -47,7 +48,9 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
 
     self.task.log_success(f"Finished mapping the document vectors to 2D. The visualization vectors have been stored in {vis_umap_model.embedding_path}.")
 
+@dataclass
 class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
+  can_save: bool = True
   def run(self):
     # Dependencies
     column = self.state.column
@@ -79,12 +82,13 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     self.task.log_success(f"Finished appling post-processing on the topics of \"{column.name}\".")
 
     # Effect
-    cache = ProjectCacheManager().get(config.project_id)
-    cache.save_workspace(df)
-    cache.save_topic(topic_modeling_result, column.name)
-    ProjectCacheManager().invalidate(config.project_id)
-
     self.state.result = topic_modeling_result
+    if self.can_save:
+      cache = ProjectCacheManager().get(config.project_id)
+      cache.save_workspace(df)
+      cache.save_topic(topic_modeling_result, column.name)
+      ProjectCacheManager().invalidate(config.project_id)
+
 
 __all__ = [
   "BERTopicPostprocessProcedureComponent",

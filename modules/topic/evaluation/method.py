@@ -1,17 +1,6 @@
+
 from typing import Sequence
 
-import pydantic
-
-class ColumnTopicsEvaluationResult(pydantic.BaseModel):
-  column: str
-  topics: Sequence[str]
-  cv_score: float
-  topic_diversity_score: float
-  cv_topic_scores: Sequence[float]
-  cv_barchart: str = pydantic.Field(repr=False)
-
-class ProjectTopicsEvaluationResult(pydantic.RootModel):
-  root: dict[str, ColumnTopicsEvaluationResult]
 
 def topic_diversity(topics: Sequence[Sequence[str]]):
   # based on OCTIS implementation and the equation in https://www.researchgate.net/publication/343173999_Topic_Modeling_in_Embedding_Spaces
@@ -25,9 +14,8 @@ def topic_diversity(topics: Sequence[Sequence[str]]):
   return td
 
 def cv_coherence(topic_words: Sequence[Sequence[str]], corpus: Sequence[Sequence[str]])->tuple[float, Sequence[float]]:
-  from gensim.models.coherencemodel import CoherenceModel
   from gensim.corpora import Dictionary
-
+  from gensim.models.coherencemodel import CoherenceModel
   dictionary = Dictionary()
   dictionary.add_documents(corpus)
   cv_coherence = CoherenceModel(
@@ -45,8 +33,6 @@ def cv_coherence(topic_words: Sequence[Sequence[str]], corpus: Sequence[Sequence
   return cv_score, cv_scores_per_topic
 
 __all__ = [
-  "ColumnTopicsEvaluationResult",
-  "ProjectTopicsEvaluationResult",
-  "topic_diversity",
-  "cv_coherence"
+  "cv_coherence",
+  "topic_diversity"
 ]

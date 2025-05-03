@@ -3,6 +3,9 @@ import http
 from apscheduler.jobstores.base import JobLookupError
 
 from controllers.project import ProjectCacheDependency
+from modules.storage.userdata.filesystem import UserDataStorageController
+from modules.storage.userdata.resource import UserDataResource
+from modules.topic.experiments.model import BERTopicExperimentResult, create_bertopic_experiment_storage_controller
 from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
@@ -66,6 +69,11 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     if column.topic_column.name in df.columns:
       df.drop(column.topic_column.name, axis=1, inplace=True)
     config.save_workspace(df)
+  
+  if not options.use_cached_document_vectors or not options.use_cached_umap_vectors or not options.use_preprocessed_documents:
+    logger.info(f"Cleaning up BERTopic experiments from {column.name}.")
+    experiment_storage = create_bertopic_experiment_storage_controller(cache.config.project_id, column.name)
+    experiment_storage.clear()
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
   ProjectCacheManager().invalidate(config.project_id)

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import os
 from typing import Optional
 
@@ -71,6 +72,32 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
 
     cache = ProjectCacheManager().get(project_id=config.project_id)
     cache.save_bertopic(model, column.name)
+
+class BERTopicExperimentalTopicModelingProcedureComponent(BERTopicProcedureComponent):
+  def run(self):
+    from bertopic import BERTopic
+
+    # Dependencies
+    column = self.state.column
+    documents = list(self.state.documents) # pd.Series has issues with BERTopic code
+    document_vectors = self.state.document_vectors
+    model = self.state.model
+    self.task.log_pending(f"Starting the topic modeling process for \"{column.name}\".")
+
+    with TimeLogger("Topic Modeling", "Performing Topic Modeling", report_start=True):
+      topics, probs = model.fit_transform(documents, document_vectors)
+
+    self.task.log_success(f"Finished the topic modeling process for {column.name}. Performing additional post-processing for the discovered topics.")
+    logger.info(f"Topics of {column.name}: {model.topic_labels_}. ")
+
+    if column.topic_modeling.no_outliers:
+      topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=document_vectors)
+      if column.topic_modeling.represent_outliers:
+        model.update_topics(documents, topics=topics)
+
+    # Effect
+    self.state.model = model
+    self.state.document_topic_assignments = np.array(topics, dtype=np.int32)
 
 __all__ = [
   "BERTopicTopicModelingProcedureComponent"
