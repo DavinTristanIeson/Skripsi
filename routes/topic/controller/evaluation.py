@@ -5,6 +5,7 @@ from controllers.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.exceptions.files import FileLoadingException
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.task.engine import scheduler
@@ -61,7 +62,7 @@ def perform_topic_model_evaluation(request: EvaluateTopicModelResultTaskRequest)
 def __get_topic_model_evaluation_result_alternative_response(cache: ProjectCache, column: str):
   try:
     result = cache.topic_evaluations.load(column)
-  except ApiError:
+  except FileLoadingException:
     return None
   return AlternativeTaskResponse(
     data=result,
@@ -116,7 +117,7 @@ def perform_topic_model_experiment(request: BERTopicExperimentTaskRequest):
 def __get_topic_model_experiment_result_alternative_response(cache: ProjectCache, column: str):
   try:
     result = cache.bertopic_experiments.load(column)
-  except ApiError:
+  except FileLoadingException:
     return None
   if result.end_at is not None:
     return AlternativeTaskResponse(

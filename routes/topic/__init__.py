@@ -2,7 +2,8 @@ from fastapi import APIRouter
 
 from controllers.project import ProjectCacheDependency
 from controllers.topic import TextualSchemaColumnDependency, TopicModelingResultDependency
-from modules.api.wrapper import ApiError, ApiResult
+from modules.api.wrapper import ApiResult
+from modules.exceptions.files import FileLoadingException
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse
@@ -39,10 +40,11 @@ def get__all_topic_modeling_results(cache: ProjectCacheDependency)->ApiResult[li
   config = cache.config
   textual_columns = config.data_schema.textual()
   topic_modeling_results: list[ColumnTopicModelingResultResource] = []
+  
   for column in textual_columns:
     try:
       result = cache.topics.load(column.name)
-    except ApiError:
+    except FileLoadingException:
       result = None
     topic_modeling_results.append(ColumnTopicModelingResultResource(
       result=result,

@@ -6,6 +6,7 @@ from fastapi import Body, Depends, Path
 
 from modules.api import ApiError
 from modules.config import Config, SchemaColumn
+from modules.exceptions.dataframe import MissingColumnException
 from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.project.paths import ProjectPathManager
 
@@ -30,7 +31,9 @@ def __get_data_column(cache: ProjectCacheDependency, column: Annotated[str, Body
   try:
     return cache.config.data_schema.assert_exists(column)
   except KeyError:
-    raise ApiError(f"Column {column} doesn't exist in the schema. Please make sure that your schema is properly configured to your data.", http.HTTPStatus.NOT_FOUND)
+    raise MissingColumnException(
+      message=MissingColumnException.format_schema_issue(column)
+    )
 SchemaColumnExistsDependency = Annotated[SchemaColumn, Depends(__get_data_column)]
 
 

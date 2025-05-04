@@ -5,6 +5,7 @@ import os
 import shutil
 
 from modules.api import ApiError
+from modules.exceptions.files import FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
 
 logger = ProvisionedLogger().provision("AbstractPathManager")
@@ -22,7 +23,9 @@ class AbstractPathManager(abc.ABC):
   def assert_path(self, path: str)->str:
     path = self.full_path(path)
     if not os.path.exists(path):
-      raise ApiError(f"The file \"{path}\" does not exist. Perhaps the file has not been created yet.", 404)
+      raise FileNotExistsException(
+        message=f"The file \"{path}\" does not exist. Perhaps the file has not been created yet."
+      )
     return path
   
   def allocate_base_path(self)->str:
@@ -63,7 +66,7 @@ class AbstractPathManager(abc.ABC):
         try:
           os.rmdir(self.base_path)
           logger.info(f"Deleted {self.base_path} as there are no remaining files.")
-        except ApiError as e:
+        except Exception as e:
           logger.error(f"An error has occurred while deleting \"{self.base_path}\". Error => {e}")
           raise ApiError(f"An unexpected error has occurred while cleaning up the \"{self.base_path}\" folder: {e}", http.HTTPStatus.INTERNAL_SERVER_ERROR)
       else:

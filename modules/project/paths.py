@@ -112,7 +112,7 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
   
   def assert_path(self, path: str)->str:
     if not os.path.exists(self.base_path):
-      raise ApiError(f"No project exists with name: {self.project_id}.", 404)
+      raise ApiError(f"No project exists with ID: {self.project_id}.", 404)
     return super().assert_path(path)
 
   @property

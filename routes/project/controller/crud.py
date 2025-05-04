@@ -1,8 +1,10 @@
 import os
 
-from modules.api import ApiResult, ApiError
+from modules.api import ApiResult
 from modules.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.exceptions.dataframe import DataFrameLoadException
+from modules.exceptions.files import FileLoadingException, FileNotExistsException
 from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_data_source
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
@@ -35,7 +37,7 @@ def get_all_projects():
       cache = ProjectCacheManager().get(folder)
       try:
         projects.append(ProjectResource.from_config(cache.config))
-      except ApiError as e:
+      except FileLoadingException as e:
         logger.error(f"Failed to load the config in \"{folder}\" due to: {e}")
         continue
 
@@ -85,7 +87,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
   try:
     workspace_df = config.load_workspace()
-  except ApiError:
+  except (DataFrameLoadException, FileNotExistsException):
     workspace_df = None
 
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")

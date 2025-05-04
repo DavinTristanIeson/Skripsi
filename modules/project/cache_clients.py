@@ -11,6 +11,7 @@ from modules.api.wrapper import ApiError
 from modules.config.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.exceptions.files import CorruptedFileException, FileLoadingException, FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.storage.cache import CacheClient, CacheItem
@@ -164,7 +165,16 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
       column=textual_column,
       corpus_size=0,
     ).build_embedding_model()
-    bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)
+    try:
+      bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)
+    except Exception:
+      raise CorruptedFileException(
+        CorruptedFileException.format_message(
+          path=model_path,
+          purpose="BERTopic model",
+          solution="Try running the topic modeling algorithm again."
+        )
+      )
     return bertopic_model
     
   def _save(self, value, key):
@@ -192,7 +202,9 @@ class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
     visumap = self.__prepare(key)
     visualization_vectors = visumap.load_cached_embeddings()
     if visualization_vectors is None:
-      raise ApiError(f"There are no document/topic embeddings for \"{visumap.column.name}\". The file may be corrupted or the topic modeling procedure has not been executed on this column.", HTTPStatus.BAD_REQUEST)
+      raise FileLoadingException(
+        f"There are no document/topic embeddings for \"{visumap.column.name}\". The file may be corrupted or the topic modeling procedure has not been executed on this column."
+      )
     return visualization_vectors
   
   def _save(self, value, key):
@@ -204,14 +216,22 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.full_path(ProjectPaths.TopicEvaluation(key))
-    if not os.path.exists(file_path):
-      raise ApiError(f"There are no cached topic evaluation results in \"{file_path}\". It seems that you have not performed any evaluations on the topics of \"{key}\".", HTTPStatus.NOT_FOUND)
-    
+    FileNotExistsException.verify(file_path, error=FileNotExistsException.format_message(
+      path=file_path,
+      purpose="topic evaluation results",
+      problem=f"It seems that you have not performed any evaluations on the topics of \"{key}\".",
+    ))
+
     with open(file_path, 'r', encoding='utf-8') as f:
       try:
         result = TopicEvaluationResult.model_validate_json(f.read())
       except ValidationError:
-        raise ApiError(f"We were unable to read the topic evaluation results in \"{file_path}\". The file may have been corrupted.", HTTPStatus.UNPROCESSABLE_ENTITY)
+        raise CorruptedFileException(
+          CorruptedFileException.format_message(
+            path=file_path,
+            purpose="topic evaluation results",
+          )
+        )
       
     self.cache.set(CacheItem(
       key=key,
@@ -231,14 +251,25 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.full_path(ProjectPaths.TopicExperiments(key))
-    if not os.path.exists(file_path):
-      raise ApiError(f"There are no cached BERTopic experiment results in \"{file_path}\". It seems that you have not performed any BERTopic experiments.", HTTPStatus.NOT_FOUND)
-    
+    FileNotExistsException.verify(
+      file_path,
+      error=FileNotExistsException.format_message(
+        path=file_path,
+        purpose="BERTopic experiment results",
+        problem=f"It seems that you have not performed any BERTopic experiments on \"{key}\".",
+      )
+    )
+
     with open(file_path, 'r', encoding='utf-8') as f:
       try:
         result = BERTopicExperimentResult.model_validate_json(f.read())
       except ValidationError:
-        raise ApiError(f"We were unable to read the BERTopic experiment results in \"{file_path}\". The file may have been corrupted.", HTTPStatus.UNPROCESSABLE_ENTITY)
+        raise CorruptedFileException(
+          CorruptedFileException.format_message(
+            path=file_path,
+            purpose="BERTopic experiment results",
+          )
+        )
       
     self.cache.set(CacheItem(
       key=key,

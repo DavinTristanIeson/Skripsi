@@ -10,13 +10,13 @@ from modules.validation import DiscriminatedUnionValidator
 from modules.logger import ProvisionedLogger
 
 from .filter import _BaseCompoundTableFilter, _BaseTableFilter, _TableFilterParams, TableFilterTypeEnum
-from .errors import _TableFilterError
+from .errors import TableFilterColumnNotFoundException, TableFilterWrongColumnTypeException, TableFilterWrongFieldValueTypeException
 
 logger = ProvisionedLogger().provision("TableEngine")
 
 def access_series(filter: _BaseTableFilter, params: _TableFilterParams)->pd.Series:
   if filter.target not in params.data.columns:
-    raise _TableFilterError.ColumnNotFound(
+    raise TableFilterColumnNotFoundException(
       target=filter.target,
       project_name=params.config.metadata.name,
     )
@@ -39,21 +39,21 @@ def parse_value(filter: _BaseTableFilter, params: _TableFilterParams, *, value: 
         return int(value)
       return float(value)
     except ValueError:
-      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="numeric_value")
+      raise TableFilterWrongFieldValueTypeException(**ERROR_PAYLOAD, expected_type="numeric_value")
   elif pd.api.types.is_datetime64_any_dtype(data.dtype):
     try:
       # Python fromisoformat doesn't recognize Z.
       value = str(value).replace("Z", "+00:00")
       date_value = np.datetime64(value)
       if np.isnat(date_value):
-        raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="a valid datetime string in ISO format")
+        raise TableFilterWrongFieldValueTypeException(**ERROR_PAYLOAD, expected_type="a valid datetime string in ISO format")
       return date_value
     except ValueError:
-      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type="datetime string in ISO format")
+      raise TableFilterWrongFieldValueTypeException(**ERROR_PAYLOAD, expected_type="datetime string in ISO format")
   elif data.dtype == 'category':
     value = str(value)
     if str(value) not in data.cat.categories:
-      raise _TableFilterError.WrongFieldValueType(**ERROR_PAYLOAD, expected_type=f"valid category (one of {data.cat.categories})")
+      raise TableFilterWrongFieldValueTypeException(**ERROR_PAYLOAD, expected_type=f"valid category (one of {data.cat.categories})")
     return value
   elif value is None:
     return None
@@ -158,7 +158,7 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel):
     data = access_series(self, params)
     column = params.config.data_schema.assert_exists(self.target)
     if column.type not in [SchemaColumnTypeEnum.Textual, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Unique]:
-      raise _TableFilterError.WrongColumnType(
+      raise TableFilterWrongColumnTypeException(
         filter_type=self.type,
         column_type=column.type,
         target=self.target

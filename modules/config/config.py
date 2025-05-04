@@ -4,6 +4,8 @@ import pydantic
 import os
 
 from modules.config.context import ConfigSerializationContext
+from modules.exceptions.dataframe import DataFrameLoadException
+from modules.exceptions.files import FileNotExistsException
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 
@@ -36,10 +38,12 @@ class Config(pydantic.BaseModel):
     import json
 
     data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
-    source = os.path.join(data_directory, project_id, "config.json")
-    if not os.path.exists(source):
-      raise ApiError(f"Project with ID {project_id} doesn't exist in {data_directory}. That project may not have been created yet, please create a new project first; or if you directly entered the project ID in the URL, please make sure that it is correctly spelled.", 404)
-    with open(source, 'r', encoding='utf-8') as f:
+    source_path = os.path.join(data_directory, project_id, "config.json")
+    FileNotExistsException.verify(
+      source_path,
+      error=f"Project with ID {project_id} doesn't exist in {data_directory}. That project may not have been created yet, please create a new project first; or if you directly entered the project ID in the URL, please make sure that it is correctly spelled."
+    )
+    with open(source_path, 'r', encoding='utf-8') as f:
       contents = json.load(f)
       return Config.model_validate(contents)
 
@@ -54,12 +58,19 @@ class Config(pydantic.BaseModel):
   
   def load_workspace(self)->pd.DataFrame:
     # Fix fastparquet limitation wherein it doesn't preserve ordered flag.
-    path = self.paths.full_path(ProjectPaths.Workspace)
+    path = self.paths.assert_path(ProjectPaths.Workspace)
     try:
       df = pd.read_parquet(path)
     except Exception as e:
       logger.error(e)
-      raise ApiError(f"Failed to load the workspace table from {path}. Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.", 404)
+      raise DataFrameLoadException(
+        message=DataFrameLoadException.format_message(
+          path=path,
+          purpose="workspace table",
+          solution="Please load the data source again to recreate the workspace table. If this problem persists, consider resetting the environment and executing the topic modeling procedure again.",
+          error=e
+        )
+      )
     for col in self.data_schema.ordered_categorical():
       if col.name not in df.columns:
         logger.warning(f"Failed to load {col.name} as it doesn't exist in the workspace. (Full column: {col})")

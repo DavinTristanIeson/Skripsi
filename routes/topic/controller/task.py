@@ -2,6 +2,7 @@ import functools
 import http
 
 from controllers.project import ProjectCacheDependency
+from modules.exceptions.files import FileLoadingException
 from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
@@ -88,7 +89,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
 def __topic_modeling_status_alternative(cache: ProjectCache, column: TextualSchemaColumn):
   try:
     topics = cache.topics.load(column.name)
-  except ApiError:
+  except FileLoadingException:
     topics = None
   if topics is None:
     return None
