@@ -1,23 +1,19 @@
+import functools
 import http
 
-from apscheduler.jobstores.base import JobLookupError
-
 from controllers.project import ProjectCacheDependency
-from modules.storage.userdata.filesystem import UserDataStorageController
-from modules.storage.userdata.resource import UserDataResource
-from modules.topic.experiments.model import BERTopicExperimentResult, create_bertopic_experiment_storage_controller
 from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
+from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
   scheduler,
   TaskLog, TaskResponse, 
   TaskStatusEnum
 )
-from modules.task.storage import TaskStorage
+from modules.task.storage import AlternativeTaskResponse, TaskConflictResolutionBehavior, TaskStorage
 from modules.topic.model import TopicModelingResult
 from modules.topic.procedure import BERTopicProcedureFacade
 
@@ -25,22 +21,14 @@ from modules.topic.procedure import BERTopicProcedureFacade
 logger = ProvisionedLogger().provision("Topic Controller")
 
 def topic_modeling_task(payload: TopicModelingTaskRequest):
-  proxy = TaskStorage().proxy(payload.task_id)
-  with proxy.lock:
-    proxy.initialize()
-    proxy.task.status = TaskStatusEnum.Pending
-  facade = BERTopicProcedureFacade(
-    task=proxy,
-    column=payload.column,
-    project_id=payload.project_id
-  )
-  try:
+  taskstore = TaskStorage()
+  with taskstore.proxy_context(payload.task_id) as proxy:
+    facade = BERTopicProcedureFacade(
+      task=proxy,
+      column=payload.column,
+      project_id=payload.project_id
+    )
     facade.run()
-  except Exception as e:
-    logger.exception(e)
-    proxy.log_error(f"We weren't able to complete the topic modeling procedure due to the following error: {e}")
-    with proxy.lock:
-      proxy.task.status = TaskStatusEnum.Failed
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
@@ -72,8 +60,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   
   if not options.use_cached_document_vectors or not options.use_cached_umap_vectors or not options.use_preprocessed_documents:
     logger.info(f"Cleaning up BERTopic experiments from {column.name}.")
-    experiment_storage = create_bertopic_experiment_storage_controller(cache.config.project_id, column.name)
-    experiment_storage.clear()
+    cleanup_files.append(ProjectPaths.TopicExperiments(column.name))
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
   ProjectCacheManager().invalidate(config.project_id)
@@ -87,42 +74,29 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     column=column.name,
   )
 
-  has_pending_task = False
-  try:
-    scheduler.remove_job(request.task_id)
-    has_pending_task = True
-  except JobLookupError:
-    pass
-
-  project_id = config.project_id
-  scheduler.add_job(
-    topic_modeling_task,
-    args=[request],
-    # To enable sequential runs. The ID makes all topic modeling jobs the same, while misfire_grace_time prevents the jobs from being canceled
-    # This is necessary to avoid data races.
-    # https://stackoverflow.com/questions/65690003/how-to-manage-a-task-queue-using-apscheduler
-    id="topic_modeling",
-    misfire_grace_time=None,
-  )
   store = TaskStorage()
-  with store.lock:
-    response = TaskResponse(
-      id=request.task_id,
-      logs=[
-        TaskLog(
-          status=TaskStatusEnum.Idle,
-          message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
-        )
-      ],
-      data=None,
-      status=TaskStatusEnum.Idle
-    )
-
-  if has_pending_task:
-    return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to \"{column.name}\". Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
-  else:
-    return ApiResult(data=None, message=f"The topic modeling algorithm will be applied again to \"{column.name}\". Please wait for the other topic modeling tasks to finish before we begin processing the documents in this column.")
+  store.add_task(
+    scheduler=scheduler,
+    task_id=request.task_id,
+    task=topic_modeling_task,
+    args=[request],
+    conflict_resolution=TaskConflictResolutionBehavior.Ignore,
+    idle_message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
+  )
   
+  return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to \"{column.name}\". Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")
+
+def __topic_modeling_status_alternative(cache: ProjectCache, column: TextualSchemaColumn):
+  try:
+    topics = cache.load_topic(column.name)
+  except ApiError:
+    topics = None
+  if topics is None:
+    return None
+  return AlternativeTaskResponse(
+    data=topics,
+    message="The topic modeling procedure has already been executed before. Feel free to explore the discovered topics."
+  )
 
 def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSchemaColumn)->TaskResponse[TopicModelingResult]:
   config = cache.config
@@ -133,34 +107,17 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
   )
 
   store = TaskStorage()
-  with store.lock:
-    result = store.results.get(request.task_id, None)
-  
-  if result is not None:
-    return result
 
-  try:
-    topics = cache.load_topic(column.name)
-  except ApiError:
-    topics = None
+  alternative_response = functools.partial(__topic_modeling_status_alternative, cache, column)
   
-  if topics is not None:
-    response = TaskResponse(
-      id=request.task_id,
-      logs=[
-        TaskLog(
-          status=TaskStatusEnum.Success,
-          message="The topic modeling procedure has already been executed before. Feel free to explore the discovered topics.",
-        )
-      ],
-      data=topics,
-      status=TaskStatusEnum.Success
-    )
-    with store.lock:
-      store.results[request.task_id] = response
-    return response
-  
-  raise ApiError(f"No topic modeling task has been started for \"{column.name}\" in project \"{config.project_id}\".", http.HTTPStatus.BAD_REQUEST)
+  task_result = store.get_task_result(
+    task_id=request.task_id,
+    alternative_response=alternative_response,
+  )
+  if task_result is None:
+    raise ApiError(f"No topic modeling task has been started for \"{column.name}\" in project \"{config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)
+  return task_result
+
 
 __all__ = [
   "start_topic_modeling",

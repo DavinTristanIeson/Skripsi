@@ -15,6 +15,8 @@ from modules.logger import ProvisionedLogger
 from modules.baseclass import Singleton
 from modules.storage import CacheClient, CacheItem
 from modules.topic.bertopic_ext.dimensionality_reduction import VisualizationCachedUMAP
+from modules.topic.evaluation.model import TopicEvaluationResult
+from modules.topic.experiments.model import BERTopicExperimentResult
 from modules.topic.model import TopicModelingResult
 
 if TYPE_CHECKING:
@@ -44,6 +46,14 @@ class ProjectCache:
   )
   config_cache: CacheClient[Config] = field(
     default_factory=lambda: CacheClient(name="Config", maxsize=1, ttl=5 * 60),
+    init=False
+  )
+  topic_evaluations: CacheClient[TopicEvaluationResult] = field(
+    default_factory=lambda: CacheClient(name="Topic Evaluation Result", maxsize=5, ttl=5 * 60),
+    init=False
+  )
+  bertopic_experiments: CacheClient[BERTopicExperimentResult] = field(
+    default_factory=lambda: CacheClient(name="BERTopic Experiment Result", maxsize=5, ttl=5 * 60),
     init=False
   )
   lock: threading.Lock
@@ -162,6 +172,56 @@ class ProjectCache:
       ))
       return visualization_vectors
     
+  def load_bertopic_experiments(self, column: str)->BERTopicExperimentResult:
+    cached_experiment = self.bertopic_experiments.get(column)
+    if cached_experiment is not None:
+      return cached_experiment
+    path = self.config.paths.full_path(ProjectPaths.TopicExperiments(column))
+    with open(path, 'r', encoding='utf-8') as f:
+      evaluation_result = BERTopicExperimentResult.model_validate_json(f.read())
+      
+    self.bertopic_experiments.set(CacheItem(
+      key=column,
+      value=evaluation_result,
+    ))
+    return evaluation_result
+    
+  def save_bertopic_experiments(self, experiment: BERTopicExperimentResult, column:str):
+    with self.lock:
+      path = self.config.paths.allocate_path(ProjectPaths.TopicEvaluation(column))
+      with open(path, 'w', encoding='utf-8') as f:
+        f.write(experiment.model_dump_json())
+      logger.info(f"Saved BERTopic experiment results in \"{path}\".")
+      self.bertopic_experiments.set(CacheItem(
+        key=column,
+        value=experiment,
+      ))
+  
+  def load_topic_evaluation(self, column: str)->TopicEvaluationResult:
+    cached_evaluation = self.topic_evaluations.get(column)
+    if cached_evaluation is not None:
+      return cached_evaluation
+    path = self.config.paths.full_path(ProjectPaths.TopicEvaluation(column))
+    with open(path, 'r', encoding='utf-8') as f:
+      evaluation_result = TopicEvaluationResult.model_validate_json(f.read())
+      
+    self.topic_evaluations.set(CacheItem(
+      key=column,
+      value=evaluation_result,
+    ))
+    return evaluation_result
+    
+  def save_topic_evaluation(self, evaluation: TopicEvaluationResult, column:str):
+    with self.lock:
+      path = self.config.paths.allocate_path(ProjectPaths.TopicEvaluation(column))
+      with open(path, 'w', encoding='utf-8') as f:
+        f.write(evaluation.model_dump_json())
+      logger.info(f"Saved topic evaluation in \"{path}\".")
+      self.topic_evaluations.set(CacheItem(
+        key=column,
+        value=evaluation,
+      ))
+    
   def invalidate(self):
     with self.lock:
       self.bertopic_models.clear()
@@ -169,6 +229,8 @@ class ProjectCache:
       self.topics.clear()
       self.visualization_vectors.clear()
       self.workspaces.clear()
+      self.topic_evaluations.clear()
+      self.bertopic_experiments.clear()
 
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]
@@ -190,15 +252,14 @@ class ProjectCacheManager(metaclass=Singleton):
     return cache
 
   def invalidate(self, project_id: str):
-    with self.lock:
-      project = self.projects.get(project_id)
-      self.projects.pop(project_id, None)
+    project_cache = self.projects.get(project_id)
+    if project_cache is not None:
+      project_cache.invalidate()
 
 @functools.lru_cache(2)
 def get_cached_data_source(source: "DataSource"):
   logger.info(f"Loaded data source from {source}")
   return source.load()
-
 
 __all__ = [
   "ProjectCacheManager",

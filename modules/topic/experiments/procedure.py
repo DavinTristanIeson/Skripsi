@@ -1,95 +1,129 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
+import functools
 import threading
-from typing import Sequence, cast
+from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
 
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
-from modules.project.paths import ProjectPaths
-from modules.storage.userdata.filesystem import UserDataStorageController
-from modules.storage.userdata.resource import UserDataResource, UserDataSchema
+from modules.task.responses import TaskResponse
 from modules.task.storage import TaskStorageProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
-from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate, create_bertopic_experiment_storage_controller
+from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
-from modules.topic.procedure.model_builder import BERTopicExperimentalModelBuilderProcedureComponent
+from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
 from modules.topic.procedure.postprocess import BERTopicPostprocessProcedureComponent
 from modules.topic.procedure.preprocess import BERTopicCacheOnlyPreprocessProcedureComponent, BERTopicDataLoaderProcedureComponent
 from modules.topic.procedure.topic_modeling import BERTopicExperimentalTopicModelingProcedureComponent
 
+if TYPE_CHECKING:
+  from optuna.trial import Trial
+
 logger = ProvisionedLogger().provision("Topic Modeling")
 
-
 @dataclass
-class BERTopicHyperparameterLab:
+class BERTopicExperimentLab:
   task: TaskStorageProxy
   project_id: str
   column: str
-  candidates: list[BERTopicHyperparameterCandidate]
+  n_trials: int
+  constraint: BERTopicHyperparameterConstraint
+
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, column: TextualSchemaColumn, experiment_result: BERTopicExperimentResult):
+    cache = ProjectCacheManager().get(self.project_id)
+
+    candidate = self.constraint.suggest(trial)
+    placeholder_id = f"Candidate {trial._trial_id}"
+    placeholder_task = TaskStorageProxy(
+      id=placeholder_id,
+      stop_event=threading.Event(),
+      response=TaskResponse.Idle(placeholder_id),
+    )
+    self.task.log_pending(f"Running a trial for the following hyperparameters: {candidate}")
+
+    # Shallow copy only, don't deep copy.
+    state = copy(shared_state)
+    state.column = candidate.apply(column)
+
+    try:
+      procedures: list[BERTopicProcedureComponent] = [
+        BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
+        BERTopicExperimentalTopicModelingProcedureComponent(state=state, task=placeholder_task),
+        BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
+      ]
+      for procedure in procedures:
+        procedure.run()
+      evaluation = evaluate_topics(cast(Sequence[str], state.documents), state.result.topics, state.model)
+    except Exception as e:
+      self.task.log_error(f"Failed to run a trial for the following hyperparameters: {candidate} due to the following error: {str(e)}.")
+      result = BERTopicExperimentTrialResult(
+        evaluation=None,
+        topic_modeling_config=state.column.topic_modeling,
+        error=str(e),
+      )
+      experiment_result.trials.append(result)
+      cache.save_bertopic_experiments(experiment_result, column.name)
+      raise e
+
+    self.task.log_success(f"Finished running a trial for the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v} and diversity of {evaluation.topic_diversity}.")
+    result = BERTopicExperimentTrialResult(
+      evaluation=evaluation,
+      topic_modeling_config=state.column.topic_modeling,
+      error=None
+    )
+    experiment_result.trials.append(result)
+    cache.save_bertopic_experiments(experiment_result, column.name)
+
+    return evaluation.coherence_v
   
   def run(self):
-    config = ProjectCacheManager().get(self.project_id).config
+    cache = ProjectCacheManager().get(self.project_id)
+    config = cache.config
     column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual]))
-
-    storage = create_bertopic_experiment_storage_controller(self.project_id, self.column)
-
+    
     shared_state = BERTopicIntermediateState()
-    shared_procedures = [
+    shared_procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=shared_state, task=self.task),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=self.task),
     ]
-
     for procedure in shared_procedures:
       procedure.run()
 
-    for idx, candidate in enumerate(self.candidates):
-      placeholder_task = TaskStorageProxy(
-        id=f"Candidate {idx+1}",
-        lock=threading.Lock(),
-        results={}
-      )
-      # Shallow copy only, don't deep copy.
-      state = copy(shared_state)
-      state.column = candidate.apply(column)
-      hash = BERTopicHyperparameterCandidate.hash(state.column.topic_modeling)
-      # Already run before. We can skip.
-      if storage.get(hash):
-        self.task.log_success(f"Skipping running the topic model for Candidate {idx+1} since the hyperparameters had been evaluated before.")
-        continue
-      try:
-        procedures: list[BERTopicProcedureComponent] = [
-          BERTopicExperimentalModelBuilderProcedureComponent(state=state, task=placeholder_task, candidate=candidate),
-          BERTopicExperimentalTopicModelingProcedureComponent(state=state, task=placeholder_task),
-          BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
-        ]
-        for procedure in procedures:
-          procedure.run()
-        evaluation = evaluate_topics(self.task, cast(Sequence[str], state.documents), state.result.topics, state.model)
+    now = datetime.datetime.now()
+    experiment_result = BERTopicExperimentResult(
+      trials=[],
+      end_at=None,
+      last_updated_at=now,
+      started_at=now,
+    )
 
-        self.task.log_success(f"Finished running the topic model for Candidate {idx+1}")
-        self.task.success(state.result)
+    experiment = functools.partial(
+      self.experiment,
+      shared_state=shared_state,
+      column=column,
+      experiment_result=experiment_result
+    )
+    
+    import optuna
+    study = optuna.create_study(direction="maximize")
+    study.optimize(
+      experiment,
+      n_trials=self.n_trials,
+      show_progress_bar=True,
+      # Optuna's n_jobs uses multithreading, not multiprocessing
+      n_jobs=-1,
+      catch=Exception,
+      gc_after_trial=True,
+      callbacks=[]
+    )
+    experiment_result.end_at = datetime.datetime.now()
+    cache.save_bertopic_experiments(experiment_result, column.name)
 
-        now = datetime.datetime.now()
-        storage.update(hash, UserDataSchema(
-          data=BERTopicExperimentResult(
-            evaluation=evaluation,
-            topic_modeling_config=state.column.topic_modeling,
-            timestamp=now,
-          ),
-          name=f"Experiment {now.isoformat()}",
-          description=None,
-          tags=None,
-        ), create_if_not_exist=True)
-      except Exception as e:
-        logger.exception(e)
-        self.task.log_error(f"Failed to run an experiment on Candidate #{idx+1} due to the following error: {e}")
-        pass
-
-      return state
+    self.task.success(experiment_result)
   
 __all__ = [
-  "BERTopicHyperparameterLab",
+  "BERTopicExperimentLab",
 ]

@@ -3,8 +3,8 @@ from typing import Sequence, cast
 import numpy as np
 import pandas as pd
 
-from controllers.topic import _assert_dataframe_has_topic_columns
 from modules.table.serialization import serialize_pandas
+from modules.task.storage import TaskStorage
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
@@ -21,7 +21,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   df = cache.load_workspace()
   engine = TableEngine(cache.config)
 
-  _assert_dataframe_has_topic_columns(df, column)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
   
   not_empty_filter = NotEmptyTableFilter(target=column.preprocess_column.name)
   if params.filter is not None:
@@ -57,7 +57,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
   df = cache.load_workspace()
   config = cache.config
-  _assert_dataframe_has_topic_columns(df, column)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
 
@@ -105,6 +105,10 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   cache.save_bertopic(bertopic_model, column.name)
   cache.save_topic(new_tm_result, column.name)
   cache.save_workspace(df)
+  # Invalidate tasks
+  TaskStorage().invalidate(prefix=config.project_id)
+  # Clean up experiments
+  config.paths.cleanup_topic_experiments()
 
   return ApiResult(
     data=None,
@@ -115,13 +119,11 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
 def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn, tm_result: TopicModelingResult):
   df = cache.load_workspace()
   config = cache.config
-  _assert_dataframe_has_topic_columns(df, column)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
   bertopic_model = cache.load_bertopic(column.name)
 
   filtered_df = TableEngine(config).filter(df, body.filter)
   local_corpus = cast(Sequence[str], filtered_df[column.preprocess_column])
-
-  bertopic_model.hierarchical_topics
 
   interpreter = BERTopicInterpreter(bertopic_model)
   local_bow = interpreter.represent_as_bow_sparse(local_corpus)

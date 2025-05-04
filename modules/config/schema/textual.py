@@ -1,10 +1,11 @@
 from enum import Enum
-from typing import Any, Optional, Sequence, cast
+from typing import Annotated, Any, Optional, Sequence, cast
 import pandas as pd
 import pydantic
 import tqdm
 
 from modules.api import ExposedEnum
+from modules.validation.array import StartBeforeEndValidator
 
 
 class DocumentEmbeddingMethodEnum(str, Enum):
@@ -33,14 +34,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   max_unique_words: Optional[int] = pydantic.Field(default=None, gt=0)
   min_document_length: int = pydantic.Field(default=5, gt=0)
   min_word_length: int = pydantic.Field(default=3, gt=0)
-  n_gram_range: tuple[int, int] = (1, 2)
-
-  @pydantic.field_validator("n_gram_range", mode="after")
-  def __n_gram_range_validator(cls, value: tuple[int, int]):
-    if value[0] > value[1]:
-      return (value[1], value[0])
-    return value
-
+  n_gram_range: Annotated[tuple[int, int], StartBeforeEndValidator]
 
   @property
   def spacy_pipeline_name(self):

@@ -1,5 +1,6 @@
 from enum import Enum
 import functools
+from http import HTTPStatus
 import math
 from typing import Annotated, ClassVar, Literal, Optional, Union
 
@@ -8,6 +9,7 @@ import pydantic
 import pandas as pd
 
 from modules.api.enum import ExposedEnum
+from modules.api.wrapper import ApiError
 from modules.config.context import ConfigSerializationContext
 from modules.validation import DiscriminatedUnionValidator
 
@@ -186,6 +188,13 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       source_name=self.name,
     )
   
+  def assert_internal_columns(self, df: pd.DataFrame, *, with_preprocess: bool, with_topics: bool):
+    SHARED = f"If you haven't run the topic modeling algorithm before, please run the topic modeling algorithm first from the \"Topics\" page. If you have already executed the topic modeling procedure before, it is likely that the topic-related files are missing or corrupted."
+    if self.preprocess_column.name not in df.columns and with_preprocess:
+      raise ApiError(f"There are no cached preprocessed documents in the dataframe. {SHARED}", HTTPStatus.UNPROCESSABLE_ENTITY)
+    if self.topic_column.name not in df.columns and with_topics:
+      raise ApiError(f"There are no cached topics in the dataframe. Please run the topic modeling algorithm first. {SHARED}", HTTPStatus.UNPROCESSABLE_ENTITY)
+
   def get_internal_columns(self)->list["SchemaColumn"]:
     return [
       self.preprocess_column,

@@ -7,6 +7,7 @@ from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.engine import scheduler, topic_modeling_job_store
+from modules.task.storage import TaskStorage
 
 from ..model import ProjectMutationSchema, ProjectResource
 from .project_checks import _assert_valid_project_id
@@ -83,9 +84,9 @@ def update_project(config: Config, body: ProjectMutationSchema):
   # Resolve project differences
 
   try:
-    df = config.load_workspace()
+    workspace_df = config.load_workspace()
   except ApiError:
-    df = get_cached_data_source(config.source)
+    workspace_df = None
 
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
 
@@ -96,15 +97,22 @@ def update_project(config: Config, body: ProjectMutationSchema):
     source=body.source,
     version=1,
   )
-  df, column_diffs = new_config.data_schema.resolve_difference(config.data_schema, df, get_cached_data_source(new_config.source))
+  df, column_diffs = new_config.data_schema.resolve_difference(
+    prev=config.data_schema,
+    workspace_df=workspace_df,
+    source_df=get_cached_data_source(new_config.source)
+  )
   cleanup_targets: list[str] = []
   for diff in column_diffs:
     if (diff.current is None or diff.current.type != diff.previous.type) and diff.previous.type == SchemaColumnTypeEnum.Textual:
       cleanup_targets.append(ProjectPaths.BERTopic(diff.previous.name))
       cleanup_targets.append(ProjectPaths.DocumentEmbeddings(diff.previous.name))
+      cleanup_targets.append(ProjectPaths.UMAPEmbeddings(diff.previous.name))
       cleanup_targets.append(ProjectPaths.VisualizationEmbeddings(diff.previous.name))
       cleanup_targets.append(ProjectPaths.Topics(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.Topics(diff.previous.name))
+      cleanup_targets.append(ProjectPaths.TopicEvaluation(diff.previous.name))
+      cleanup_targets.append(ProjectPaths.TopicExperiments(diff.previous.name))
+      cleanup_targets.append(ProjectPaths.EmbeddingModel(diff.previous.name, model=None))
   logger.info(f"Successfully resolved the differences in the column configurations of \"{config.project_id}\"")
 
   # Commit changes
@@ -113,7 +121,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
-  scheduler.remove_all_jobs(topic_modeling_job_store)
+  TaskStorage().invalidate(prefix=new_config.project_id)
   new_config.paths._cleanup([], cleanup_targets)
 
   return ApiResult(
@@ -129,6 +137,7 @@ def delete_project(config: Config):
   config.paths.cleanup(all=True)
   scheduler.remove_all_jobs(topic_modeling_job_store)
   ProjectCacheManager().invalidate(config.project_id)
+  TaskStorage().invalidate(prefix=config.project_id)
 
   return ApiResult(
     data=None,

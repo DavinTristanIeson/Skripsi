@@ -1,11 +1,7 @@
 from dataclasses import dataclass
-from http import HTTPStatus
-from typing import Optional, Sequence
+from typing import Sequence
 
-from modules.api.wrapper import ApiError
-from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
-from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
 
@@ -72,12 +68,10 @@ class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
     column = self.state.column
     cache = self.state.cache
     df = cache.load_workspace()
-    config = self.state.config
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]
-    if column.preprocess_column.name not in df.columns:
-      raise ApiError(f"There are no cached preprocessed documents. Please run the topic modeling algorithm first.", HTTPStatus.UNPROCESSABLE_ENTITY)
+    column.assert_internal_columns(df, with_preprocess=True, with_topics=False)
     
     # Cache
     raw_preprocess_documents = df[preprocess_name]

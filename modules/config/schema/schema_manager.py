@@ -158,14 +158,15 @@ class SchemaManager(pydantic.BaseModel):
       ))
     return column_diffs
     
-  def resolve_difference(self, prev: "SchemaManager", workspace_df: pd.DataFrame, source_df: pd.DataFrame)->tuple[pd.DataFrame, list[_SchemaColumnDiff]]:
+  def resolve_difference(self, prev: "SchemaManager", workspace_df: Optional[pd.DataFrame], source_df: pd.DataFrame)->tuple[pd.DataFrame, list[_SchemaColumnDiff]]:
     # Check if dataset has changed.
-    different_row_counts = len(source_df) != len(workspace_df)
+    different_row_counts = workspace_df is None or\
+      len(source_df) != len(workspace_df)
     self_columns = self.non_internal()
     prev_columns = prev.non_internal()
     different_column_counts = len(set(map(lambda col: col.name, prev_columns)).symmetric_difference(map(lambda col: col.name, self_columns))) > 0
 
-    if different_row_counts or different_column_counts:
+    if different_row_counts or different_column_counts or workspace_df is None:
       # Dataset has DEFINITELY changed. Refit everything.
       df = self.fit(source_df)
       column_diffs = list(map(lambda col: _SchemaColumnDiff(previous=col, current=None), self_columns)) # type: ignore

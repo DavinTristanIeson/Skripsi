@@ -14,6 +14,14 @@ class TaskStatusEnum(str, Enum):
   Success = "success"
   Failed = "failed"
 
+  @property
+  def is_finished(self):
+    return self == TaskStatusEnum.Failed or self == TaskStatusEnum.Success
+  @property
+  def is_running(self):
+    return self == TaskStatusEnum.Idle or self == TaskStatusEnum.Pending
+
+
 ExposedEnum().register(TaskStatusEnum)
 
 
@@ -31,6 +39,15 @@ class TaskResponse(pydantic.BaseModel, Generic[T]):
   data: Optional[T]
   logs: list[TaskLog]
   status: TaskStatusEnum
+
+  @staticmethod
+  def Idle(task_id: str):
+    return TaskResponse(
+      id=task_id,
+      data=None,
+      logs=[],
+      status=TaskStatusEnum.Idle,
+    )
   
 __all__ = [
   "TaskLog",

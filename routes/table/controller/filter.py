@@ -410,6 +410,7 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
     transform_topics=False
   )
   topics = result.data
+  column.assert_internal_columns(result.df, with_preprocess=True, with_topics=False)
   documents = result.df[column.preprocess_column.name]
 
   bertopic_model = cache.load_bertopic(column.name)

@@ -1,5 +1,6 @@
 import os
 from types import SimpleNamespace
+from typing import Optional
 
 import pydantic
 
@@ -55,12 +56,14 @@ class ProjectPaths(SimpleNamespace):
     )
   
   @staticmethod
-  def EmbeddingModel(column: str, model: str):
-    return os.path.join(
+  def EmbeddingModel(column: str, model: Optional[str]):
+    prefix = os.path.join(
       ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.hash_name(column),
-      model
+      ProjectPaths.hash_name(column)
     )
+    if model is None:
+      return prefix
+    return os.path.join(prefix, model)
 
   BERTopicFolder = 'bertopic'
 
@@ -68,11 +71,15 @@ class ProjectPaths(SimpleNamespace):
   def BERTopic(column: str):
     return os.path.join(ProjectPaths.BERTopicFolder, ProjectPaths.hash_name(column))
   
-  BERTopicExperimentsFolder = 'bertopic_experiments'
+  EvaluationFolder = 'evaluation'
   @staticmethod
-  def BERTopicExperiments(column: str):
-    return os.path.join(ProjectPaths.BERTopicExperimentsFolder, f"{ProjectPaths.hash_name(column)}.json")
+  def TopicExperiments(column: str):
+    return os.path.join(ProjectPaths.EvaluationFolder, f"topic_experiment_{ProjectPaths.hash_name(column)}.json")
   
+  @staticmethod
+  def TopicEvaluation(column: str):
+    return os.path.join(ProjectPaths.EvaluationFolder, f"topic_evaluation_{ProjectPaths.hash_name(column)}.json")
+
   @staticmethod
   def TopicModelingPaths(column: str):
     return [
@@ -81,6 +88,8 @@ class ProjectPaths(SimpleNamespace):
       ProjectPaths.VisualizationEmbeddings(column),
       ProjectPaths.UMAPEmbeddings(column),
       ProjectPaths.Topics(column),
+      ProjectPaths.TopicExperiments(column),
+      ProjectPaths.TopicEvaluation(column),
     ]
   
   @staticmethod
@@ -132,10 +141,17 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
       ProjectPaths.EmbeddingsFolder,
       ProjectPaths.BERTopicFolder,
       ProjectPaths.TopicsFolder,
+      ProjectPaths.EvaluationFolder,
     ]
     files = []
 
     self._cleanup(directories, files)
+
+  def cleanup_topic_experiments(self):
+    self._cleanup(
+      directories=[ProjectPaths.EvaluationFolder],
+      files=[]
+    )
 
 __all__ = [
   "ProjectPathManager",
