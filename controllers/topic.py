@@ -17,7 +17,7 @@ def _is_textual_column(column: Annotated[str, Query], cache: ProjectCacheDepende
 TextualSchemaColumnDependency = Annotated[TextualSchemaColumn, Depends(_is_textual_column)]
 
 def _has_topic_modeling_result(column: str, cache: ProjectCacheDependency)->TopicModelingResult:
-  return cache.load_topic(column)
+  return cache.topics.load(column)
 
 TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
 
@@ -25,7 +25,7 @@ TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topi
 def _has_topic_modeling_result_if_topic(column: str, cache: ProjectCacheDependency)->Optional[TopicModelingResult]:
   topic_column = cache.config.data_schema.assert_exists(column)
   if topic_column.type == SchemaColumnTypeEnum.Topic:
-    return cache.load_topic(cast(str, topic_column.source_name))
+    return cache.topics.load(cast(str, topic_column.source_name))
   else:
     return None
 

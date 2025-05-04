@@ -12,8 +12,8 @@ from modules.topic.model import TopicModelingResult
 logger = ProvisionedLogger().provision("Topic Controller")
 
 def _assert_visualization_vectors_synced_with_workspace_df(cache: ProjectCache, column: TextualSchemaColumn):
-  visualization_vectors = cache.load_visualization_vectors(column)
-  df = cache.load_workspace()
+  visualization_vectors = cache.visualization_vectors.load(column.name)
+  df = cache.workspaces.load()
 
   if column.preprocess_column.name not in df.columns:
     raise ApiError(f"It seems that the preprocessed documents no longer exists even though you should have ran the topic modeling algorithm before. There may have been a data corruption, please run the topic modeling algorithm again or reload the whole dataset if the problem persists.", http.HTTPStatus.BAD_REQUEST)

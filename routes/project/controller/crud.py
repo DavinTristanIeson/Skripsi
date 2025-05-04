@@ -153,7 +153,7 @@ def reload_project(cache: ProjectCache):
   ProjectCacheManager().invalidate(config.project_id)  
 
   df = config.data_schema.fit(df)
-  cache.save_workspace(df)
+  cache.workspaces.save(df)
 
   return ApiResult(
     data=None,

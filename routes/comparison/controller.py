@@ -27,7 +27,7 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
     SchemaColumnTypeEnum.Temporal,
     SchemaColumnTypeEnum.Topic,
   ])
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableComparisonEngine(
     config=config,
     engine=TableEngine(config),
@@ -55,7 +55,7 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
 
   config = cache.config
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableEngine(config=config)
 
   builder = EmptyBERTopicModelBuilder(

@@ -13,7 +13,7 @@ class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
     # Compute
     workspace_path = config.paths.full_path(ProjectPaths.Workspace)
     self.task.log_pending(f"Loading cached dataset from \"{workspace_path}\"...")
-    self.state.cache.load_workspace() # Load workspace in cache
+    self.state.cache.workspaces.load() # Load workspace in cache
     self.task.log_success(f"Loaded cached dataset from \"{workspace_path}\"...")
 
 
@@ -24,8 +24,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     column = self.state.column
     cache = self.state.cache
-    df = cache.load_workspace()
-    config = self.state.config
+    df = cache.workspaces.load()
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]
@@ -45,7 +44,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       mask = df[preprocess_name].notna()
       preprocess_documents = df.loc[mask, preprocess_name]
       self.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
-      cache.save_workspace(df)
+      cache.workspaces.save(df)
     
     if len(preprocess_documents) == 0:
       raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
@@ -67,7 +66,7 @@ class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     column = self.state.column
     cache = self.state.cache
-    df = cache.load_workspace()
+    df = cache.workspaces.load()
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]

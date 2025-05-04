@@ -71,7 +71,7 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
     self.task.log_success(f"Saved BERTopic model in \"{bertopic_path}\".")
 
     cache = ProjectCacheManager().get(project_id=config.project_id)
-    cache.save_bertopic(model, column.name)
+    cache.bertopic_models.save(model, column.name)
 
 class BERTopicExperimentalTopicModelingProcedureComponent(BERTopicProcedureComponent):
   def run(self):

@@ -28,17 +28,6 @@ class TableEngine:
       lambda x: hashlib.md5(str(x).encode('utf-8')).hexdigest(),
       [filter, sort]
     ))
-  
-  def save_to_cache(self, df: pd.DataFrame, filter: Optional[TableFilter], sort: Optional[TableSort]):
-    key = self.workspace_key(filter, sort)
-    self.cache.workspaces.set(CacheItem(
-      key=key,
-      value=df
-    ))
-
-  def get_cached_workspace(self, filter: Optional[TableFilter], sort: Optional[TableSort]):
-    key = self.workspace_key(filter, sort)
-    return self.cache.workspaces.get(key)
     
   def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
     if filter is None:
@@ -58,27 +47,31 @@ class TableEngine:
     
 
   def process_workspace(self, filter: Optional[TableFilter], sort: Optional[TableSort])->pd.DataFrame:
-    df = self.cache.load_workspace()
+    df = self.cache.workspaces.load()
 
     config_column_names = map(lambda x: x.name, self.config.data_schema.columns)
     column_names = [col for col in config_column_names if col in df.columns]
     df = df.loc[:, column_names]
 
-    cached_df = self.get_cached_workspace(filter, sort)
+    cached_df = self.cache.workspaces.get(
+      self.workspace_key(filter, sort)
+    )
     if cached_df is not None:
       return cached_df
 
     if filter is not None:
-      cached_filtered_df = self.get_cached_workspace(filter, None)
+      cached_filtered_df = self.cache.workspaces.get(
+        self.workspace_key(filter, None)
+      )
       if cached_filtered_df is not None:
         df = cached_filtered_df
       else:
         df = self.filter(df, filter)
-        self.save_to_cache(df, filter, None)
+        self.cache.workspaces.set(df, self.workspace_key(filter, None))
     
     if sort is not None:
       df = self.sort(df, sort)
-      self.save_to_cache(df, filter, sort)
+      self.cache.workspaces.set(df, self.workspace_key(filter, sort))
 
     df = self.config.data_schema.process_columns(df)
     return df

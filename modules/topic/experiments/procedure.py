@@ -65,7 +65,7 @@ class BERTopicExperimentLab:
         error=str(e),
       )
       experiment_result.trials.append(result)
-      cache.save_bertopic_experiments(experiment_result, column.name)
+      cache.bertopic_experiments.save(experiment_result, column.name)
       raise e
 
     self.task.log_success(f"Finished running a trial for the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v} and diversity of {evaluation.topic_diversity}.")
@@ -75,7 +75,7 @@ class BERTopicExperimentLab:
       error=None
     )
     experiment_result.trials.append(result)
-    cache.save_bertopic_experiments(experiment_result, column.name)
+    cache.bertopic_experiments.save(experiment_result, column.name)
 
     return evaluation.coherence_v
   
@@ -97,7 +97,7 @@ class BERTopicExperimentLab:
       trials=[],
       end_at=None,
       last_updated_at=now,
-      started_at=now,
+      start_at=now,
     )
 
     experiment = functools.partial(
@@ -120,7 +120,7 @@ class BERTopicExperimentLab:
       callbacks=[]
     )
     experiment_result.end_at = datetime.datetime.now()
-    cache.save_bertopic_experiments(experiment_result, column.name)
+    cache.bertopic_experiments.save(experiment_result, column.name)
 
     self.task.success(experiment_result)
   

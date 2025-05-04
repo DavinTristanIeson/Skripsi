@@ -10,8 +10,7 @@ from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
   scheduler,
-  TaskLog, TaskResponse, 
-  TaskStatusEnum
+  TaskResponse
 )
 from modules.task.storage import AlternativeTaskResponse, TaskConflictResolutionBehavior, TaskStorage
 from modules.topic.model import TopicModelingResult
@@ -32,7 +31,7 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
 
   ProjectCacheManager().invalidate(config.project_id)
 
@@ -88,7 +87,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
 
 def __topic_modeling_status_alternative(cache: ProjectCache, column: TextualSchemaColumn):
   try:
-    topics = cache.load_topic(column.name)
+    topics = cache.topics.load(column.name)
   except ApiError:
     topics = None
   if topics is None:

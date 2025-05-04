@@ -1,3 +1,4 @@
+import functools
 import http
 from typing import Sequence, cast
 from controllers.project import ProjectCacheDependency
@@ -22,7 +23,7 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     cache = ProjectCacheManager().get(payload.project_id)
   
     config = cache.config
-    df = cache.load_workspace()
+    df = cache.workspaces.load()
     column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(payload.column, [SchemaColumnTypeEnum.Textual]))
 
     column.assert_internal_columns(df, with_preprocess=True, with_topics=False)
@@ -32,8 +33,8 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     mask = raw_documents.notna() & raw_documents != ''
     raw_documents = raw_documents[mask]
 
-    tm_result = cache.load_topic(column.name)
-    bertopic_model = cache.load_bertopic(column.name)
+    tm_result = cache.topics.load(column.name)
+    bertopic_model = cache.bertopic_models.load(column.name)
     proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
 
     proxy.log_pending(f"Evaluating the topics...")
@@ -44,7 +45,7 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     )
     proxy.log_success("Finished evaluating the topics.")
     proxy.success(result)
-    cache.save_topic_evaluation(result, column.name)
+    cache.topic_evaluations.save(result, column.name)
   
 def perform_topic_model_evaluation(request: EvaluateTopicModelResultTaskRequest):
   store = TaskStorage()
@@ -57,6 +58,16 @@ def perform_topic_model_evaluation(request: EvaluateTopicModelResultTaskRequest)
     conflict_resolution=TaskConflictResolutionBehavior.Ignore,
   )
 
+def __get_topic_model_evaluation_result_alternative_response(cache: ProjectCache, column: str):
+  try:
+    result = cache.topic_evaluations.load(column)
+  except ApiError:
+    return None
+  return AlternativeTaskResponse(
+    data=result,
+    message="The topics have already been evaluated before. Feel free to explore the discovered topics."
+  )
+
 def check_topic_model_evaluation_status(cache: ProjectCacheDependency, column: TextualSchemaColumn)->TaskResponse[TopicEvaluationResult]:
   config = cache.config
   request = EvaluateTopicModelResultTaskRequest(
@@ -65,9 +76,14 @@ def check_topic_model_evaluation_status(cache: ProjectCacheDependency, column: T
   )
 
   store = TaskStorage()
+  alternative_response = functools.partial(
+    __get_topic_model_evaluation_result_alternative_response,
+    cache=cache,
+    column=column.name,
+  )
   task_result = store.get_task_result(
     task_id=request.task_id,
-    alternative_response=None,
+    alternative_response=alternative_response,
   )
   if task_result is None:
     raise ApiError(f"Topic evaluation has not been started for \"{column.name}\" in project \"{config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)
@@ -97,11 +113,33 @@ def perform_topic_model_experiment(request: BERTopicExperimentTaskRequest):
     conflict_resolution=TaskConflictResolutionBehavior.Ignore
   )
 
+def __get_topic_model_experiment_result_alternative_response(cache: ProjectCache, column: str):
+  try:
+    result = cache.bertopic_experiments.load(column)
+  except ApiError:
+    return None
+  if result.end_at is not None:
+    return AlternativeTaskResponse(
+      data=result,
+      message=f"An experiment had been performed on {column} to find the optimal hyperparameters on {result.end_at.strftime('%Y-%m-%d %H:%M:%S')}."
+    )
+  else:
+    return AlternativeTaskResponse(
+      data=result,
+      message=f"There had been an experiment on {column} to find the optimal hyperparameters starting from {result.start_at.strftime('%Y-%m-%d %H:%M:%S')}, but that experiment did not finish successfully."
+    )
+
 def check_topic_model_experiment_status(cache: ProjectCache, request: BERTopicExperimentTaskRequest)->TaskResponse[TopicEvaluationResult]:
   store = TaskStorage()
+
+  alternative_response = functools.partial(
+    __get_topic_model_experiment_result_alternative_response,
+    cache=cache,
+    column=request.column,
+  )
   task_result = store.get_task_result(
     task_id=request.task_id,
-    alternative_response=None,
+    alternative_response=alternative_response,
   )
   if task_result is None:
     raise ApiError(f"Topic evaluation has not been started for \"{request.column}\" in project \"{cache.config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)

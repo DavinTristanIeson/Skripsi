@@ -59,7 +59,7 @@ class BERTopicExperimentTrialResult(pydantic.BaseModel):
 
 class BERTopicExperimentResult(pydantic.BaseModel):
   trials: list[BERTopicExperimentTrialResult]
-  started_at: datetime.datetime
+  start_at: datetime.datetime
   end_at: Optional[datetime.datetime]
   last_updated_at: datetime.datetime
 

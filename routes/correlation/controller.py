@@ -30,7 +30,7 @@ class TableCorrelationPreprocessModule:
     config = self.cache.config
 
     column = config.data_schema.assert_of_type(column_name, supported_types)
-    df = self.cache.load_workspace()
+    df = self.cache.workspaces.load()
 
     if column.name not in df.columns:
       raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", HTTPStatus.NOT_FOUND)
@@ -45,7 +45,7 @@ class TableCorrelationPreprocessModule:
     )
 
   def consume(self, partial1: TableCorrelationPreprocessPartialResult, partial2: TableCorrelationPreprocessPartialResult):
-    workspace = self.cache.load_workspace()
+    workspace = self.cache.workspaces.load()
     mask = partial1.mask & partial2.mask
     df = workspace.loc[mask, :]
         
@@ -63,7 +63,7 @@ class TableCorrelationPreprocessModule:
 
   def extract(self, df: pd.DataFrame, column: SchemaColumn, *, transform_topics: bool = True):
     if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
-      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(df[column.name])
       return cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
     
@@ -79,7 +79,7 @@ class TableCorrelationPreprocessModule:
   
   def label_binary_variable(self, binary_variables: pd.Series | np.ndarray, column: SchemaColumn):
     if column.type == SchemaColumnTypeEnum.Topic:
-      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_column = pd.Categorical(binary_variables).rename_categories(tm_result.renamer)
       return list(categorical_column.categories)
     else:
@@ -145,7 +145,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
   partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
   partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
 
-  workspace = cache.load_workspace()
+  workspace = cache.workspaces.load()
   total_count = len(workspace)
 
   df = preprocess.consume(partial1, partial2)

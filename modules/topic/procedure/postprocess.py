@@ -16,8 +16,6 @@ from ..bertopic_ext import (
 )
 
 from ..model import TopicModelingResult
-if TYPE_CHECKING:
-  from bertopic import BERTopic
 
 logger = ProvisionedLogger().provision("Topic Modeling")
 class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponent):
@@ -25,6 +23,7 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
     # Dependencies
     config = self.state.config
     column = self.state.column
+    cache = self.state.cache
     
     umap_model = BERTopicCachedUMAP(
       column=column,
@@ -45,6 +44,7 @@ class BERTopicVisualizationEmbeddingProcedureComponent(BERTopicProcedureComponen
       document_vectors = self.state.document_vectors
     
     vis_umap_model.fit_transform(document_vectors)
+    cache.visualization_vectors.invalidate()
 
     self.task.log_success(f"Finished mapping the document vectors to 2D. The visualization vectors have been stored in {vis_umap_model.embedding_path}.")
 
@@ -58,7 +58,7 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     cache = self.state.cache
     documents = self.state.documents
     model = self.state.model
-    df = cache.load_workspace()
+    df = cache.workspaces.load()
     mask = self.state.mask
 
     self.task.log_pending(f"Applying post-processing on the topics of \"{column.name}\"...")
@@ -85,8 +85,8 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     self.state.result = topic_modeling_result
     if self.can_save:
       cache = ProjectCacheManager().get(config.project_id)
-      cache.save_workspace(df)
-      cache.save_topic(topic_modeling_result, column.name)
+      cache.workspaces.save(df)
+      cache.topics.save(topic_modeling_result, column.name)
       ProjectCacheManager().invalidate(config.project_id)
 
 

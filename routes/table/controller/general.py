@@ -20,7 +20,7 @@ def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginati
   )
 
 def get_affected_rows(params: DatasetFilterSchema, cache: ProjectCache)->ApiResult[list[int]]:
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableEngine(cache.config)
   data = engine.filter(df, params.filter)
   return ApiResult(data=list(map(int, data.index)), message=None)

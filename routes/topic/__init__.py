@@ -41,7 +41,7 @@ def get__all_topic_modeling_results(cache: ProjectCacheDependency)->ApiResult[li
   topic_modeling_results: list[ColumnTopicModelingResultResource] = []
   for column in textual_columns:
     try:
-      result = cache.load_topic(column.name)
+      result = cache.topics.load(column.name)
     except ApiError:
       result = None
     topic_modeling_results.append(ColumnTopicModelingResultResource(

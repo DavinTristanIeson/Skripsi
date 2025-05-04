@@ -18,7 +18,7 @@ from modules.topic.model import Topic, TopicModelingResult
 
 
 def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableEngine(cache.config)
 
   column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
@@ -55,7 +55,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   )
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   config = cache.config
   column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
 
@@ -102,9 +102,9 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
   # Save model
-  cache.save_bertopic(bertopic_model, column.name)
-  cache.save_topic(new_tm_result, column.name)
-  cache.save_workspace(df)
+  cache.bertopic_models.save(bertopic_model, column.name)
+  cache.topics.save(new_tm_result, column.name)
+  cache.workspaces.save(df)
   # Invalidate tasks
   TaskStorage().invalidate(prefix=config.project_id)
   # Clean up experiments
@@ -117,10 +117,10 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
 
 
 def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn, tm_result: TopicModelingResult):
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   config = cache.config
   column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
-  bertopic_model = cache.load_bertopic(column.name)
+  bertopic_model = cache.bertopic_models.load(column.name)
 
   filtered_df = TableEngine(config).filter(df, body.filter)
   local_corpus = cast(Sequence[str], filtered_df[column.preprocess_column])
