@@ -8,6 +8,8 @@ from typing import Any, Callable, Generic, Optional, TypeVar, cast
 from fastapi.encoders import jsonable_encoder
 import pydantic
 
+from modules.storage.exceptions import UserDataEntryNotFoundException, UserDataUniquenessConstraintViolationException
+
 from .resource import UserDataResource, UserDataSchema
 from modules.api.wrapper import ApiError
 from modules.baseclass import Singleton
@@ -58,9 +60,9 @@ class UserDataStorageController(Generic[T]):
     unique_ids = set(map(lambda x: x.id, items))
     unique_names = set(map(lambda x: x.name, items))
     if candidate.id in unique_ids:
-      raise ApiError(f"ID \"{candidate.id}\" already exists.", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise UserDataUniquenessConstraintViolationException(id=candidate.id, name=None)
     if candidate.name in unique_names:
-      raise ApiError(f"The name \"{candidate.name}\" already exists. Please choose another name.", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise UserDataUniquenessConstraintViolationException(id=None, name=candidate.name)
 
   def read_file(self)->list[UserDataResource[T]]:
     if not os.path.exists(self.path):
@@ -134,7 +136,7 @@ class UserDataStorageController(Generic[T]):
           self.__assert_uniqueness_constraint(current_state, new_data)
           current_state.append(new_data)
         else:
-          raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
+          raise UserDataEntryNotFoundException(id=id, path=self.path)
 
       self.write_file(current_state)
     

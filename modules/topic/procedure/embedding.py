@@ -2,6 +2,7 @@
 from http import HTTPStatus
 from modules.api.wrapper import ApiError
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
+from modules.topic.exceptions import RequiresTopicModelingException
 
 from .base import BERTopicProcedureComponent
 
@@ -49,7 +50,10 @@ class BERTopicCacheOnlyEmbeddingProcedureComponent(BERTopicProcedureComponent):
     # Cache
     embeddings = embedding_model.load_cached_embeddings()
     if embeddings is None:
-      raise ApiError(f"There are no cached embeddings in \"{embedding_model.embedding_path}\". Please run the topic modeling algorithm first.", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise RequiresTopicModelingException(
+        issue=f"There are no cached embeddings in \"{embedding_model.embedding_path}\".",
+        column=column.name
+      )
     
     self.task.log_success(f"Using cached document vectors for \"{column.name}\" from \"{embedding_model.embedding_path}\".")
     self.state.document_vectors = embeddings

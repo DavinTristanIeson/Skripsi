@@ -6,6 +6,7 @@ import pandas as pd
 import pydantic
 
 from modules.config.context import ConfigSerializationContext
+from modules.config.schema.exceptions import DataFrameColumnFitException, MissingColumnInSchemaException, UnsyncedDatasetSchemaException, WrongSchemaColumnTypeException
 from modules.logger import ProvisionedLogger, TimeLogger
 from modules.api import ApiError
 from .schema_variants import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
@@ -104,13 +105,17 @@ class SchemaManager(pydantic.BaseModel):
       if col.name == name:
         column = col
     if column is None:
-      raise ApiError(f"Column \"{name}\" doesn't exist in the schema", http.HTTPStatus.NOT_FOUND)
+      raise MissingColumnInSchemaException(column=name)
     return column
   
   def assert_of_type(self, name: str, types: list[SchemaColumnTypeEnum])->SchemaColumn:
     column = self.assert_exists(name)
     if column.type not in types:
-      raise ApiError(f"This procedure requires that column \"{name}\" be one of these types: {', '.join(types)}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise WrongSchemaColumnTypeException(
+        column=column.name,
+        column_type=column.type,
+        types=types,
+      )
     return column
   
   def process_columns(self, df: pd.DataFrame):
@@ -125,17 +130,22 @@ class SchemaManager(pydantic.BaseModel):
         col.fit(df)
       except Exception as e:
         logger.error(e)
-        raise ApiError(f"An error has occurred while fitting \"{col.name}\": {e}. Please check if your dataset matches your column configuration.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+        raise DataFrameColumnFitException(
+          column=col.name,
+          error=e,
+        )
 
   def _ensure_columns_in_df(self, raw_df: pd.DataFrame):
+    column_targets = list(map(lambda col: col.name, self.non_internal()))
+    non_existent_schema_columns = set(column_targets).difference(raw_df.columns)
+    if len(non_existent_schema_columns) > 0:
+      raise UnsyncedDatasetSchemaException(non_existent_schema_columns)
     try:
-      column_targets = list(map(lambda col: col.name, self.non_internal()))
       df = raw_df.loc[:, column_targets]
       return df
     except (IndexError, KeyError) as e:
-      logger.error(e)
-      raise ApiError(f"The columns specified in the project configuration does not match the column in the dataset. Please remove this column from the project configuration if they do not exist in the dataset: {e.args}", http.HTTPStatus.NOT_FOUND)
-
+      raise UnsyncedDatasetSchemaException(non_existent_schema_columns)
+    
   def fit(self, raw_df: pd.DataFrame)->pd.DataFrame:
     df = self._ensure_columns_in_df(raw_df)
     logger.debug(f"Fitting dataframe with columns: {raw_df.columns} with the following columns {list(map(lambda col: col.name, self.columns))}")

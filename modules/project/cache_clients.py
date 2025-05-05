@@ -65,9 +65,9 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
       ))
       return loaded_value
     
-  def clear(self):
+  def invalidate(self):
     self.cache.clear()
-
+  
 @dataclass
 class ConfigCacheAdapter:
   project_id: str
@@ -92,7 +92,7 @@ class ConfigCacheAdapter:
     ))
     return config
   
-  def clear(self):
+  def invalidate(self):
     self.cache.clear()
   
 @dataclass
@@ -135,7 +135,7 @@ class WorkspaceCacheAdapter:
       value=df
     ))
 
-  def clear(self):
+  def invalidate(self):
     self.cache.clear()
 
 class TopicModelingResultCacheAdapter(ProjectCacheAdapter[TopicModelingResult]):

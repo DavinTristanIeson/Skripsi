@@ -13,6 +13,7 @@ from sklearn.pipeline import Pipeline
 
 from modules.api.wrapper import ApiError
 from modules.config import TextualSchemaColumn
+from modules.exceptions.dependencies import DependencyImportException, InvalidValueTypeException
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config.schema.textual import DocumentEmbeddingMethodEnum
@@ -64,7 +65,10 @@ class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransfor
       from gensim.models import Doc2Vec
       return Doc2Vec(dm=0, dbow_words=0, min_count=1, vector_size=100)
     except ImportError:
-      raise ApiError("The gensim library must be installed before Doc2Vec document embedding can be performed.", http.HTTPStatus.BAD_REQUEST)
+      raise DependencyImportException(
+        name="gensim",
+        purpose="Doc2Vec document embedding can be performed"
+      )
   
 @dataclass
 class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel, BaseEstimator, TransformerMixin):
@@ -104,7 +108,10 @@ class SbertEmbeddingModel(_BaseDocumentEmbeddingModel, BaseEstimator, Transforme
     try:
       from sentence_transformers import SentenceTransformer
     except ImportError:
-      raise ApiError("The sentence_transformers library must be installed before SBERT document embedding can be performed.", 400)
+      raise DependencyImportException(
+        name="sentence_transformers",
+        purpose="SBERT document embedding can be performed"
+      )
     return SentenceTransformer("all-MiniLM-L6-v2")
 
   def fit(self, X: Sequence[str]):
@@ -178,7 +185,7 @@ class BERTopicEmbeddingModelFactory:
     elif embedding_method == DocumentEmbeddingMethodEnum.LSA:
       return LsaEmbeddingModel(project_id=self.project_id, column=self.column)
     else:
-      raise ApiError(f"Invalid document embedding method: {self.column.topic_modeling.embedding_method}", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise InvalidValueTypeException(value=self.column.topic_modeling.embedding_method, type="document embedding method")
  
 SupportedBERTopicEmbeddingModels = Union[SbertEmbeddingModel, Doc2VecEmbeddingModel, LsaEmbeddingModel]
 

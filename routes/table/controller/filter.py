@@ -4,6 +4,7 @@ from typing import Optional, Sequence, cast
 import numpy as np
 import pandas as pd
 from modules.api import ApiResult
+from modules.exceptions.dependencies import InvalidValueTypeException
 from modules.table.filter_variants import TableFilter
 from routes.table.model import (
   DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
@@ -234,7 +235,10 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
   elif params.method == TableColumnAggregateMethodEnum.Mean:
     data = grouped.mean()
   else:
-    raise ValueError(f"\"{params.method}\" is not a valid aggregation method.")
+    raise InvalidValueTypeException(
+      value=params.method,
+      type="aggregation method",
+    )
   
   data.dropna(inplace=True)
   if len(data) == 0:

@@ -11,6 +11,7 @@ import pandas as pd
 from modules.api.enum import ExposedEnum
 from modules.api.wrapper import ApiError
 from modules.config.context import ConfigSerializationContext
+from modules.config.schema.exceptions import MissingTextualColumnInternalColumnsException
 from modules.validation import DiscriminatedUnionValidator
 
 from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
@@ -189,11 +190,10 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
     )
   
   def assert_internal_columns(self, df: pd.DataFrame, *, with_preprocess: bool, with_topics: bool):
-    SHARED = f"If you haven't run the topic modeling algorithm before, please run the topic modeling algorithm first from the \"Topics\" page. If you have already executed the topic modeling procedure before, it is likely that the topic-related files are missing or corrupted."
     if self.preprocess_column.name not in df.columns and with_preprocess:
-      raise ApiError(f"There are no cached preprocessed documents in the dataframe. {SHARED}", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise MissingTextualColumnInternalColumnsException("preprocess")
     if self.topic_column.name not in df.columns and with_topics:
-      raise ApiError(f"There are no cached topics in the dataframe. Please run the topic modeling algorithm first. {SHARED}", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise MissingTextualColumnInternalColumnsException("topics")
 
   def get_internal_columns(self)->list["SchemaColumn"]:
     return [

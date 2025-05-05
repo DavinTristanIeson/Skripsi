@@ -7,6 +7,7 @@ import shutil
 from modules.api import ApiError
 from modules.exceptions.files import FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
+from modules.storage.exceptions import FileSystemCleanupError
 
 logger = ProvisionedLogger().provision("AbstractPathManager")
 class AbstractPathManager(abc.ABC):
@@ -45,20 +46,28 @@ class AbstractPathManager(abc.ABC):
     directories_str = ', '.join(map(lambda dir: f'"{dir}"', directories))
     files_str = ', '.join(map(lambda file: f'"{file}"', files))
     logger.info(f"Cleaning up the following directories: {directories_str}; and files: {files_str}.")
-    try:
-      for rawdir in directories:
-        dir = self.full_path(rawdir)
+    for rawdir in directories:
+      dir = self.full_path(rawdir)
+      try:
         if os.path.exists(dir):
           shutil.rmtree(dir)
           logger.debug(f"Deleted directory: \"{dir}\".")
-      for rawfile in files:
-        file = self.full_path(rawfile)
+      except Exception as e:
+        raise FileSystemCleanupError(
+          path=dir,
+          error=e
+        )
+    for rawfile in files:
+      file = self.full_path(rawfile)
+      try:
         if os.path.exists(file):
           os.remove(file)
-          logger.debug(f"Deleted file: \"{file}\".")
-    except Exception as e:
-      logger.error(f"An error has occurred while deleting directories and/or files from \"{self.base_path}\". Error => {e}")
-      raise ApiError(f"An unexpected error has occurred while cleaning up the \"{self.base_path}\" folder: {e}", http.HTTPStatus.INTERNAL_SERVER_ERROR)
+        logger.debug(f"Deleted file: \"{file}\".")
+      except Exception as e:
+        raise FileSystemCleanupError(
+          path=file,
+          error=e
+        )
     
     if os.path.exists(self.base_path):
       remaining_files = os.listdir(self.base_path)
@@ -67,8 +76,10 @@ class AbstractPathManager(abc.ABC):
           os.rmdir(self.base_path)
           logger.info(f"Deleted {self.base_path} as there are no remaining files.")
         except Exception as e:
-          logger.error(f"An error has occurred while deleting \"{self.base_path}\". Error => {e}")
-          raise ApiError(f"An unexpected error has occurred while cleaning up the \"{self.base_path}\" folder: {e}", http.HTTPStatus.INTERNAL_SERVER_ERROR)
+          raise FileSystemCleanupError(
+            path=self.base_path,
+            error=e
+          )
       else:
         logger.warning(f"Skipping the deletion of \"{self.base_path}\" as there are non-deleted files in the folder: {remaining_files}")
   

@@ -86,13 +86,13 @@ class ProjectCache:
     
   def invalidate(self):
     with self.lock:
-      self.config_cache.clear()
-      self.workspaces.clear()
-      self.topics.clear()
-      self.bertopic_models.clear()
-      self.visualization_vectors.clear()
-      self.topic_evaluations.clear()
-      self.bertopic_experiments.clear()
+      self.config_cache.invalidate()
+      self.workspaces.invalidate()
+      self.topics.invalidate()
+      self.bertopic_models.invalidate()
+      self.visualization_vectors.invalidate()
+      self.topic_evaluations.invalidate()
+      self.bertopic_experiments.invalidate()
 
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]

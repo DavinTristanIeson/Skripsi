@@ -6,7 +6,8 @@ import pandas as pd
 from modules.api.wrapper import ApiError
 from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.effect_size import CramerVEffectSize, GroupEffectSizeFactory, GroupEffectSizeMethodEnum
-from modules.comparison.engine import TableComparisonEmptyException, TableComparisonEngine
+from modules.comparison.engine import TableComparisonEngine
+from modules.comparison.exceptions import EmptyComparisonGroupException
 from modules.comparison.statistic_test import ChiSquaredStatisticTest, GroupStatisticTestFactory, StatisticTestMethodEnum
 from modules.comparison.utils import _check_chisq_contingency_table
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
@@ -183,7 +184,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
           statistic_test_preference=input.statistic_test_preference,
           effect_size_preference=input.effect_size_preference,
         )
-      except TableComparisonEmptyException as e:
+      except EmptyComparisonGroupException as e:
         continue
 
       yes_count = result.groups[0].valid_count
@@ -199,7 +200,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
       ))
 
   if len(results) == 0:
-    raise ValueError(f"There are no valid subdatasets that can be made using {partial1.column.name}. This might be a developer error.")
+    raise ApiError(f"There are no valid subdatasets that can be made using {partial1.column.name}.", HTTPStatus.UNPROCESSABLE_ENTITY)
   
   statistic_test_method = GroupStatisticTestFactory(
     column=partial2.column,

@@ -9,6 +9,7 @@ from modules.api import ExposedEnum
 from modules.comparison.statistic_test import GroupStatisticTestMethodEnum
 from modules.comparison.utils import _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare, cramer_v
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
+from modules.exceptions.dependencies import InvalidValueTypeException
 
 from .base import _BaseEffectSize, EffectSizeResult, _StatisticTestValidityModel
 
@@ -176,7 +177,7 @@ class EffectSizeFactory:
     elif self.preference == EffectSizeMethodEnum.CramerV:
       return CramerVEffectSize(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"\"{self.preference}\" is not a valid effect size.")
+      raise InvalidValueTypeException(type="effect size", value=self.preference)
     
 class EtaSquaredEffectSize(_BaseEffectSize):
   @classmethod
@@ -244,7 +245,7 @@ class GroupEffectSizeFactory:
     elif self.preference == GroupEffectSizeMethodEnum.CramerV:
       return CramerVEffectSize(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"\"{self.preference}\" is not a valid effect size.")
+      raise InvalidValueTypeException(type="effect size", value=self.preference)
     
   def from_statistic_test(self, method: GroupStatisticTestMethodEnum):
     if method == GroupStatisticTestMethodEnum.ANOVA:
@@ -254,7 +255,7 @@ class GroupEffectSizeFactory:
     elif method == GroupStatisticTestMethodEnum.ChiSquared:
       return CramerVEffectSize(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"\"{method}\" is not a valid statistic test method.")
+      raise InvalidValueTypeException(type="effect size", value=self.preference)
     
     
 __all__ = [

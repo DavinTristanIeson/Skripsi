@@ -1,15 +1,12 @@
-import http
 from typing import Sequence, cast
 
 import numpy as np
-import pandas as pd
-from modules.api.wrapper import ApiError, ApiResult
+from modules.api.wrapper import ApiResult
 from modules.comparison import TableComparisonEngine
-from modules.comparison.engine import TableComparisonEmptyException
 from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
 from modules.project.cache import ProjectCache
 from modules.table import TableEngine, AndTableFilter, NotEmptyTableFilter
-from modules.topic.bertopic_ext import BERTopicModelBuilder, BERTopicInterpreter
+from modules.topic.bertopic_ext import BERTopicInterpreter
 
 from .model import (
   ComparisonStatisticTestSchema,
@@ -34,15 +31,12 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
     groups=[params.group1, params.group2],
     exclude_overlapping_rows=params.exclude_overlapping_rows
   )
-  try:
-    result = engine.compare(
-      df,
-      column_name=params.column,
-      statistic_test_preference=params.statistic_test_preference,
-      effect_size_preference=params.effect_size_preference,
-    )
-  except TableComparisonEmptyException as e:
-    raise ApiError(e.args[0], http.HTTPStatus.BAD_REQUEST)
+  result = engine.compare(
+    df,
+    column_name=params.column,
+    statistic_test_preference=params.statistic_test_preference,
+    effect_size_preference=params.effect_size_preference,
+  )
   
   return ApiResult(
     data=result,
