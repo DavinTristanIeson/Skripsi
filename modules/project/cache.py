@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import functools
 import http
+import os
 import threading
 from typing import TYPE_CHECKING, cast
 import numpy as np
@@ -121,7 +122,12 @@ class ProjectCacheManager(metaclass=Singleton):
 @functools.lru_cache(2)
 def get_cached_data_source(source: "DataSource"):
   logger.info(f"Loaded data source from {source}")
-  return source.load()
+  if not os.path.exists(source.path):
+    raise ApiError(f"We were unable to find any dataset files in \"{source.path}\". Please check your dataset path again and ensure that it exists.", http.HTTPStatus.NOT_FOUND)
+  try:
+    return source.load()
+  except Exception as e:
+    raise ApiError(f"The dataset in \"{source.path}\" cannot be loaded due to the following reason: {str(e)}. Please make sure that your dataset file is a valid {source.type.upper()} file.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
 
 __all__ = [
   "ProjectCacheManager",

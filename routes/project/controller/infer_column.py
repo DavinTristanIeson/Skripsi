@@ -1,8 +1,7 @@
 import http
-from typing import Any, Optional, cast
+from typing import Optional
 
 import pandas as pd
-import numpy as np
 
 from modules.table.serialization import serialize_pandas
 from routes.table.model import DescriptiveStatisticsResource

@@ -8,7 +8,7 @@ from routes.table.model import (
   GetTableGeographicalColumnSchema, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
-  TableWordsResource
+  TableWordFrequenciesResource
 )
 from modules.api.wrapper import ApiResult
 from modules.table import PaginationParams
@@ -76,7 +76,7 @@ async def post__get_table_column__unique(body: GetTableColumnSchema, cache: Proj
   return get_column_unique_values(body, cache)
 
 @router.post("/column/word-frequencies")
-async def post__get_table_column__word_frequencies(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableWordsResource]:
+async def post__get_table_column__word_frequencies(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableWordFrequenciesResource]:
   return get_column_word_frequencies(body, cache)
 
 @router.post("/column/topic-words")
