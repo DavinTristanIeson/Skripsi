@@ -66,6 +66,10 @@ def task_execution_context(proxy: TaskStorageProxy):
   except Exception as e:
     logger.exception(e)
     proxy.response.status = TaskStatusEnum.Failed
+    proxy.response.logs.append(TaskLog(
+      message=f"Task failed with the following error: {e}",
+      status=TaskStatusEnum.Failed,
+    ))
 
 TaskHandlerFn = Callable[[TaskStorageProxy], None]
 
@@ -85,6 +89,7 @@ class TaskStorage(metaclass=Singleton):
   lock: threading.RLock
   def __init__(self) -> None:
     self.results = {}
+    self.stop_events = {}
     self.lock = threading.RLock()
 
   def get_proxy(self, task_id: str):
@@ -143,11 +148,6 @@ class TaskStorage(metaclass=Singleton):
         for task_id in affected_task_ids:
           self.__invalidate_singular(task_id)
         
-  def has_running_task(self, task_id: str):
-    status = self.get_task_status(task_id)
-    has_existing_job = status is not None and status.is_running
-    return has_existing_job
-  
   def proxy_context(self, task_id: str):
     return task_execution_context(self.get_proxy(task_id))
   
@@ -159,7 +159,8 @@ class TaskStorage(metaclass=Singleton):
     conflict_resolution: TaskConflictResolutionBehavior
   ):
     # If status is not None, the task exists.
-    has_existing_job = self.has_running_task(task_id)
+    status = self.get_task_status(task_id)
+    has_existing_job = status is not None and (status == TaskStatusEnum.Idle or status == TaskStatusEnum.Pending)
     if has_existing_job:
       if conflict_resolution == TaskConflictResolutionBehavior.Ignore:
         # Don't add task.

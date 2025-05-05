@@ -38,7 +38,6 @@ def get_all_projects():
       try:
         projects.append(ProjectResource.from_config(cache.config))
       except FileLoadingException as e:
-        logger.error(f"Failed to load the config in \"{folder}\" due to: {e}")
         continue
 
   return ApiResult(

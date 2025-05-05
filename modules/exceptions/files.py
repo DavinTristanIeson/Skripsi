@@ -33,7 +33,7 @@ class FileNotExistsException(FileLoadingException):
   
   @staticmethod
   def verify(path:str, *, error: str):
-    if os.path.exists(path):
+    if not os.path.exists(path):
       raise FileNotExistsException(error)
   
 @dataclass

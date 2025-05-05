@@ -14,14 +14,6 @@ class TaskStatusEnum(str, Enum):
   Success = "success"
   Failed = "failed"
 
-  @property
-  def is_finished(self):
-    return self == TaskStatusEnum.Failed or self == TaskStatusEnum.Success
-  @property
-  def is_running(self):
-    return self == TaskStatusEnum.Idle or self == TaskStatusEnum.Pending
-
-
 ExposedEnum().register(TaskStatusEnum)
 
 

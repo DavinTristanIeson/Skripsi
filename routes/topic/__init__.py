@@ -7,8 +7,10 @@ from modules.exceptions.files import FileLoadingException
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse
+from modules.topic.evaluation.model import TopicEvaluationResult
+from modules.topic.experiments.model import BERTopicExperimentResult
 from modules.topic.model import TopicModelingResult
-from routes.topic.controller.evaluation import check_topic_model_experiment_status, perform_topic_model_evaluation, perform_topic_model_experiment
+from routes.topic.controller.evaluation import check_topic_model_evaluation_status, check_topic_model_experiment_status, perform_topic_model_evaluation, perform_topic_model_experiment
 
 from .controller import (
   get_document_visualization_results, get_topic_visualization_results,
@@ -116,22 +118,26 @@ def post__start_topic_evaluation(
   cache: ProjectCacheDependency,
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
-):
-  return perform_topic_model_evaluation(EvaluateTopicModelResultTaskRequest(
-    project_id=cache.config.project_id,
-    column=column.name,
-  ))
+)->ApiResult[None]:
+  perform_topic_model_evaluation(
+    cache=cache,
+    column=column,
+  )
+  return ApiResult(
+    data=None,
+    message=f"Started the evaluation of the topics of \"{column.name}\". This process may take a while."
+  )
 
 @router.get('/evaluation/status')
 def get__topic_evaluation_status(
   cache: ProjectCacheDependency,
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
-):
-  return perform_topic_model_evaluation(EvaluateTopicModelResultTaskRequest(
-    project_id=cache.config.project_id,
-    column=column.name,
-  ))
+)->TaskResponse[TopicEvaluationResult]:
+  return check_topic_model_evaluation_status(
+    cache=cache,
+    column=column
+  )
 
 @router.post('/experiment/start')
 def post__topic_experiment(
@@ -139,23 +145,28 @@ def post__topic_experiment(
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
   body: TopicModelExperimentSchema
-):
-  return perform_topic_model_experiment(BERTopicExperimentTaskRequest(
-    project_id=cache.config.project_id,
-    column=column.name,
-    constraint=body.constraint,
-    n_trials=body.n_trials,
-  ))
+)->ApiResult[None]:
+  perform_topic_model_experiment(
+    cache=cache,
+    column=column,
+    body=body
+  )
+  return ApiResult(
+    data=None,
+    message=f"Started the hyperparameter optimization on the documents of \"{column.name}\". This process may take a while."
+  )
 
 @router.get('/experiment/status')
 def get__topic_experiment_status(
   cache: ProjectCacheDependency,
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
-):
-  return check_topic_model_experiment_status(BERTopicExperimentTaskRequest(
-    project_id=cache.config.project_id,
-    column=column.name,
-    constraint=None, # type: ignore
-    n_trials=0, # type: ignore
-  ))
+)->TaskResponse[BERTopicExperimentResult]:
+  return check_topic_model_experiment_status(
+    cache=cache,
+    column=column,
+    body=TopicModelExperimentSchema(
+      constraint=None, # type: ignore
+      n_trials=0, # type: ignore
+    )
+  )
