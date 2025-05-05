@@ -82,10 +82,10 @@ class AlternativeTaskResponse:
 class TaskStorage(metaclass=Singleton):
   results: dict[str, TaskResponse]
   stop_events: dict[str, threading.Event]
-  lock: threading.Lock
+  lock: threading.RLock
   def __init__(self) -> None:
     self.results = {}
-    self.lock = threading.Lock()
+    self.lock = threading.RLock()
 
   def get_proxy(self, task_id: str):
     response = self.results.get(task_id, None)

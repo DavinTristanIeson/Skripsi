@@ -29,9 +29,9 @@ logger = ProvisionedLogger().provision("ProjectCache")
 @dataclass
 class ProjectCache:
   id: str
-  lock: threading.Lock
+  lock: threading.RLock
 
-  def __init__(self, project_id: str, lock: threading.Lock):
+  def __init__(self, project_id: str, lock: threading.RLock):
     self.project_id = project_id
     self.lock = lock
     self.config_cache = ConfigCacheAdapter(
@@ -96,11 +96,11 @@ class ProjectCache:
 
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]
-  lock: threading.Lock
+  lock: threading.RLock
   def __init__(self):
     super().__init__()
     self.projects = dict()
-    self.lock = threading.Lock()
+    self.lock = threading.RLock()
 
   def get(self, project_id: str)->ProjectCache:
     with self.lock:

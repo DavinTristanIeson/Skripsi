@@ -23,14 +23,14 @@ logger = ProvisionedLogger().provision("UserDataStorageController")
 
         
 class _UserDataStorageLockManager(metaclass=Singleton):
-  __locks: dict[str, threading.Lock]
+  __locks: dict[str, threading.RLock]
   def __init__(self):
     self.__locks = {}
 
   def provision(self, storage_path: str):
     lock = self.__locks.get(storage_path, None)
     if lock is None:
-      lock = threading.Lock()
+      lock = threading.RLock()
       self.__locks[storage_path] = lock
     return lock
 

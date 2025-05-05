@@ -29,7 +29,7 @@ class CacheClient(Generic[T]):
   name: str
   maxsize: Optional[int]
   ttl: Optional[int]
-  lock: threading.Lock = field(default_factory=lambda: threading.Lock(), init=False)
+  lock: threading.RLock = field(default_factory=lambda: threading.RLock(), init=False)
   records: OrderedDict[str, CacheItem[T]] = field(default_factory=lambda: OrderedDict(), init=False)
 
   def get(self, key: str)->Optional[T]:
