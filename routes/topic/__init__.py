@@ -1,12 +1,14 @@
+from http import HTTPStatus
 from fastapi import APIRouter
 
 from controllers.project import ProjectCacheDependency
 from controllers.topic import TextualSchemaColumnDependency, TopicModelingResultDependency
-from modules.api.wrapper import ApiResult
+from modules.api.wrapper import ApiError, ApiResult
 from modules.exceptions.files import FileLoadingException
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
-from modules.task.responses import TaskResponse
+from modules.task.responses import TaskResponse, TaskStatusEnum
+from modules.task.storage import TaskStorage
 from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.topic.experiments.model import BERTopicExperimentResult
 from modules.topic.model import TopicModelingResult
@@ -19,7 +21,7 @@ from .controller import (
   check_topic_modeling_status, start_topic_modeling
 )
 from .model import (
-  ColumnTopicModelingResultResource, DocumentPerTopicResource,
+  BERTopicExperimentTaskRequest, ColumnTopicModelingResultResource, DocumentPerTopicResource,
   DocumentTopicsVisualizationResource, RefineTopicsSchema,
   StartTopicModelingSchema, TopicModelExperimentSchema, TopicVisualizationResource, TopicsOfColumnSchema
 )
@@ -162,6 +164,28 @@ def post__topic_experiment(
     data=None,
     message=f"Started the hyperparameter optimization on the documents of \"{column.name}\". This process may take a while."
   )
+
+@router.patch('/experiment/cancel')
+def patch__cancel_topic_experiment(
+  cache: ProjectCacheDependency,
+  column: TextualSchemaColumnDependency,
+)->ApiResult[None]:
+  request = BERTopicExperimentTaskRequest(
+    project_id=cache.config.project_id,
+    column=column.name,
+    constraint=None, # type: ignore
+    n_trials=0,
+  )
+  taskmaster = TaskStorage()
+  status = taskmaster.get_task_status(request.task_id)
+  if status == TaskStatusEnum.Idle or status == TaskStatusEnum.Pending:
+    taskmaster.invalidate(task_id=request.task_id, clear=False)
+    return ApiResult(
+      data=None,
+      message=f"The topic model experiments for \"{column.name}\" has been cancelled abruptly."
+    )
+  else:
+    raise ApiError(f"There are no running topic model experiments for \"{column.name}\"", HTTPStatus.BAD_REQUEST)
 
 @router.get('/experiment/status')
 def get__topic_experiment_status(

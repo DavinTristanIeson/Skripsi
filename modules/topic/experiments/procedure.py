@@ -61,7 +61,7 @@ class BERTopicExperimentLab:
       self.task.log_error(f"Failed to run a trial for the following hyperparameters: {candidate} due to the following error: {str(e)}.")
       result = BERTopicExperimentTrialResult(
         evaluation=None,
-        topic_modeling_config=state.column.topic_modeling,
+        candidate=candidate,
         error=str(e),
       )
       experiment_result.trials.append(result)
@@ -71,7 +71,7 @@ class BERTopicExperimentLab:
     self.task.log_success(f"Finished running a trial for the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v} and diversity of {evaluation.topic_diversity}.")
     result = BERTopicExperimentTrialResult(
       evaluation=evaluation,
-      topic_modeling_config=state.column.topic_modeling,
+      candidate=candidate,
       error=None
     )
     experiment_result.trials.append(result)

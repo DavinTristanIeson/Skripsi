@@ -63,7 +63,7 @@ class TopicsOfColumnSchema(pydantic.BaseModel):
   filter: Optional[TableFilter]
 
 class TopicModelExperimentSchema(pydantic.BaseModel):
-  n_trials: int = pydantic.Field(ge=10)
+  n_trials: int = pydantic.Field(ge=5)
   constraint: BERTopicHyperparameterConstraint
 
 # Resource

@@ -122,7 +122,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
-  TaskStorage().invalidate(prefix=new_config.project_id)
+  TaskStorage().invalidate(prefix=new_config.project_id, clear=True)
   new_config.paths._cleanup([], cleanup_targets)
 
   return ApiResult(
@@ -138,7 +138,7 @@ def delete_project(config: Config):
   config.paths.cleanup(all=True)
   scheduler.remove_all_jobs(topic_modeling_job_store)
   ProjectCacheManager().invalidate(config.project_id)
-  TaskStorage().invalidate(prefix=config.project_id)
+  TaskStorage().invalidate(prefix=config.project_id, clear=True)
 
   return ApiResult(
     data=None,

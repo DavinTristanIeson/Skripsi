@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class BERTopicHyperparameterCandidate(pydantic.BaseModel):
   min_topic_size: Optional[int]
   max_topics: Optional[int]
-  clustering_conservativeness: Optional[float]
+  topic_confidence_threshold: Optional[int]
 
   def apply(self, column: TextualSchemaColumn):
     column = column.model_copy(deep=True)
@@ -26,14 +26,14 @@ class BERTopicHyperparameterCandidate(pydantic.BaseModel):
       column.topic_modeling.min_topic_size = self.min_topic_size
     if self.max_topics is not None:
       column.topic_modeling.max_topics = self.max_topics
-    if self.clustering_conservativeness is not None:
-      column.topic_modeling.clustering_conservativeness = self.clustering_conservativeness
+    if self.topic_confidence_threshold is not None:
+      column.topic_modeling.topic_confidence_threshold = self.topic_confidence_threshold
     return column
 
 class BERTopicHyperparameterConstraint(pydantic.BaseModel):
   min_topic_size: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
   max_topics: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
-  clustering_conservativeness: Annotated[Optional[tuple[float, float]], StartBeforeEndValidator]
+  topic_confidence_threshold: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
 
   def suggest(self, trial: "Trial")->BERTopicHyperparameterCandidate:
     min_topic_size = self.min_topic_size and trial.suggest_int(
@@ -42,17 +42,17 @@ class BERTopicHyperparameterConstraint(pydantic.BaseModel):
     max_topics = self.max_topics and trial.suggest_int(
       "max_topics", self.max_topics[0], self.max_topics[1]
     )
-    clustering_conservativeness = self.clustering_conservativeness and trial.suggest_float(
-      "clustering_conservativeness", self.clustering_conservativeness[0], self.clustering_conservativeness[1]
+    topic_confidence_threshold = self.topic_confidence_threshold and trial.suggest_int(
+      "topic_confidence_threshold", self.topic_confidence_threshold[0], self.topic_confidence_threshold[1]
     )
     return BERTopicHyperparameterCandidate(
-      clustering_conservativeness=clustering_conservativeness,
+      topic_confidence_threshold=topic_confidence_threshold,
       max_topics=max_topics,
       min_topic_size=min_topic_size
     )
 
 class BERTopicExperimentTrialResult(pydantic.BaseModel):
-  topic_modeling_config: TopicModelingConfig
+  candidate: BERTopicHyperparameterCandidate
   evaluation: Optional[TopicEvaluationResult]
   error: Optional[str]
   timestamp: datetime.datetime = pydantic.Field(default_factory=lambda: datetime.datetime.now())

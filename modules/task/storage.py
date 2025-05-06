@@ -113,15 +113,11 @@ class TaskStorage(metaclass=Singleton):
       return None
     return result.status
   
-  def __invalidate_singular(self, task_id: str):
+  def __invalidate_singular(self, task_id: str, *, clear: bool):
     stop_event = self.stop_events.get(task_id, None)
     if stop_event is not None:
       stop_event.set()
       self.stop_events.pop(task_id)
-
-    if task_id in self.results:
-      # Remove task
-      self.results.pop(task_id)
     
     has_apscheduler_job = scheduler.get_job(task_id) is not None
     if has_apscheduler_job:
@@ -129,24 +125,29 @@ class TaskStorage(metaclass=Singleton):
         scheduler.remove_job(task_id)
       except JobLookupError:
         pass
+
+    if clear:
+      if task_id in self.results:
+        # Remove task
+        self.results.pop(task_id)
     logger.warning(f"Task {task_id} has been invalidated")
 
-  
   def invalidate(
     self, *,
+    clear: bool,
     task_id: Optional[str] = None,
     prefix: Optional[str] = None
   ):
     with self.lock:
       if task_id is not None:
         logger.warning(f"Requesting the invalidation of task {task_id}")
-        self.__invalidate_singular(task_id)
+        self.__invalidate_singular(task_id, clear=clear)
 
       if prefix is not None:
         logger.warning(f"Requesting the invalidation of task with prefix {prefix}")
         affected_task_ids = filter(lambda key: key.startswith(prefix), self.stop_events.keys())
         for task_id in affected_task_ids:
-          self.__invalidate_singular(task_id)
+          self.__invalidate_singular(task_id, clear=clear)
         
   def proxy_context(self, task_id: str):
     return task_execution_context(self.get_proxy(task_id))
@@ -168,7 +169,7 @@ class TaskStorage(metaclass=Singleton):
         return
       if conflict_resolution == TaskConflictResolutionBehavior.Cancel:
         # Cancel existing task
-        self.invalidate(task_id=task_id)
+        self.invalidate(task_id=task_id, clear=True)
 
     scheduler.add_job(
       task,

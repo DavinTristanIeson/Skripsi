@@ -106,7 +106,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   cache.topics.save(new_tm_result, column.name)
   cache.workspaces.save(df)
   # Invalidate tasks
-  TaskStorage().invalidate(prefix=config.project_id)
+  TaskStorage().invalidate(prefix=config.project_id, clear=True)
   # Clean up experiments
   config.paths.cleanup_topic_experiments()
 

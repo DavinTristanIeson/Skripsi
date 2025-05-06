@@ -57,9 +57,8 @@ async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource
   )
 
 @router.post('/')
-async def create__project(body: ProjectMutationSchema, lock: ProjectLockDependency)->ApiResult[ProjectResource]:
-  with lock:
-    return create_project(body)
+async def create__project(body: ProjectMutationSchema)->ApiResult[ProjectResource]:
+  return create_project(body)
 
 @router.put('/{project_id}')
 async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSchema)->ApiResult[ProjectResource]:
