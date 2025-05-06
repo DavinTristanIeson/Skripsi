@@ -19,8 +19,8 @@ from .controller import (
   check_topic_modeling_status, start_topic_modeling
 )
 from .model import (
-  BERTopicExperimentTaskRequest, ColumnTopicModelingResultResource, DocumentPerTopicResource,
-  DocumentTopicsVisualizationResource, EvaluateTopicModelResultTaskRequest, RefineTopicsSchema,
+  ColumnTopicModelingResultResource, DocumentPerTopicResource,
+  DocumentTopicsVisualizationResource, RefineTopicsSchema,
   StartTopicModelingSchema, TopicModelExperimentSchema, TopicVisualizationResource, TopicsOfColumnSchema
 )
 
@@ -31,6 +31,7 @@ router = APIRouter(
 
 @router.post("/start")
 def post__start_topic_modeling(body: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumnDependency)->ApiResult[None]:
+  # WARN DATA RACE
   return start_topic_modeling(body, cache, column)
 
 @router.get("/status")
@@ -70,11 +71,13 @@ def put__refine_topics(
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency
 )->ApiResult[None]:
-  return refine_topics(
-    cache=cache,
-    body=body,
-    column=column,
-  )
+  # WARN DATA RACE
+  with cache.lock:
+    return refine_topics(
+      cache=cache,
+      body=body,
+      column=column,
+    )
 
 @router.post("/documents")
 def post__documents_per_topic(
@@ -119,6 +122,8 @@ def post__start_topic_evaluation(
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
 )->ApiResult[None]:
+  # WARN DATA RACE
+  # This is a long task, can't keep the lock on. Fortunately, ProjectCache has its own threading lock so we're fine.
   perform_topic_model_evaluation(
     cache=cache,
     column=column,
@@ -146,6 +151,8 @@ def post__topic_experiment(
   topic_modeling_result: TopicModelingResultDependency,
   body: TopicModelExperimentSchema
 )->ApiResult[None]:
+  # WARN DATA RACE
+  # This is a long task, can't keep the lock on. Fortunately, ProjectCache has its own threading lock so we're fine.
   perform_topic_model_experiment(
     cache=cache,
     column=column,
@@ -162,6 +169,7 @@ def get__topic_experiment_status(
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
 )->TaskResponse[BERTopicExperimentResult]:
+
   return check_topic_model_experiment_status(
     cache=cache,
     column=column,

@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
-from controllers.project import ProjectCacheDependency, ProjectExistsDependency
+from controllers.project import ProjectCacheDependency, ProjectExistsDependency, ProjectLockDependency
 from modules.api.wrapper import ApiResult
+from modules.project.lock import ProjectLockManager
 
 from .controller import (
   infer_column_from_dataset,
@@ -56,18 +57,25 @@ async def get__project(cache: ProjectCacheDependency)->ApiResult[ProjectResource
   )
 
 @router.post('/')
-async def create__project(body: ProjectMutationSchema)->ApiResult[ProjectResource]:
-  return create_project(body)
+async def create__project(body: ProjectMutationSchema, lock: ProjectLockDependency)->ApiResult[ProjectResource]:
+  with lock:
+    return create_project(body)
 
 @router.put('/{project_id}')
 async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSchema)->ApiResult[ProjectResource]:
   config = cache.config
-  return update_project(config, body)
+  # WARN DATA RACE
+  with cache.lock:
+    return update_project(config, body)
 
 @router.patch('/{project_id}/reload')
 async def reload__project(cache: ProjectCacheDependency)->ApiResult[None]:
-  return reload_project(cache)
+  # WARN DATA RACE
+  with cache.lock:
+    return reload_project(cache)
 
 @router.delete('/{project_id}')
-async def delete__project(config: ProjectExistsDependency)->ApiResult[None]:
-  return delete_project(config)
+async def delete__project(config: ProjectExistsDependency, lock: ProjectLockDependency)->ApiResult[None]:
+  # WARN DATA RACE
+  with lock:
+    return delete_project(config)
