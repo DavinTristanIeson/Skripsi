@@ -14,7 +14,7 @@ from modules.task.storage import TaskStorage
 from ..model import ProjectMutationSchema, ProjectResource
 from .project_checks import _assert_valid_project_id
 
-from controllers.project import _assert_project_id_doesnt_exist
+from routes.dependencies.project import _assert_project_id_doesnt_exist
 
 logger = ProvisionedLogger().provision("Project Controller")
 

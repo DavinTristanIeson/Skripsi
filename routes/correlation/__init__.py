@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from modules.api.wrapper import ApiResult
 
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 from routes.correlation.controller import binary_statistic_test_on_contingency_table, binary_statistic_test_on_distribution, contingency_table
 
 from .model import (

@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends
 
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 from modules.storage.userdata import (
   UserDataResource, UserDataSchema, UserDataStorageController
 )

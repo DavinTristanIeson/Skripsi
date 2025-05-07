@@ -1,8 +1,8 @@
 from http import HTTPStatus
 from fastapi import APIRouter
 
-from controllers.project import ProjectCacheDependency
-from controllers.topic import TextualSchemaColumnDependency, TopicModelingResultDependency
+from routes.dependencies.project import ProjectCacheDependency
+from routes.dependencies.topic import TextualSchemaColumnDependency, TopicModelingResultDependency
 from modules.api.wrapper import ApiError, ApiResult
 from modules.exceptions.files import FileLoadingException
 from modules.table import PaginationParams

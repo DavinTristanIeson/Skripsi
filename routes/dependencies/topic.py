@@ -4,7 +4,7 @@ from typing import Annotated, Optional, cast
 
 from fastapi import Depends, Query
 import pandas as pd
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn

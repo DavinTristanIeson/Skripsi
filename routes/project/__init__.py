@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from controllers.project import ProjectCacheDependency, ProjectExistsDependency, ProjectLockDependency
+from routes.dependencies.project import ProjectCacheDependency, ProjectExistsDependency, ProjectLockDependency
 from modules.api.wrapper import ApiResult
 from modules.project.lock import ProjectLockManager
 

@@ -1,7 +1,7 @@
 import functools
 import http
 
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 from modules.exceptions.files import FileLoadingException
 from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
