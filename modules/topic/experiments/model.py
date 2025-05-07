@@ -4,10 +4,6 @@ from typing import TYPE_CHECKING, Annotated, Optional
 import pydantic
 
 from modules.config.schema.schema_variants import TextualSchemaColumn
-from modules.config.schema.textual import TopicModelingConfig
-from modules.project.paths import ProjectPathManager, ProjectPaths
-from modules.storage.userdata.filesystem import UserDataStorageController
-from modules.storage.userdata.resource import UserDataResource
 from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.validation.array import StartBeforeEndValidator
 

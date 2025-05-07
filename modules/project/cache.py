@@ -1,23 +1,21 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import functools
 import http
 import os
 import threading
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
 from modules.api.wrapper import ApiError
 from modules.project.cache_clients import BERTopicExperimentResultCacheAdapter, BERTopicModelCacheAdapter, ConfigCacheAdapter, TopicEvaluationResultCacheAdapter, TopicModelingResultCacheAdapter, VisualizationEmbeddingsCacheAdapter, WorkspaceCacheAdapter
 from modules.project.lock import ProjectLockManager
-from modules.project.paths import ProjectPathManager, ProjectPaths
 
-from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn, Config, DataSource
+from modules.config import Config, DataSource
 
 from modules.logger import ProvisionedLogger
 from modules.baseclass import Singleton
-from modules.storage import CacheClient, CacheItem
-from modules.topic.bertopic_ext.dimensionality_reduction import VisualizationCachedUMAP
+from modules.storage import CacheClient
 from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.topic.experiments.model import BERTopicExperimentResult
 from modules.topic.model import TopicModelingResult

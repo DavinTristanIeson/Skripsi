@@ -259,7 +259,7 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
 class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimentResult]):
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
-    file_path = paths.full_path(ProjectPaths.TopicExperiments(key))
+    file_path = paths.full_path(ProjectPaths.TopicModelExperiments(key))
     FileNotExistsException.verify(
       file_path,
       error=FileNotExistsException.format_message(
@@ -288,6 +288,6 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
     
   def _save(self, value, key):
     paths = ProjectPathManager(project_id=self.project_id)
-    file_path = paths.allocate_path(ProjectPaths.TopicExperiments(key))
+    file_path = paths.allocate_path(ProjectPaths.TopicModelExperiments(key))
     with open(file_path, 'w', encoding='utf-8') as f:
       f.write(value.model_dump_json())

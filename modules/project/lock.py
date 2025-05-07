@@ -24,7 +24,7 @@ class ProjectColumnLockManager(metaclass=Singleton):
     
   @contextmanager
   def get(self, project_id: str, column: str):
-    key = f"{project_id}__{ProjectPaths.hash_name(column)}"
+    key = f"{project_id}__{ProjectPaths.Column(column)}"
     if key not in self.__locks:
       self.__locks[key] = threading.RLock()
     lock = self.__locks[key]

@@ -60,7 +60,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   
   if not options.use_cached_document_vectors or not options.use_cached_umap_vectors or not options.use_preprocessed_documents:
     logger.info(f"Cleaning up BERTopic experiments from {column.name}.")
-    cleanup_files.append(ProjectPaths.TopicExperiments(column.name))
+    cleanup_files.append(ProjectPaths.TopicModelExperiments(column.name))
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
   ProjectCacheManager().invalidate(config.project_id)

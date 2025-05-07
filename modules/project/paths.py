@@ -16,85 +16,66 @@ class ProjectPaths(SimpleNamespace):
   Config = "config.json"
   
   Workspace = "workspace.parquet"
-  TopicsFolder = "topics"
-  UserDataFolder = "userdata"
 
+  TopicModelingFolderName = "topic-modeling"
+  UserDataFolder = "userdata"
   @staticmethod
-  def hash_name(name: str)->str:
+  def UserData(type: str):
+    return os.path.join(ProjectPaths.UserDataFolder, f"{type}.json")
+
+  # Column Specific
+  @staticmethod
+  def Column(name: str)->str:
     import base64
     encoded_name = base64.b64encode(name.encode('utf-8'))
     return encoded_name.decode('utf-8')
-
+  
+  @staticmethod
+  def TopicModelingFolder(name: str)->str:
+    return os.path.join(ProjectPaths.TopicModelingFolderName, name)
+  
   @staticmethod
   def Topics(column: str):
-    return os.path.join(ProjectPaths.TopicsFolder, f"{ProjectPaths.hash_name(column)}.json")
-
-  EmbeddingsFolder = "embedding"
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), "topics.json")
 
   @staticmethod
   def DocumentEmbeddings(column: str):
     return os.path.join(
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.hash_name(column),
+      ProjectPaths.TopicModelingFolder(column),
       "document_vectors.npy"
     )
 
   @staticmethod
   def UMAPEmbeddings(column: str):
     return os.path.join(
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.hash_name(column), 
-      "umap_embeddings.npy"
+      ProjectPaths.TopicModelingFolder(column), 
+      "umap_vectors.npy"
     )
   
   @staticmethod
   def VisualizationEmbeddings(column: str):
     return os.path.join(
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.hash_name(column),
-      "visualization_embeddings.npy"
+      ProjectPaths.TopicModelingFolder(column),
+      "visualization_vectors.npy"
     )
   
   @staticmethod
-  def EmbeddingModel(column: str, model: Optional[str]):
-    prefix = os.path.join(
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.hash_name(column)
-    )
-    if model is None:
-      return prefix
-    return os.path.join(prefix, model)
+  def EmbeddingModel(column: str, model: str):
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), model)
 
   BERTopicFolder = 'bertopic'
 
   @staticmethod
   def BERTopic(column: str):
-    return os.path.join(ProjectPaths.BERTopicFolder, ProjectPaths.hash_name(column))
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.BERTopicFolder)
   
-  EvaluationFolder = 'evaluation'
   @staticmethod
-  def TopicExperiments(column: str):
-    return os.path.join(ProjectPaths.EvaluationFolder, f"topic_experiment_{ProjectPaths.hash_name(column)}.json")
+  def TopicModelExperiments(column: str):
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_model_experiments.json")
   
   @staticmethod
   def TopicEvaluation(column: str):
-    return os.path.join(ProjectPaths.EvaluationFolder, f"topic_evaluation_{ProjectPaths.hash_name(column)}.json")
-
-  @staticmethod
-  def TopicModelingPaths(column: str):
-    return [
-      ProjectPaths.BERTopic(column),
-      ProjectPaths.DocumentEmbeddings(column),
-      ProjectPaths.VisualizationEmbeddings(column),
-      ProjectPaths.UMAPEmbeddings(column),
-      ProjectPaths.Topics(column),
-      ProjectPaths.TopicExperiments(column),
-      ProjectPaths.TopicEvaluation(column),
-    ]
-  
-  @staticmethod
-  def UserData(type: str):
-    return os.path.join(ProjectPaths.UserDataFolder, f"{type}.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_evaluation.json")
 
 logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 
@@ -121,9 +102,7 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
 
   def cleanup(self, all: bool = False):
     directories = [
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.BERTopicFolder,
-      ProjectPaths.TopicsFolder,
+      ProjectPaths.TopicModelingFolderName,
     ]
     files = [
       ProjectPaths.Workspace,
@@ -138,20 +117,10 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
 
   def cleanup_topic_modeling(self):
     directories = [
-      ProjectPaths.EmbeddingsFolder,
-      ProjectPaths.BERTopicFolder,
-      ProjectPaths.TopicsFolder,
-      ProjectPaths.EvaluationFolder,
+      ProjectPaths.TopicModelingFolderName,
     ]
     files = []
-
     self._cleanup(directories, files)
-
-  def cleanup_topic_experiments(self):
-    self._cleanup(
-      directories=[ProjectPaths.EvaluationFolder],
-      files=[]
-    )
 
 __all__ = [
   "ProjectPathManager",

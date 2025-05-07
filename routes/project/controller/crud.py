@@ -106,14 +106,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
   cleanup_targets: list[str] = []
   for diff in column_diffs:
     if (diff.current is None or diff.current.type != diff.previous.type) and diff.previous.type == SchemaColumnTypeEnum.Textual:
-      cleanup_targets.append(ProjectPaths.BERTopic(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.DocumentEmbeddings(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.UMAPEmbeddings(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.VisualizationEmbeddings(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.Topics(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.TopicEvaluation(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.TopicExperiments(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.EmbeddingModel(diff.previous.name, model=None))
+      cleanup_targets.append(ProjectPaths.TopicModelingFolder(diff.previous.name))
   logger.info(f"Successfully resolved the differences in the column configurations of \"{config.project_id}\"")
 
   # Commit changes

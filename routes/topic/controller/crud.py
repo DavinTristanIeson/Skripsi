@@ -3,6 +3,7 @@ from typing import Sequence, cast
 import numpy as np
 import pandas as pd
 
+from modules.project.paths import ProjectPaths
 from modules.table.serialization import serialize_pandas
 from modules.task.storage import TaskStorage
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
@@ -108,7 +109,13 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   # Invalidate tasks
   TaskStorage().invalidate(prefix=config.project_id, clear=True)
   # Clean up experiments
-  config.paths.cleanup_topic_experiments()
+  config.paths._cleanup(
+    directories=[],
+    files=[
+      ProjectPaths.TopicModelExperiments(column.name),
+      ProjectPaths.TopicEvaluation(column.name),
+    ],
+  )
 
   return ApiResult(
     data=None,
