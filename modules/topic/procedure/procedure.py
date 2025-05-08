@@ -5,7 +5,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
-from modules.task import TaskStorageProxy
+from modules.task import TaskManagerProxy
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
 
@@ -19,7 +19,7 @@ logger = ProvisionedLogger().provision("Topic Modeling")
 
 @dataclass
 class BERTopicProcedureFacade:
-  task: TaskStorageProxy
+  task: TaskManagerProxy
   project_id: str
   column: str
   def run(self):

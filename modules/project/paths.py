@@ -76,6 +76,25 @@ class ProjectPaths(SimpleNamespace):
   @staticmethod
   def TopicEvaluation(column: str):
     return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_evaluation.json")
+  
+  # Logs
+  LogsFolder = "logs.log"
+
+  @staticmethod
+  def ColumnLogsFolder(column: str):
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), "logs")
+
+  @staticmethod
+  def TopicModelingLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_modeling.log")
+  
+  @staticmethod
+  def TopicEvaluationLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_evaluation.log")
+  
+  @staticmethod
+  def TopicModelExperimentLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_model_experiments.log")
 
 logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 

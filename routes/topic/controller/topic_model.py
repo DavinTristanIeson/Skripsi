@@ -1,8 +1,10 @@
 import functools
 import http
 
+from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
 from routes.dependencies.project import ProjectCacheDependency
 from modules.exceptions.files import FileLoadingException
+from routes.topic.controller.tasks import topic_modeling_task
 from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
@@ -10,25 +12,14 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache, ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
-  scheduler,
   TaskResponse
 )
-from modules.task.storage import AlternativeTaskResponse, TaskConflictResolutionBehavior, TaskStorage
+from modules.task.manager import TaskConflictResolutionBehavior, TaskManager
 from modules.topic.model import TopicModelingResult
 from modules.topic.procedure import BERTopicProcedureFacade
 
 
 logger = ProvisionedLogger().provision("Topic Controller")
-
-def topic_modeling_task(payload: TopicModelingTaskRequest):
-  taskstore = TaskStorage()
-  with taskstore.proxy_context(payload.task_id) as proxy:
-    facade = BERTopicProcedureFacade(
-      task=proxy,
-      column=payload.column,
-      project_id=payload.project_id
-    )
-    facade.run()
 
 def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
   config = cache.config
@@ -74,12 +65,12 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     column=column.name,
   )
 
-  store = TaskStorage()
+  taskmanager = TaskManager()
+  store = TaskManager()
   store.add_task(
-    scheduler=scheduler,
     task_id=request.task_id,
     task=topic_modeling_task,
-    args=[request],
+    args=[taskmanager.proxy(request.task_id), request],
     conflict_resolution=TaskConflictResolutionBehavior.Ignore,
     idle_message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
   )
@@ -106,11 +97,8 @@ def check_topic_modeling_status(cache: ProjectCacheDependency, column: TextualSc
     column=column.name,
   )
 
-  store = TaskStorage()
-
   alternative_response = functools.partial(__topic_modeling_status_alternative, cache, column)
-  
-  task_result = store.get_task_result(
+  task_result = get_task_result_or_else(
     task_id=request.task_id,
     alternative_response=alternative_response,
   )

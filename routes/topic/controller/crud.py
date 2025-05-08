@@ -5,7 +5,7 @@ import pandas as pd
 
 from modules.project.paths import ProjectPaths
 from modules.table.serialization import serialize_pandas
-from modules.task.storage import TaskStorage
+from modules.task.manager import TaskManager
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
@@ -107,7 +107,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   cache.topics.save(new_tm_result, column.name)
   cache.workspaces.save(df)
   # Invalidate tasks
-  TaskStorage().invalidate(prefix=config.project_id, clear=True)
+  TaskManager().invalidate(prefix=config.project_id, clear=True)
   # Clean up experiments
   config.paths._cleanup(
     directories=[],

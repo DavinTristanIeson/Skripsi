@@ -10,7 +10,7 @@ from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.task.responses import TaskResponse
-from modules.task.storage import TaskStorageProxy
+from modules.task.manager import TaskManagerProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
@@ -26,7 +26,7 @@ logger = ProvisionedLogger().provision("Topic Modeling")
 
 @dataclass
 class BERTopicExperimentLab:
-  task: TaskStorageProxy
+  task: TaskManagerProxy
   project_id: str
   column: str
   n_trials: int
@@ -37,7 +37,7 @@ class BERTopicExperimentLab:
 
     candidate = self.constraint.suggest(trial)
     placeholder_id = f"Candidate {trial._trial_id}"
-    placeholder_task = TaskStorageProxy(
+    placeholder_task = TaskManagerProxy(
       id=placeholder_id,
       stop_event=threading.Event(),
       response=TaskResponse.Idle(placeholder_id),

@@ -1,3 +1,3 @@
 from .crud import *
-from .task import *
+from .topic_model import *
 from .visualization import *

@@ -1,17 +1,19 @@
-from apscheduler.executors.pool import ThreadPoolExecutor
+import logging
+from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 
 from modules.logger.provisioner import ProvisionedLogger
 
-topic_modeling_job_store = MemoryJobStore()
 scheduler = AsyncIOScheduler(
   executors=dict(
-    default=ThreadPoolExecutor(4)
+    # 2 subprocesses to run tasks in parallel.
+    default=ProcessPoolExecutor(
+      max_workers=2,
+    )
   ),
   jobstores=dict(
     default=MemoryJobStore(),
-    topic_modeling=topic_modeling_job_store
   ),
 )
 
@@ -20,5 +22,4 @@ ProvisionedLogger().provision("apscheduler")
 
 __all__ = [
   "scheduler",
-  "topic_modeling_job_store"
 ]

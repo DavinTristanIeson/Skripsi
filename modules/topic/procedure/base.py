@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from modules.project.cache import ProjectCache, ProjectCacheManager
-from modules.task import TaskStorageProxy
+from modules.task import TaskManagerProxy
 from modules.config import Config, TextualSchemaColumn
 from modules.topic.model import TopicModelingResult
 
@@ -42,7 +42,7 @@ class BERTopicIntermediateState:
 @dataclass
 class BERTopicProcedureComponent(abc.ABC):
   state: BERTopicIntermediateState
-  task: TaskStorageProxy
+  task: TaskManagerProxy
   @abc.abstractmethod
   def run(self):
     pass
