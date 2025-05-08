@@ -34,7 +34,8 @@ app.add_middleware(
 is_app = os.getenv("APP")
 ProvisionedLogger().configure(
   level=logging.WARNING if is_app else logging.DEBUG,
-  terminal=True
+  terminal=True,
+  file=None
 )
 
 api_app = FastAPI(lifespan=lifespan, responses={
