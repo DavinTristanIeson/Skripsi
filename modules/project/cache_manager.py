@@ -4,7 +4,7 @@ import threading
 from modules.baseclass import Singleton
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
-from modules.project.lock import ProjectLockManager
+from modules.project.lock import ProjectThreadLockManager
 
 from watchdog.observers import Observer
 from watchdog.events import DirDeletedEvent, DirModifiedEvent, DirMovedEvent, FileDeletedEvent, FileModifiedEvent, FileMovedEvent, FileSystemEventHandler, FileSystemEvent
@@ -14,10 +14,9 @@ import pathlib
 
 logger = ProvisionedLogger().provision("ProjectCacheManager")
 class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
-  def __init__(self, *, projects: dict[str, ProjectCache], lock: threading.RLock) -> None:
+  def __init__(self, *, projects: dict[str, ProjectCache]) -> None:
     super().__init__()
     self.projects = projects
-    self.lock = lock
 
   def invalidate_cache_from_event(self, event: FileSystemEvent):
     path: str
@@ -35,7 +34,9 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
     
     project_id = relative_path.parts[0]
     logger.debug(f"Project cache invalidator will be checking the following path {relative_path.parts} for which cache to invalidate.")
-    with self.lock:
+
+    project_lock = ProjectThreadLockManager().get(project_id)
+    with project_lock:
       project_cache = self.projects.get(project_id, None)
       if project_cache is None:
         return
@@ -106,7 +107,7 @@ class ProjectCacheManager(metaclass=Singleton):
       if cache is None:
         cache = ProjectCache(
           project_id=project_id,
-          lock=ProjectLockManager().get(project_id),
+          lock=ProjectThreadLockManager().get(project_id),
         )
     self.projects[project_id] = cache
     return cache
@@ -121,7 +122,6 @@ class ProjectCacheManager(metaclass=Singleton):
     observer = Observer()
     event_handler = ProjectCacheInvalidatorEventHandler(
       projects=self.projects,
-      lock=self.lock
     )
     observed_path = os.path.join(os.getcwd(), DATA_DIRECTORY)
     observer.schedule(event_handler, path=observed_path, event_filter=[

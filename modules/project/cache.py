@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import functools
 import http
 import os
 import threading
@@ -9,7 +8,6 @@ import pandas as pd
 
 from modules.api.wrapper import ApiError
 from modules.project.cache_clients import BERTopicExperimentResultCacheAdapter, BERTopicModelCacheAdapter, ConfigCacheAdapter, TopicEvaluationResultCacheAdapter, TopicModelingResultCacheAdapter, VisualizationEmbeddingsCacheAdapter, WorkspaceCacheAdapter
-from modules.project.lock import ProjectLockManager
 
 from modules.config import Config, DataSource
 
