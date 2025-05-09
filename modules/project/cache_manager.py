@@ -107,7 +107,6 @@ class ProjectCacheManager(metaclass=Singleton):
       if cache is None:
         cache = ProjectCache(
           project_id=project_id,
-          lock=ProjectThreadLockManager().get(project_id),
         )
     self.projects[project_id] = cache
     return cache
