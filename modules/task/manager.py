@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from enum import Enum
 import multiprocessing
 from multiprocessing.synchronize import Event
+import queue
 import threading
 from typing import Any, Callable, Optional
 
@@ -30,6 +31,7 @@ class TaskManager(metaclass=Singleton):
   def __init__(self) -> None:
     self.results = {}
     self.stop_events = {}
+    self.queue = multiprocessing.Queue()
     self.lock = threading.RLock()
     
   def get_task(self, task_id: str)->Optional[TaskResponse]:
@@ -143,12 +145,14 @@ class TaskManager(metaclass=Singleton):
 
   
   def receive_task_response(self, stop_event: threading.Event):
+    logger.info(f"Task response queue is ready.")
     while not stop_event.is_set():
       try:
         response: TaskResponse = self.queue.get(timeout=2)
-      except TimeoutError:
+      except (TimeoutError, queue.Empty, queue.Full):
         continue
       with self.lock:
+        logger.debug(f"Task response queue received response for task {response.id}.")
         self.results[response.id] = response
         if response.data is not None:
           task_stop_event = self.stop_events.get(response.id, None)
@@ -165,11 +169,12 @@ class TaskManager(metaclass=Singleton):
       yield
     except Exception as e:
       pass
+    logger.info(f"Shutting down task response queue and task scheduler...")
     receiver_thread_stop_event.set()
-    scheduler.shutdown()
     with self.lock:
       for event in self.stop_events.values():
         event.set()
+    scheduler.shutdown()
 
 
 

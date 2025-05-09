@@ -5,8 +5,7 @@ from typing import Any, Optional, Sequence, cast
 import pandas as pd
 
 from modules.logger import TimeLogger
-from modules.project.cache import ProjectCacheManager
-from modules.storage import CacheItem
+from modules.project.cache_manager import ProjectCacheManager
 from modules.config import Config
 
 from .pagination import PaginationMeta, PaginationParams

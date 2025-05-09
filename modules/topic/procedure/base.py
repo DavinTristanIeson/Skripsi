@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from modules.project.cache import ProjectCache, ProjectCacheManager
+from modules.project.cache import ProjectCache
+from modules.project.cache_manager import ProjectCacheManager
 from modules.task import TaskManagerProxy
 from modules.config import Config, TextualSchemaColumn
 from modules.topic.model import TopicModelingResult

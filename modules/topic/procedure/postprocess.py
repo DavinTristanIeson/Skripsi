@@ -1,11 +1,9 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
-from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
+from modules.project.cache_manager import ProjectCacheManager
 from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
 from modules.topic.procedure.base import BERTopicProcedureComponent
 

@@ -5,7 +5,8 @@ from modules.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.exceptions.dataframe import DataFrameLoadException
 from modules.exceptions.files import FileLoadingException, FileNotExistsException
-from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_data_source
+from modules.project.cache import ProjectCache, get_cached_data_source
+from modules.project.cache_manager import ProjectCacheManager
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.manager import TaskManager

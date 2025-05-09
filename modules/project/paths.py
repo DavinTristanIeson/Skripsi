@@ -34,29 +34,33 @@ class ProjectPaths(SimpleNamespace):
   def TopicModelingFolder(name: str)->str:
     return os.path.join(ProjectPaths.TopicModelingFolderName, name)
   
+  TopicsFileName = "topics.json"
   @staticmethod
   def Topics(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), "topics.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicsFileName)
 
+  DocumentEmbeddingsFileName = "document_vectors.npy"
   @staticmethod
   def DocumentEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column),
-      "document_vectors.npy"
+      ProjectPaths.DocumentEmbeddingsFileName
     )
 
+  UMAPEmbeddingsFileName = "umap_vectors.npy"
   @staticmethod
   def UMAPEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column), 
-      "umap_vectors.npy"
+      ProjectPaths.UMAPEmbeddingsFileName    
     )
   
+  VisualizationEmbeddingsFileName = "visualization_vectors.npy"
   @staticmethod
   def VisualizationEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column),
-      "visualization_vectors.npy"
+      ProjectPaths.VisualizationEmbeddingsFileName
     )
   
   @staticmethod
@@ -69,20 +73,22 @@ class ProjectPaths(SimpleNamespace):
   def BERTopic(column: str):
     return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.BERTopicFolder)
   
+  TopicModelExperimentsFileName = "topic_model_experiments.json"
   @staticmethod
   def TopicModelExperiments(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_model_experiments.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicModelExperimentsFileName)
   
+  TopicEvaluationFileName = "topic_evaluation.json"
   @staticmethod
   def TopicEvaluation(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_evaluation.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicEvaluationFileName)
   
   # Logs
-  LogsFolder = "logs.log"
+  LogsFolder = "logs"
 
   @staticmethod
   def ColumnLogsFolder(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), "logs")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.LogsFolder)
 
   @staticmethod
   def TopicModelingLogs(column: str):

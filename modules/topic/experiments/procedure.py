@@ -1,14 +1,14 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import datetime
 import functools
-import threading
+import multiprocessing
 from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
 
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
+from modules.project.cache_manager import ProjectCacheManager
 from modules.task.responses import TaskResponse
 from modules.task.manager import TaskManagerProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
@@ -37,9 +37,13 @@ class BERTopicExperimentLab:
 
     candidate = self.constraint.suggest(trial)
     placeholder_id = f"Candidate {trial._trial_id}"
+    response_queue = multiprocessing.Queue()
     placeholder_task = TaskManagerProxy(
       id=placeholder_id,
-      stop_event=threading.Event(),
+      # but don't share queue. We discard the contents of queue.
+      queue=response_queue,
+      # Share stop events
+      stop_event=self.task.stop_event,
       response=TaskResponse.Idle(placeholder_id),
     )
     self.task.log_pending(f"Running a trial for the following hyperparameters: {candidate}")
@@ -74,6 +78,7 @@ class BERTopicExperimentLab:
       candidate=candidate,
       error=None
     )
+    response_queue.close()
     experiment_result.trials.append(result)
     cache.bertopic_experiments.save(experiment_result, column.name)
 

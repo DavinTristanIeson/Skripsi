@@ -9,7 +9,8 @@ from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskReques
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCache, ProjectCacheManager
+from modules.project.cache import ProjectCache
+from modules.project.cache_manager import ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.task import (
   TaskResponse

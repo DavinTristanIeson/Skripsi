@@ -4,7 +4,7 @@ from typing import cast
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.logger import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
+from modules.project.cache_manager import ProjectCacheManager
 from modules.task import TaskManagerProxy
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent

@@ -8,7 +8,8 @@ from fastapi import Body, Depends, Path
 from modules.api import ApiError
 from modules.config import Config, SchemaColumn
 from modules.exceptions.dataframe import MissingColumnException
-from modules.project.cache import ProjectCache, ProjectCacheManager
+from modules.project.cache import ProjectCache
+from modules.project.cache_manager import ProjectCacheManager
 from modules.project.lock import ProjectLockManager
 from modules.project.paths import ProjectPathManager
 

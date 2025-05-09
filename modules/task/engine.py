@@ -1,4 +1,3 @@
-import logging
 from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
