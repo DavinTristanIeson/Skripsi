@@ -197,8 +197,4 @@ def get__topic_experiment_status(
   return check_topic_model_experiment_status(
     cache=cache,
     column=column,
-    body=TopicModelExperimentSchema(
-      constraint=None, # type: ignore
-      n_trials=0, # type: ignore
-    )
   )

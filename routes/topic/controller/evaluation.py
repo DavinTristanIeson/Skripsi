@@ -1,6 +1,7 @@
 import functools
 import http
 from typing import Sequence, cast
+from modules.topic.experiments.model import BERTopicExperimentResult
 from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError
 from modules.config.schema.base import SchemaColumnTypeEnum
@@ -141,13 +142,13 @@ def __get_topic_model_experiment_result_alternative_response(cache: ProjectCache
       message=f"There had been an experiment on {column} to find the optimal hyperparameters starting from {result.start_at.strftime('%Y-%m-%d %H:%M:%S')}, but that experiment did not finish successfully."
     )
 
-def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn, body: TopicModelExperimentSchema)->TaskResponse[TopicEvaluationResult]:
+def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn)->TaskResponse[BERTopicExperimentResult]:
   store = TaskStorage()
   request = BERTopicExperimentTaskRequest(
     project_id=cache.config.project_id,
     column=column.name,
-    constraint=body.constraint,
-    n_trials=body.n_trials,
+    constraint=None, # type: ignore
+    n_trials=0,
   )
 
   alternative_response = functools.partial(

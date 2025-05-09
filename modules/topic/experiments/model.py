@@ -31,6 +31,16 @@ class BERTopicHyperparameterConstraint(pydantic.BaseModel):
   max_topics: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
   topic_confidence_threshold: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
 
+  @pydantic.model_validator(mode="after")
+  def __validate_constraints(self):
+    if (
+      self.min_topic_size is None and\
+      self.max_topics is None and\
+      self.topic_confidence_threshold is None
+    ):
+      raise ValueError("Provide constraints for at least one hyperparameter for the experiments.")
+    return self
+
   def suggest(self, trial: "Trial")->BERTopicHyperparameterCandidate:
     min_topic_size = self.min_topic_size and trial.suggest_int(
       "min_topic_size", self.min_topic_size[0], self.min_topic_size[1]
@@ -48,12 +58,15 @@ class BERTopicHyperparameterConstraint(pydantic.BaseModel):
     )
 
 class BERTopicExperimentTrialResult(pydantic.BaseModel):
+  trial_number: int
   candidate: BERTopicHyperparameterCandidate
   evaluation: Optional[TopicEvaluationResult]
   error: Optional[str]
   timestamp: datetime.datetime = pydantic.Field(default_factory=lambda: datetime.datetime.now())
 
 class BERTopicExperimentResult(pydantic.BaseModel):
+  constraint: BERTopicHyperparameterConstraint
+  max_trials: int
   trials: list[BERTopicExperimentTrialResult]
   start_at: datetime.datetime
   end_at: Optional[datetime.datetime]

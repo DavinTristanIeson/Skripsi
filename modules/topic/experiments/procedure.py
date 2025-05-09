@@ -14,6 +14,7 @@ from modules.task.storage import TaskStorageProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
+from modules.topic.procedure.embedding import BERTopicCacheOnlyEmbeddingProcedureComponent
 from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
 from modules.topic.procedure.postprocess import BERTopicPostprocessProcedureComponent
 from modules.topic.procedure.preprocess import BERTopicCacheOnlyPreprocessProcedureComponent, BERTopicDataLoaderProcedureComponent
@@ -36,13 +37,13 @@ class BERTopicExperimentLab:
     cache = ProjectCacheManager().get(self.project_id)
 
     candidate = self.constraint.suggest(trial)
-    placeholder_id = f"Candidate {trial._trial_id}"
+    placeholder_id = f"Trial {trial.number}"
     placeholder_task = TaskStorageProxy(
       id=placeholder_id,
       stop_event=threading.Event(),
       response=TaskResponse.Idle(placeholder_id),
     )
-    self.task.log_pending(f"Running a trial for the following hyperparameters: {candidate}")
+    self.task.log_pending(f"Starting trial {trial.number + 1} with the following hyperparameters: {candidate}")
 
     # Shallow copy only, don't deep copy.
     state = copy(shared_state)
@@ -51,6 +52,7 @@ class BERTopicExperimentLab:
     try:
       procedures: list[BERTopicProcedureComponent] = [
         BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
+        BERTopicCacheOnlyEmbeddingProcedureComponent(state=state, task=placeholder_task),
         BERTopicExperimentalTopicModelingProcedureComponent(state=state, task=placeholder_task),
         BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
       ]
@@ -58,21 +60,23 @@ class BERTopicExperimentLab:
         procedure.run()
       evaluation = evaluate_topics(cast(Sequence[str], state.documents), state.result.topics, state.model)
     except Exception as e:
-      self.task.log_error(f"Failed to run a trial for the following hyperparameters: {candidate} due to the following error: {str(e)}.")
+      self.task.log_error(f"Failed to run trial {trial.number + 1} with the following hyperparameters: {candidate} due to the following error: {str(e)}.")
       result = BERTopicExperimentTrialResult(
         evaluation=None,
         candidate=candidate,
         error=str(e),
+        trial_number=trial.number + 1,
       )
       experiment_result.trials.append(result)
       cache.bertopic_experiments.save(experiment_result, column.name)
       raise e
 
-    self.task.log_success(f"Finished running a trial for the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v} and diversity of {evaluation.topic_diversity}.")
+    self.task.log_success(f"Finished running trial {trial.number + 1} with the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v:.4f} and diversity of {evaluation.topic_diversity:.4f}.")
     result = BERTopicExperimentTrialResult(
       evaluation=evaluation,
       candidate=candidate,
-      error=None
+      error=None,
+      trial_number=trial.number + 1,
     )
     experiment_result.trials.append(result)
     cache.bertopic_experiments.save(experiment_result, column.name)
@@ -83,8 +87,13 @@ class BERTopicExperimentLab:
     cache = ProjectCacheManager().get(self.project_id)
     config = cache.config
     column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual]))
+
+    start_time = datetime.datetime.now()
     
     shared_state = BERTopicIntermediateState()
+    shared_state.config = config
+    shared_state.column = column
+
     shared_procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=shared_state, task=self.task),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=self.task),
@@ -95,9 +104,11 @@ class BERTopicExperimentLab:
     now = datetime.datetime.now()
     experiment_result = BERTopicExperimentResult(
       trials=[],
+      constraint=self.constraint,
       end_at=None,
       last_updated_at=now,
       start_at=now,
+      max_trials=self.n_trials,
     )
 
     experiment = functools.partial(
@@ -121,6 +132,9 @@ class BERTopicExperimentLab:
     )
     experiment_result.end_at = datetime.datetime.now()
     cache.bertopic_experiments.save(experiment_result, column.name)
+
+    end_time = datetime.datetime.now()
+    self.task.log_success(f"Experiment has completed successfully (Time: {start_time.strftime('%Y-%m-%d %H:%M:%S')} to {end_time.strftime('%Y-%m-%d %H:%M:%S')}).")
 
     self.task.success(experiment_result)
   
