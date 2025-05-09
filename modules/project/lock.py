@@ -54,10 +54,10 @@ class ProjectFileLockManager(metaclass=Singleton):
       wait=wait,
     )
 
-  def lock_file(self, project_id: str, extpath: str, *, wait: bool):
+  def lock_file(self, project_id: str, path: str, *, wait: bool):
     paths = ProjectPathManager(project_id=project_id)
-    file_path = paths.full_path(extpath)
-    lockpath = paths.allocate_path(f"{extpath}.lock")
+    file_path = paths.full_path(path)
+    lockpath = paths.allocate_path(f"{path}.lock")
     lock = self.provision(lockpath)
     return self.__claim_lock(
       lock=lock,

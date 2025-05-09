@@ -81,11 +81,12 @@ def create_project(body: ProjectMutationSchema):
     message=f"Your new project \"{body.metadata.name}\", has been successfully created."
   )
 
-def update_project(config: Config, body: ProjectMutationSchema):
+def update_project(cache: ProjectCache, body: ProjectMutationSchema):
   # Resolve project differences
 
+  config = cache.config
   try:
-    workspace_df = config.load_workspace()
+    workspace_df = cache.workspaces.load(cached=False)
   except (DataFrameLoadException, FileNotExistsException):
     workspace_df = None
 
