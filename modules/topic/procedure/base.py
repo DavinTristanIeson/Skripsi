@@ -1,6 +1,5 @@
 import abc
 from dataclasses import dataclass
-import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,7 +19,6 @@ class BERTopicIntermediateState:
   config: Config
   column: TextualSchemaColumn
   cache: ProjectCache
-  logger: logging.Logger
 
   # Configured BERTopic model
   model: "BERTopic"

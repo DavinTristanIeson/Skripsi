@@ -1,11 +1,14 @@
 import abc
 from dataclasses import dataclass
+from http import HTTPStatus
+import os
 import threading
 from typing import TYPE_CHECKING, Generic, Optional, TypeVar, cast
 
 import numpy as np
 import pandas as pd
 from pydantic import ValidationError
+from modules.api.wrapper import ApiError
 from modules.config.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
@@ -29,6 +32,7 @@ T = TypeVar("T")
 class ProjectCacheAdapter(Generic[T], abc.ABC):
   project_id: str
   cache: CacheClient[T]
+  lock: threading.RLock
 
   @abc.abstractmethod
   def _save(self, value: T, key: str)->Optional[CacheItem[T]]:
@@ -39,7 +43,8 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
     ...
 
   def save(self, value: T, key: str)->None:
-    cached_item = self._save(value, key)
+    with self.lock:
+      cached_item = self._save(value, key)
     if cached_item is not None:
       self.cache.set(cached_item)
     else:
@@ -52,7 +57,8 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
     cached_value = self.cache.get(key)
     if cached_value is not None:
       return cached_value
-    loaded_value = self._load(key)
+    with self.lock:
+      loaded_value = self._load(key)
     if isinstance(loaded_value, CacheItem):
       self.cache.set(loaded_value)
       return loaded_value.value
@@ -69,9 +75,11 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
 @dataclass
 class ConfigCacheAdapter:
   project_id: str
+  lock: threading.RLock
   cache: CacheClient[Config]
   def save(self, config: Config)->None:
-    config.save_to_json()
+    with self.lock:
+      config.save_to_json()
     self.cache.set(CacheItem(
       key=self.project_id,
       value=config,
@@ -82,7 +90,8 @@ class ConfigCacheAdapter:
     cached_config = self.cache.get(self.project_id)
     if cached_config is not None:
       return cached_config
-    config = Config.from_project(self.project_id)
+    with self.lock:
+      config = Config.from_project(self.project_id)
     self.cache.set(CacheItem(
       key=self.project_id,
       value=config,
@@ -97,6 +106,7 @@ class ConfigCacheAdapter:
 class WorkspaceCacheAdapter:
   project_id: str
   cache: CacheClient[pd.DataFrame]
+  lock: threading.RLock
   config: ConfigCacheAdapter
   
   def set(self, df: pd.DataFrame, key: str):
@@ -115,7 +125,8 @@ class WorkspaceCacheAdapter:
       return cached_df
     
     config = self.config.load()
-    df = config.load_workspace()
+    with self.lock:
+      df = config.load_workspace()
     self.cache.set(CacheItem(
       key=empty_key,
       value=df,

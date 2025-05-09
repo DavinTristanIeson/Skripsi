@@ -28,17 +28,21 @@ logger = ProvisionedLogger().provision("ProjectCache")
 @dataclass
 class ProjectCache:
   id: str
+  lock: threading.RLock
 
-  def __init__(self, project_id: str):
+  def __init__(self, project_id: str, lock: threading.RLock):
     self.id = project_id
+    self.lock = lock
     self.config_cache = ConfigCacheAdapter(
       project_id=project_id,
+      lock=lock,
       cache=CacheClient[Config](
         name="Config", maxsize=1, ttl=5 * 60
       ),
     )
     self.workspaces = WorkspaceCacheAdapter(
       project_id=project_id,
+      lock=lock,
       config=self.config_cache,
       cache=CacheClient[pd.DataFrame](
         name="Workspace", maxsize=20, ttl=5 * 60
@@ -46,12 +50,14 @@ class ProjectCache:
     )
     self.topics = TopicModelingResultCacheAdapter(
       project_id=project_id,
+      lock=lock,
       cache=CacheClient[TopicModelingResult](
         name="Topics", maxsize=5, ttl=5 * 60
       ),
     )
     self.bertopic_models = BERTopicModelCacheAdapter(
       project_id=project_id,
+      lock=lock,
       config=self.config_cache,
       cache=CacheClient["BERTopic"](
         name="BERTopic Models", maxsize=5, ttl=5 * 60
@@ -59,6 +65,7 @@ class ProjectCache:
     )
     self.visualization_vectors = VisualizationEmbeddingsCacheAdapter(
       project_id=project_id,
+      lock=lock,
       config=self.config_cache,
       cache=CacheClient[np.ndarray](
         name="Visualization Embeddings", maxsize=5, ttl=5 * 60
@@ -66,12 +73,14 @@ class ProjectCache:
     )
     self.topic_evaluations = TopicEvaluationResultCacheAdapter(
       project_id=project_id,
+      lock=lock,
       cache=CacheClient[TopicEvaluationResult](
         name="Topic Evaluation Results", maxsize=5, ttl=5 * 60
       ),
     )
     self.bertopic_experiments = BERTopicExperimentResultCacheAdapter(
       project_id=project_id,
+      lock=lock,
       cache=CacheClient[BERTopicExperimentResult](
         name="BERTopic Experiment Results", maxsize=5, ttl=5 * 60
       ),
@@ -82,13 +91,14 @@ class ProjectCache:
     return self.config_cache.load()
     
   def invalidate(self):
-    self.config_cache.invalidate()
-    self.workspaces.invalidate()
-    self.topics.invalidate()
-    self.bertopic_models.invalidate()
-    self.visualization_vectors.invalidate()
-    self.topic_evaluations.invalidate()
-    self.bertopic_experiments.invalidate()
+    with self.lock:
+      self.config_cache.invalidate()
+      self.workspaces.invalidate()
+      self.topics.invalidate()
+      self.bertopic_models.invalidate()
+      self.visualization_vectors.invalidate()
+      self.topic_evaluations.invalidate()
+      self.bertopic_experiments.invalidate()
 
 class DataSourceCacheManager(metaclass=Singleton):
   cache: CacheClient[pd.DataFrame]

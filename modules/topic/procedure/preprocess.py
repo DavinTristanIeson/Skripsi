@@ -19,6 +19,7 @@ class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
 
     cache = ProjectCache(
       project_id=self.project_id,
+      lock=threading.RLock(),
     )
     config = cache.config
     column = config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual])

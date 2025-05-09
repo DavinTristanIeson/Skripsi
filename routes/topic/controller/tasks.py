@@ -21,6 +21,7 @@ def topic_evaluation_task(proxy: TaskManagerProxy, request: EvaluateTopicModelRe
   with proxy.context(log_file=log_path):
     # We're only using the writer 
     cache = ProjectCache(
+      lock=threading.RLock(),
       project_id=request.project_id
     )
   
