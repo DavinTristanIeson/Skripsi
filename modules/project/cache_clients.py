@@ -118,10 +118,10 @@ class WorkspaceCacheAdapter:
   def get(self, key: str)->Optional[pd.DataFrame]:
     return self.cache.get(key)
 
-  def load(self)->pd.DataFrame:
+  def load(self, *, cached: bool = True)->pd.DataFrame:
     empty_key = ''
     cached_df = self.cache.get(empty_key)
-    if cached_df is not None:
+    if cached_df is not None and cached:
       return cached_df
     
     config = self.config.load()

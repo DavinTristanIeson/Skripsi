@@ -18,10 +18,7 @@ if TYPE_CHECKING:
 class BERTopicIntermediateState:
   config: Config
   column: TextualSchemaColumn
-  
-  @property
-  def cache(self)->ProjectCache:
-    return ProjectCacheManager().get(self.config.project_id)
+  cache: ProjectCache
 
   # Configured BERTopic model
   model: "BERTopic"
