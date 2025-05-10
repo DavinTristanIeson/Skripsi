@@ -152,6 +152,8 @@ class TopicModelingConfig(pydantic.BaseModel):
 
   @pydantic.field_validator("topic_confidence_threshold", mode="after")
   def __validate_topic_confidence_threshold(cls, value: int, info: pydantic.ValidationInfo):
+    if info.data["min_topic_size"] is None or value is None:
+      return value
     return min(info.data["min_topic_size"], value)
 
   

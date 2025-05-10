@@ -68,6 +68,7 @@ class BERTopicExperimentResult(pydantic.BaseModel):
   constraint: BERTopicHyperparameterConstraint
   max_trials: int
   trials: list[BERTopicExperimentTrialResult]
+  evaluation: TopicEvaluationResult
   start_at: datetime.datetime
   end_at: Optional[datetime.datetime]
   last_updated_at: datetime.datetime

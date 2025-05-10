@@ -1,9 +1,10 @@
 import functools
 import http
 from typing import Sequence, cast
-from modules.topic.experiments.model import BERTopicExperimentResult
+from modules.config.config import Config
+from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from routes.dependencies.project import ProjectCacheDependency
-from modules.api.wrapper import ApiError
+from modules.api.wrapper import ApiError, ApiResult
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.exceptions.files import FileLoadingException
@@ -15,7 +16,8 @@ from modules.task.storage import AlternativeTaskResponse, TaskConflictResolution
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.topic.experiments.procedure import BERTopicExperimentLab
-from routes.topic.model import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, TopicModelExperimentSchema
+from routes.topic.controller.task import start_topic_modeling
+from routes.topic.model import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, StartTopicModelingSchema, TopicModelExperimentSchema
 
 logger = ProvisionedLogger().provision("Topic Controller")
 
@@ -43,6 +45,7 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     result = evaluate_topics(
       bertopic_model=bertopic_model,
       raw_documents=documents,
+      document_topic_assignments=df[column.topic_column.name],
       topics=tm_result.topics,
     )
     proxy.log_success("Finished evaluating the topics.")
@@ -161,5 +164,42 @@ def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSche
     alternative_response=alternative_response,
   )
   if task_result is None:
-    raise ApiError(f"Topic evaluation has not been started for \"{request.column}\" in project \"{cache.config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)
+    raise ApiError(f"Topic experiment has not been started for \"{request.column}\" in project \"{cache.config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)
   return task_result
+
+def apply_topic_model_hyperparameter(
+  cache: ProjectCache,
+  column_name: str,
+  candidate: BERTopicHyperparameterCandidate
+):
+  config = cache.config.model_copy()
+  column = cast(
+    TextualSchemaColumn,
+    config.data_schema.assert_of_type(
+      column_name, [SchemaColumnTypeEnum.Textual]
+    )
+  )
+
+  if candidate.min_topic_size is not None:
+    column.topic_modeling.min_topic_size = candidate.min_topic_size
+  if candidate.max_topics is not None:
+    column.topic_modeling.max_topics = candidate.max_topics
+  if candidate.topic_confidence_threshold is not None:
+    column.topic_modeling.topic_confidence_threshold = candidate.topic_confidence_threshold
+  
+  config.save_to_json()
+  cache.config_cache.invalidate()
+  config.paths.cleanup_topic_modeling(column.name)
+  TaskStorage().invalidate(prefix=f"{config.project_id}__{column.name}", clear=True)
+
+  start_topic_modeling(
+    cache=cache,
+    column=column,
+    options=StartTopicModelingSchema(
+      use_cached_document_vectors=True,
+      use_cached_umap_vectors=True,
+      use_preprocessed_documents=True,
+    )
+  )
+
+  return ApiResult(data=None, message=f"The topic modeling algorithm will soon be applied to \"{column.name}\" with the specified hyperparameters. Please wait for a few seconds (or minutes depending on the size of your dataset) for the algorithm to complete.")

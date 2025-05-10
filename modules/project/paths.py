@@ -115,9 +115,9 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
       ])
     self._cleanup(directories, files)
 
-  def cleanup_topic_modeling(self):
+  def cleanup_topic_modeling(self, column: str):
     directories = [
-      ProjectPaths.TopicModelingFolderName,
+      ProjectPaths.TopicModelingFolder(column),
     ]
     files = []
     self._cleanup(directories, files)

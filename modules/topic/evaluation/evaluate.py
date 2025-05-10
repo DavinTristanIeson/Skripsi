@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Sequence, cast
 
 import numpy as np
+import pandas as pd
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.evaluation.method import cv_coherence, topic_diversity
 from modules.topic.evaluation.model import TopicEvaluationResult, CoherenceVPerTopic
@@ -9,7 +10,12 @@ from modules.topic.model import Topic
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
-def evaluate_topics(raw_documents: Sequence[str], topics: list[Topic], bertopic_model: "BERTopic"):
+def evaluate_topics(
+  raw_documents: Sequence[str],
+  topics: list[Topic],
+  bertopic_model: "BERTopic",
+  document_topic_assignments: pd.Series | np.ndarray
+):
   topic_words: list[list[str]] = []
   for topic in topics:
     sorted_topic_words = sorted(topic.words, key=lambda word: word[1], reverse=True)
@@ -29,10 +35,13 @@ def evaluate_topics(raw_documents: Sequence[str], topics: list[Topic], bertopic_
 
   diversity = topic_diversity(topic_words)
 
+  outlier_count = (document_topic_assignments == -1).sum()
+
   return TopicEvaluationResult(
     coherence_v=cv_score,
     topic_diversity=diversity,
     coherence_v_per_topic=cv_scores_per_topic,
+    outlier_count=outlier_count,
   )
 
 

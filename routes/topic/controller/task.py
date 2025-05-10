@@ -30,7 +30,7 @@ def topic_modeling_task(payload: TopicModelingTaskRequest):
     )
     facade.run()
 
-def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheDependency, column: TextualSchemaColumn):
+def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCache, column: TextualSchemaColumn):
   config = cache.config
   df = cache.workspaces.load()
 

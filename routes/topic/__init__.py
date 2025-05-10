@@ -10,9 +10,9 @@ from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse, TaskStatusEnum
 from modules.task.storage import TaskStorage
 from modules.topic.evaluation.model import TopicEvaluationResult
-from modules.topic.experiments.model import BERTopicExperimentResult
+from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from modules.topic.model import TopicModelingResult
-from routes.topic.controller.evaluation import check_topic_model_evaluation_status, check_topic_model_experiment_status, perform_topic_model_evaluation, perform_topic_model_experiment
+from routes.topic.controller.evaluation import apply_topic_model_hyperparameter, check_topic_model_evaluation_status, check_topic_model_experiment_status, perform_topic_model_evaluation, perform_topic_model_experiment
 
 from .controller import (
   get_document_visualization_results, get_topic_visualization_results,
@@ -197,4 +197,16 @@ def get__topic_experiment_status(
   return check_topic_model_experiment_status(
     cache=cache,
     column=column,
+  )
+
+@router.post('/apply-topic-model-hyperparameter')
+def get__apply_topic_model_hyperparameter(
+  cache: ProjectCacheDependency,
+  column: TextualSchemaColumnDependency,
+  candidate: BERTopicHyperparameterCandidate
+)->ApiResult[None]:
+  return apply_topic_model_hyperparameter(
+    cache=cache,
+    column_name=column.name,
+    candidate=candidate,
   )

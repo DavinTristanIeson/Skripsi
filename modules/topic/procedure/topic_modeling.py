@@ -27,7 +27,7 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
 
     if os.path.exists(bertopic_path):
       # Cache
-      self.task.log_pending(f"Loaded cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
+      self.task.log_pending(f"Loading cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
       new_model: Optional[BERTopic] = None
       try:
         loaded_model = BERTopic.load(bertopic_path, embedding_model=model.embedding_model)
@@ -97,6 +97,33 @@ class BERTopicExperimentalTopicModelingProcedureComponent(BERTopicProcedureCompo
     # Effect
     self.state.model = model
     self.state.document_topic_assignments = np.array(topics, dtype=np.int32)
+
+
+class BERTopicCacheOnlyTopicModelingProcedureComponent(BERTopicProcedureComponent):
+  def run(self):
+    from bertopic import BERTopic
+
+    # Dependencies
+    column = self.state.column
+    config = self.state.config
+    model = self.state.model
+
+    # Cache
+    bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic(column.name)))
+    self.task.log_pending(f"Loading cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
+    try:
+      model = BERTopic.load(bertopic_path, embedding_model=model.embedding_model)
+      model.umap_model = model.umap_model
+      model.hdbscan_model = model.hdbscan_model
+      self.state.model = model
+      self.task.log_success(f"Loaded cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
+    except Exception as e:
+      self.task.log_error(f"Failed to load cached BERTopic model from {bertopic_path}. Re-fitting BERTopic model again.")
+      logger.error(e)
+
+    # Effect
+    self.state.model = model
+    self.state.document_topic_assignments = np.array(model.topics_, dtype=np.int32)
 
 __all__ = [
   "BERTopicTopicModelingProcedureComponent"
