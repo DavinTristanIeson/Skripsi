@@ -31,10 +31,9 @@ class TableFilterTypeEnum(str, Enum):
   # Textual
   HasText = "has_text"
 
-  # Multi-Categorical
-  Includes = "includes"
-  Excludes = "excludes"
-  Only = "only"
+  # Boolean
+  IsTrue = "is_true",
+  IsFalse = "is_false",
 
 ExposedEnum().register(TableFilterTypeEnum)
 
@@ -66,6 +65,12 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   SchemaColumnTypeEnum.Continuous: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Geospatial: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Boolean: [
+    *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
+    TableFilterTypeEnum.IsTrue,
+    TableFilterTypeEnum.IsFalse,
+  ]
 }
 
 @dataclass

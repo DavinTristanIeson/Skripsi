@@ -401,6 +401,12 @@ class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
     mask = data.str.len() == 0
     data[mask] = pd.NA 
     df[self.name] = data
+
+class BooleanSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
+  type: Literal[SchemaColumnTypeEnum.Boolean]
+
+  def fit(self, df):
+    df[self.name] = df[self.name].astype(pd.BooleanDtype())
   
 SchemaColumn = Annotated[
   Union[
@@ -413,6 +419,7 @@ SchemaColumn = Annotated[
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
     TopicSchemaColumn,
+    BooleanSchemaColumn
   ],
   pydantic.Field(discriminator="type"),
   DiscriminatedUnionValidator
@@ -426,4 +433,5 @@ __all__ = [
   "CategoricalSchemaColumn",
   "ContinuousSchemaColumn",
   "GeospatialSchemaColumn",
+  "BooleanSchemaColumn",
 ]

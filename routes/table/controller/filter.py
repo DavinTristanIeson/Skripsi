@@ -348,22 +348,34 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
 
   inside_count = len(data)
   notna_count = data.count()
-  na_count = inside_count - notna_count
 
   outlier_count: int | None = None
-  if column.type == SchemaColumnTypeEnum.Topic:
+  true_count: int | None = None
+  false_count: int | None = None
+  if result.column.type == SchemaColumnTypeEnum.Boolean:
+    true_count = (data == True).sum()
+    false_count = (data == False).sum()
+    notna_count -= (true_count + false_count)
+  elif column.type == SchemaColumnTypeEnum.Topic:
     outlier_count = (data == -1).sum()
     notna_count -= outlier_count
+
+  na_count = inside_count - notna_count
 
   return ApiResult(
     data=TableColumnCountsResource(
       column=column,
+
+      total=total_count,
       inside=inside_count,
       outside=total_count - inside_count,
+
       invalid=na_count,
       valid=notna_count,
-      total=total_count,
-      outlier=outlier_count
+
+      outlier=outlier_count,
+      true=true_count,
+      false=false_count,
     ),
     message=None
   )

@@ -80,6 +80,9 @@ class TableColumnCountsResource(pydantic.BaseModel):
   invalid: int
   # Only for topics
   outlier: Optional[int]
+  # Only for booleans
+  true: Optional[int]
+  false: Optional[int]
 
 class TableWordFrequenciesResource(pydantic.BaseModel):
   column: SchemaColumn

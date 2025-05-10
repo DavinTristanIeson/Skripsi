@@ -9,7 +9,7 @@ from modules.config.context import ConfigSerializationContext
 from modules.config.schema.exceptions import DataFrameColumnFitException, MissingColumnInSchemaException, UnsyncedDatasetSchemaException, WrongSchemaColumnTypeException
 from modules.logger import ProvisionedLogger, TimeLogger
 from modules.api import ApiError
-from .schema_variants import CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
+from .schema_variants import BooleanSchemaColumn, CategoricalSchemaColumn, OrderedCategoricalSchemaColumn, ContinuousSchemaColumn, GeospatialSchemaColumn, SchemaColumn, SchemaColumnTypeEnum, TemporalSchemaColumn, TextualSchemaColumn, TopicSchemaColumn, UniqueSchemaColumn
 
 logger = ProvisionedLogger().provision("Config")
 
@@ -95,6 +95,9 @@ class SchemaManager(pydantic.BaseModel):
   
   def topic(self)->list[TopicSchemaColumn]:
     return cast(list[TopicSchemaColumn], self.of_type(SchemaColumnTypeEnum.Topic))
+
+  def boolean(self)->list[BooleanSchemaColumn]:
+    return cast(list[BooleanSchemaColumn], self.of_type(SchemaColumnTypeEnum.Boolean))
 
   def non_internal(self)->list[SchemaColumn]:
     return list(filter(lambda col: not col.internal, self.columns))

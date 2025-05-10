@@ -17,6 +17,7 @@ class SchemaColumnTypeEnum(str, Enum):
   Textual = "textual"
   Unique = "unique"
   Geospatial = "geospatial"
+  Boolean = "boolean"
 
   # Internal
   Topic = "topic"
