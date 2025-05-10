@@ -117,7 +117,11 @@ def update_project(cache: ProjectCache, body: ProjectMutationSchema):
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
   TaskManager().invalidate(prefix=new_config.project_id, clear=True)
-  new_config.paths._cleanup([], cleanup_targets)
+  new_config.paths._cleanup(
+    directories=[],
+    files=cleanup_targets,
+    soft=True
+  )
 
   return ApiResult(
     data=ProjectResource(

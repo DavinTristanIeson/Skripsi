@@ -115,6 +115,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
       ProjectPaths.TopicModelExperiments(column.name),
       ProjectPaths.TopicEvaluation(column.name),
     ],
+    soft=True
   )
 
   return ApiResult(

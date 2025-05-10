@@ -28,7 +28,10 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
 
   ProjectCacheManager().invalidate(config.project_id)
 
-  cleanup_files: list[str] = []
+  cleanup_files: list[str] = [
+    ProjectPaths.TopicEvaluation(column.name),
+    ProjectPaths.TopicModelExperiments(column.name),
+  ]
 
   if not options.use_cached_umap_vectors:
     logger.info(f"Cleaning up cached UMAP embeddings from {column.name}.")
@@ -59,6 +62,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   config.paths._cleanup(
     directories=[ProjectPaths.BERTopic(column.name)],
     files=cleanup_files,
+    soft=True
   )
 
   request = TopicModelingTaskRequest(
