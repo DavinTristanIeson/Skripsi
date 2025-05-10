@@ -8,6 +8,7 @@ from typing import Any, Callable, Generic, Optional, TypeVar, cast
 from fastapi.encoders import jsonable_encoder
 import pydantic
 
+from modules.storage.atomic import atomic_write
 from modules.storage.exceptions import UserDataEntryNotFoundException, UserDataUniquenessConstraintViolationException
 
 from .resource import UserDataResource, UserDataSchema
@@ -83,7 +84,7 @@ class UserDataStorageController(Generic[T]):
   
   def write_file(self, contents: list[UserDataResource[T]]):
     os.makedirs(os.path.dirname(self.path), exist_ok=True)
-    with open(self.path, "w") as f:
+    with atomic_write(self.path, mode="text") as f:
       json.dump(jsonable_encoder(contents), f)
 
   def all(self)->list[UserDataResource[T]]:

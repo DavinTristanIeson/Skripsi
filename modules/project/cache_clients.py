@@ -16,6 +16,7 @@ from modules.exceptions.files import CorruptedFileException, FileLoadingExceptio
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.lock import ProjectFileLockManager
 from modules.project.paths import ProjectPathManager, ProjectPaths
+from modules.storage.atomic import atomic_write
 from modules.storage.cache import CacheClient, CacheItem
 from modules.topic.bertopic_ext.dimensionality_reduction import VisualizationCachedUMAP
 from modules.topic.evaluation.model import TopicEvaluationResult
@@ -289,7 +290,7 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.allocate_path(ProjectPaths.TopicEvaluation(key))
     with self.lock(key):
-      with open(file_path, 'w', encoding='utf-8') as f:
+      with atomic_write(file_path, mode="text") as f:
         f.write(value.model_dump_json())
 
 
@@ -335,6 +336,5 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
   def _save(self, value, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.allocate_path(ProjectPaths.TopicModelExperiments(key))
-    with self.lock(key):
-      with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(value.model_dump_json())
+    with atomic_write(file_path, mode="text") as f:
+      f.write(value.model_dump_json())
