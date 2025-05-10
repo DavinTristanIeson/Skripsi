@@ -80,7 +80,7 @@ class ConfigCacheAdapter:
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.Config,
-      wait=False,
+      wait=True,
     )
   def save(self, config: Config)->None:
     with self.lock:
@@ -118,7 +118,7 @@ class WorkspaceCacheAdapter:
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.Workspace,
-      wait=False,
+      wait=True,
     )
   
   def set(self, df: pd.DataFrame, key: str):
@@ -175,7 +175,7 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.BERTopic(key),
-      wait=False,
+      wait=True,
     )
   
   def _load(self, key):
@@ -221,7 +221,7 @@ class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.VisualizationEmbeddings(key),
-      wait=False,
+      wait=True,
     )
   
   def __prepare(self, key: str):
@@ -257,7 +257,7 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.TopicEvaluation(key),
-      wait=False,
+      wait=True,
     )
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
@@ -300,7 +300,7 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
       path=ProjectPaths.TopicModelExperiments(key),
-      wait=False,
+      wait=True,
     )
   
   def _load(self, key):

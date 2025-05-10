@@ -42,6 +42,7 @@ def atomic_write(path: str, *, mode: Literal['text', 'binary']):
 
 
 TRASH_INDICATOR = "trash-"
+LOCK_INDICATOR = ".lock"
 def soft_delete(path: str, *, soft: bool):
   dirpath, basepath = os.path.split(path)
   soft_delete_path = os.path.join(dirpath, f"{TRASH_INDICATOR}{basepath}")
@@ -52,8 +53,8 @@ def soft_delete(path: str, *, soft: bool):
     if soft:
       if os.path.isdir(path):
         shutil.move(path, soft_delete_path)
-        trash_files = filter(lambda path: path.startswith(TRASH_INDICATOR), os.listdir(soft_delete_path))
-        # No need to store trash files in delete directory
+        trash_files = filter(lambda path: path.startswith(TRASH_INDICATOR) or path.endswith(LOCK_INDICATOR), os.listdir(soft_delete_path))
+        # No need to store trash or lock files in delete directory
         for trash_file in trash_files:
           os.remove(os.path.join(soft_delete_path, trash_file))
       else:

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import datetime
 import functools
 import multiprocessing
+import threading
 from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
 
@@ -29,7 +30,7 @@ class BERTopicExperimentLab:
   n_trials: int
   constraint: BERTopicHyperparameterConstraint
 
-  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult):
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
     cache = shared_state.cache
     column = shared_state.column
 
@@ -66,9 +67,10 @@ class BERTopicExperimentLab:
         candidate=candidate,
         error=str(e),
       )
-      experiment_result.trials.append(result)
-      cache.bertopic_experiments.save(experiment_result, column.name)
-      raise e
+      with lock:
+        experiment_result.trials.append(result)
+        cache.bertopic_experiments.save(experiment_result, column.name)
+        raise e
 
     self.task.log_success(f"Finished running a trial for the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v} and diversity of {evaluation.topic_diversity}.")
     result = BERTopicExperimentTrialResult(
@@ -76,9 +78,9 @@ class BERTopicExperimentLab:
       candidate=candidate,
       error=None
     )
-    response_queue.close()
-    experiment_result.trials.append(result)
-    cache.bertopic_experiments.save(experiment_result, column.name)
+    with lock:
+      experiment_result.trials.append(result)
+      cache.bertopic_experiments.save(experiment_result, column.name)
 
     return evaluation.coherence_v
   
@@ -104,7 +106,8 @@ class BERTopicExperimentLab:
     experiment = functools.partial(
       self.experiment,
       shared_state=shared_state,
-      experiment_result=experiment_result
+      experiment_result=experiment_result,
+      lock=threading.Lock(),
     )
     
     import optuna
