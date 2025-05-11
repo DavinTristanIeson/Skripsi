@@ -12,15 +12,19 @@ from ..model import DatasetFilterSchema
 def paginate_table(params: PaginationParams, cache: ProjectCache)->TablePaginationApiResult[dict[str, Any]]:
   engine = TableEngine(cache.config)
   data, meta = engine.paginate_workspace(params)
+  columns = list(filter(
+    lambda column: column.name in data.columns,
+    cache.config.data_schema.columns
+  ))
   return TablePaginationApiResult[dict[str, Any]](
     data=serialize_pandas(data),
     message=None,
-    columns=cache.config.data_schema.columns,
+    columns=columns,
     meta=meta
   )
 
 def get_affected_rows(params: DatasetFilterSchema, cache: ProjectCache)->ApiResult[list[int]]:
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableEngine(cache.config)
   data = engine.filter(df, params.filter)
   return ApiResult(data=list(map(int, data.index)), message=None)

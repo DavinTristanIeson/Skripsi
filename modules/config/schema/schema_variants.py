@@ -1,5 +1,6 @@
 from enum import Enum
 import functools
+from http import HTTPStatus
 import math
 from typing import Annotated, ClassVar, Literal, Optional, Union
 
@@ -8,7 +9,9 @@ import pydantic
 import pandas as pd
 
 from modules.api.enum import ExposedEnum
+from modules.api.wrapper import ApiError
 from modules.config.context import ConfigSerializationContext
+from modules.config.schema.exceptions import MissingTextualColumnInternalColumnsException
 from modules.validation import DiscriminatedUnionValidator
 
 from .base import _BaseSchemaColumn, GeospatialRoleEnum, SchemaColumnTypeEnum
@@ -186,6 +189,12 @@ class TextualSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
       source_name=self.name,
     )
   
+  def assert_internal_columns(self, df: pd.DataFrame, *, with_preprocess: bool, with_topics: bool):
+    if self.preprocess_column.name not in df.columns and with_preprocess:
+      raise MissingTextualColumnInternalColumnsException("preprocess")
+    if self.topic_column.name not in df.columns and with_topics:
+      raise MissingTextualColumnInternalColumnsException("topics")
+
   def get_internal_columns(self)->list["SchemaColumn"]:
     return [
       self.preprocess_column,

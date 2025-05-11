@@ -1,3 +1,4 @@
+import abc
 from typing import Any, Generic, Optional, TypeVar, Union
 import pydantic
 
@@ -10,6 +11,11 @@ class ApiError(Exception):
 
   def __str__(self):
     return self.message
+  
+class ApiErrorAdaptableException(abc.ABC, Exception):
+  @abc.abstractmethod
+  def to_api(self)->ApiError:
+    ...
     
 class ApiResult(pydantic.BaseModel, Generic[T]):
   data: T

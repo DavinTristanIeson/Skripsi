@@ -7,6 +7,7 @@ from modules.logger import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.task import TaskStorageProxy
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
+from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
 
 from .base import BERTopicIntermediateState, BERTopicProcedureComponent
 from .embedding import BERTopicEmbeddingProcedureComponent
@@ -31,6 +32,7 @@ class BERTopicProcedureFacade:
     procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=state, task=self.task),
       BERTopicPreprocessProcedureComponent(state=state, task=self.task),
+      BERTopicModelBuilderProcedureComponent(state=state, task=self.task),
       BERTopicEmbeddingProcedureComponent(state=state, task=self.task),
       BERTopicTopicModelingProcedureComponent(state=state, task=self.task),
       BERTopicVisualizationEmbeddingProcedureComponent(state=state, task=self.task),

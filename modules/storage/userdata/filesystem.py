@@ -8,6 +8,8 @@ from typing import Any, Callable, Generic, Optional, TypeVar, cast
 from fastapi.encoders import jsonable_encoder
 import pydantic
 
+from modules.storage.exceptions import UserDataEntryNotFoundException, UserDataUniquenessConstraintViolationException
+
 from .resource import UserDataResource, UserDataSchema
 from modules.api.wrapper import ApiError
 from modules.baseclass import Singleton
@@ -17,18 +19,18 @@ from modules.logger.provisioner import ProvisionedLogger
 T = TypeVar("T")
 JSONStorageControllerValidator = Callable[[Any], UserDataResource[T]]
 
-logger = ProvisionedLogger().provision("JSONStorageController")
+logger = ProvisionedLogger().provision("UserDataStorageController")
 
         
 class _UserDataStorageLockManager(metaclass=Singleton):
-  __locks: dict[str, threading.Lock]
+  __locks: dict[str, threading.RLock]
   def __init__(self):
     self.__locks = {}
 
   def provision(self, storage_path: str):
     lock = self.__locks.get(storage_path, None)
     if lock is None:
-      lock = threading.Lock()
+      lock = threading.RLock()
       self.__locks[storage_path] = lock
     return lock
 
@@ -58,9 +60,9 @@ class UserDataStorageController(Generic[T]):
     unique_ids = set(map(lambda x: x.id, items))
     unique_names = set(map(lambda x: x.name, items))
     if candidate.id in unique_ids:
-      raise ApiError(f"ID \"{candidate.id}\" already exists.", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise UserDataUniquenessConstraintViolationException(id=candidate.id, name=None)
     if candidate.name in unique_names:
-      raise ApiError(f"The name \"{candidate.name}\" already exists. Please choose another name.", HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise UserDataUniquenessConstraintViolationException(id=None, name=candidate.name)
 
   def read_file(self)->list[UserDataResource[T]]:
     if not os.path.exists(self.path):
@@ -111,7 +113,7 @@ class UserDataStorageController(Generic[T]):
       current_state.append(addition)
       self.write_file(current_state)
 
-  def update(self, id: str, item: UserDataSchema[T]):
+  def update(self, id: str, item: UserDataSchema[T], *, create_if_not_exist: bool = False):
     logger.info(f"{self.path} - UPDATE {id} WITH {item}")
     with self.lock:
       current_state = self.read_file()
@@ -127,9 +129,14 @@ class UserDataStorageController(Generic[T]):
           __has_update = True
           break
 
-      # If no update just treat this as a create
       if not __has_update:
-        raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
+        if create_if_not_exist:
+          new_data = UserDataResource[T].from_schema(item, id)
+          new_data = self.validator(new_data)
+          self.__assert_uniqueness_constraint(current_state, new_data)
+          current_state.append(new_data)
+        else:
+          raise UserDataEntryNotFoundException(id=id, path=self.path)
 
       self.write_file(current_state)
     
@@ -149,6 +156,11 @@ class UserDataStorageController(Generic[T]):
         raise ApiError(f"There are no entries with ID \"{id}\" in \"{self.path}\"", HTTPStatus.NOT_FOUND)
 
       self.write_file(current_state)
+
+  def clear(self):
+    logger.info(f"{self.path} - CLEAR")
+    with self.lock:
+      self.write_file([])
   
 __all__ = [
   "UserDataStorageController",

@@ -4,7 +4,7 @@ from typing import Annotated, Optional, cast
 
 from fastapi import Depends, Query
 import pandas as pd
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
@@ -17,7 +17,7 @@ def _is_textual_column(column: Annotated[str, Query], cache: ProjectCacheDepende
 TextualSchemaColumnDependency = Annotated[TextualSchemaColumn, Depends(_is_textual_column)]
 
 def _has_topic_modeling_result(column: str, cache: ProjectCacheDependency)->TopicModelingResult:
-  return cache.load_topic(column)
+  return cache.topics.load(column)
 
 TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topic_modeling_result)]
 
@@ -25,7 +25,7 @@ TopicModelingResultDependency = Annotated[TopicModelingResult, Depends(_has_topi
 def _has_topic_modeling_result_if_topic(column: str, cache: ProjectCacheDependency)->Optional[TopicModelingResult]:
   topic_column = cache.config.data_schema.assert_exists(column)
   if topic_column.type == SchemaColumnTypeEnum.Topic:
-    return cache.load_topic(cast(str, topic_column.source_name))
+    return cache.topics.load(cast(str, topic_column.source_name))
   else:
     return None
 
@@ -38,11 +38,6 @@ def _topic_exists(topic_modeling_result: TopicModelingResultDependency, topic: i
   return topic_obj
 
 TopicExistsDependency = Annotated[Topic, Depends(_topic_exists)]
-
-def _assert_dataframe_has_topic_columns(df: pd.DataFrame, column: TextualSchemaColumn):
-  if column.topic_column.name not in df.columns or column.preprocess_column.name not in df.columns:
-    raise ApiError("The topic modeling procedure has not been executed on this column. If you have already executed the topic modeling procedure before, it is likely that the topic-related files are missing or corrupted. Try refreshing the interface and run the topic modeling procedure one more time.", http.HTTPStatus.BAD_REQUEST)
-  
 
 __all__ = [
   "TextualSchemaColumnDependency",

@@ -12,8 +12,8 @@ from modules.topic.model import TopicModelingResult
 logger = ProvisionedLogger().provision("Topic Controller")
 
 def _assert_visualization_vectors_synced_with_workspace_df(cache: ProjectCache, column: TextualSchemaColumn):
-  visualization_vectors = cache.load_visualization_vectors(column)
-  df = cache.load_workspace()
+  visualization_vectors = cache.visualization_vectors.load(column.name)
+  df = cache.workspaces.load()
 
   if column.preprocess_column.name not in df.columns:
     raise ApiError(f"It seems that the preprocessed documents no longer exists even though you should have ran the topic modeling algorithm before. There may have been a data corruption, please run the topic modeling algorithm again or reload the whole dataset if the problem persists.", http.HTTPStatus.BAD_REQUEST)
@@ -69,26 +69,28 @@ def get_topic_visualization_results(cache: ProjectCache, column: TextualSchemaCo
   )
 
 
-MAX_DOCUMENT_PER_TOPIC_FOR_VISUALIZATION = 100
+MAX_DOCUMENTS = 5000
 def get_document_visualization_results(cache: ProjectCache, column: TextualSchemaColumn, topic_modeling_result: TopicModelingResult):
   visualization_vectors, document_topic_assignments, documents = _assert_visualization_vectors_synced_with_workspace_df(cache, column)
   topic_visualization = get_topic_visualization_results(cache, column, topic_modeling_result).data
   
   document_visualizations: list[DocumentVisualizationResource] = []
-  # So we can index from 0
-  document_topic_assignments = np.array(document_topic_assignments)
-  documents = list(documents)
 
-  topic_tally: dict[int, int] = dict()
-  for i in range(visualization_vectors.shape[0]):
-    topic_id = document_topic_assignments[i]
-    if topic_tally.get(topic_id, 0) >= MAX_DOCUMENT_PER_TOPIC_FOR_VISUALIZATION:
-      continue
-
-    document_vector = visualization_vectors[i] 
-    document = documents[i] 
-    topic_tally[topic_id] = topic_tally.get(topic_id, 0) + 1
-
+  sampled_count = min(MAX_DOCUMENTS, len(document_topic_assignments))
+  unsampled_count = len(document_topic_assignments) - sampled_count
+  if unsampled_count > 0:
+    document_mask = np.hstack([
+      np.full(sampled_count, True),
+      np.full(unsampled_count, False)
+    ])
+    # https://stackoverflow.com/questions/19597473/binary-random-array-with-a-specific-proportion-of-ones
+    np.random.seed(MAX_DOCUMENTS)
+    np.random.shuffle(document_mask)
+    document_topic_assignments = document_topic_assignments[document_mask]
+    documents = documents[document_mask]
+    visualization_vectors = visualization_vectors[document_mask, :]
+    
+  for topic_id, document, document_vector in zip(document_topic_assignments, documents, visualization_vectors):
     document_visualization = DocumentVisualizationResource(
       topic=topic_id,
       document=document,

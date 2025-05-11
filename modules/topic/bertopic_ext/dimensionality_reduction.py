@@ -81,7 +81,7 @@ class VisualizationCachedUMAP(__CachedUMAP):
   @property
   def model(self):
     return self.__model
-  
+
 __all__ = [
   "BERTopicCachedUMAP",
   "VisualizationCachedUMAP",

@@ -10,13 +10,19 @@ from fastapi.responses import JSONResponse
 from modules.logger import ProvisionedLogger
 import traceback
 
-from .wrapper import ApiError, ApiErrorResult
+from .wrapper import ApiError, ApiErrorAdaptableException, ApiErrorResult
 
 logger = ProvisionedLogger().provision("FastAPI Error Handler")
 
 def api_error_exception_handler(request: Request, exc: ApiError):
   logger.error(f"API Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
   return JSONResponse(content=ApiErrorResult(message=exc.message).model_dump(), status_code=exc.status_code)
+
+def api_error_adaptable_exception_handler(request: Request, exc: ApiErrorAdaptableException):
+  logger.error(f"API Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
+  api_error = exc.to_api()
+  return JSONResponse(content=ApiErrorResult(message=api_error.message).model_dump(), status_code=api_error.status_code)
+
 
 def http_exception_handler(request: Request, exc: HTTPException):
   logger.error(f"API Error while handling {request.url}. Error: {''.join(traceback.format_exception(exc))}")
@@ -64,6 +70,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 def register_error_handlers(app: FastAPI):
   app.exception_handler(ApiError)(
     api_error_exception_handler
+  )
+  app.exception_handler(ApiErrorAdaptableException)(
+    api_error_adaptable_exception_handler
   )
   app.exception_handler(RequestValidationError)(
     validation_exception_handler

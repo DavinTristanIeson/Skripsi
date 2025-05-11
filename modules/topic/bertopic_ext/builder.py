@@ -99,8 +99,8 @@ class BERTopicModelBuilder:
     from hdbscan import HDBSCAN
     column = self.column
     max_cluster_size = self.corpus_size and column.topic_modeling.max_topic_size and int(column.topic_modeling.max_topic_size * self.corpus_size)
-    min_cluster_size = max(2, column.topic_modeling.min_topic_size)
-    min_samples = max(2, int(column.topic_modeling.clustering_conservativeness * column.topic_modeling.min_topic_size))
+    min_cluster_size = column.topic_modeling.min_topic_size
+    min_samples = column.topic_modeling.topic_confidence_threshold
 
     params = dict()
     if max_cluster_size is not None:

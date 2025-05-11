@@ -3,8 +3,9 @@ from typing import Sequence, cast
 import numpy as np
 import pandas as pd
 
-from controllers.topic import _assert_dataframe_has_topic_columns
+from modules.project.paths import ProjectPaths
 from modules.table.serialization import serialize_pandas
+from modules.task.storage import TaskStorage
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
@@ -18,10 +19,10 @@ from modules.topic.model import Topic, TopicModelingResult
 
 
 def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColumn, params: PaginationParams)->TablePaginationApiResult[DocumentPerTopicResource]:
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   engine = TableEngine(cache.config)
 
-  _assert_dataframe_has_topic_columns(df, column)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
   
   not_empty_filter = NotEmptyTableFilter(target=column.preprocess_column.name)
   if params.filter is not None:
@@ -55,9 +56,9 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   )
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
-  df = cache.load_workspace()
+  df = cache.workspaces.load().copy()
   config = cache.config
-  _assert_dataframe_has_topic_columns(df, column)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
 
@@ -68,10 +69,9 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   df[column.topic_column.name] = df[column.topic_column.name].astype("Int32")
 
   documents = df[column.preprocess_column.name]
-  document_topics = df[column.topic_column.name]
   mask = documents.notna()
   documents = documents[mask]
-  document_topics = document_topics[mask]
+  document_topics = df.loc[mask, column.topic_column.name]
 
   # Reset BERTopic model
   model_builder = EmptyBERTopicModelBuilder(
@@ -85,7 +85,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
   interpreter = BERTopicInterpreter(bertopic_model)
-  new_topics = interpreter.extract_topics()
+  new_topics = interpreter.extract_topics(map_topics = True)
 
   # Assign new labels
   topic_map = {topic.id: topic for topic in body.topics}
@@ -102,9 +102,19 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
   # Save model
-  cache.save_bertopic(bertopic_model, column.name)
-  cache.save_topic(new_tm_result, column.name)
-  cache.save_workspace(df)
+  cache.bertopic_models.save(bertopic_model, column.name)
+  cache.topics.save(new_tm_result, column.name)
+  cache.workspaces.save(df)
+  # Invalidate tasks
+  TaskStorage().invalidate(prefix=config.project_id, clear=True)
+  # Clean up experiments
+  config.paths._cleanup(
+    directories=[],
+    files=[
+      ProjectPaths.TopicModelExperiments(column.name),
+      ProjectPaths.TopicEvaluation(column.name),
+    ],
+  )
 
   return ApiResult(
     data=None,
@@ -113,15 +123,13 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
 
 
 def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn, tm_result: TopicModelingResult):
-  df = cache.load_workspace()
+  df = cache.workspaces.load()
   config = cache.config
-  _assert_dataframe_has_topic_columns(df, column)
-  bertopic_model = cache.load_bertopic(column.name)
+  column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
+  bertopic_model = cache.bertopic_models.load(column.name)
 
   filtered_df = TableEngine(config).filter(df, body.filter)
   local_corpus = cast(Sequence[str], filtered_df[column.preprocess_column])
-
-  bertopic_model.hierarchical_topics
 
   interpreter = BERTopicInterpreter(bertopic_model)
   local_bow = interpreter.represent_as_bow_sparse(local_corpus)

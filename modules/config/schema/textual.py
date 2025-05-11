@@ -1,10 +1,11 @@
 from enum import Enum
-from typing import Any, Optional, Sequence, cast
+from typing import Annotated, Any, Optional, Sequence, cast
 import pandas as pd
 import pydantic
 import tqdm
 
 from modules.api import ExposedEnum
+from modules.validation.array import StartBeforeEndValidator
 
 
 class DocumentEmbeddingMethodEnum(str, Enum):
@@ -33,14 +34,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   max_unique_words: Optional[int] = pydantic.Field(default=None, gt=0)
   min_document_length: int = pydantic.Field(default=5, gt=0)
   min_word_length: int = pydantic.Field(default=3, gt=0)
-  n_gram_range: tuple[int, int] = (1, 2)
-
-  @pydantic.field_validator("n_gram_range", mode="after")
-  def __n_gram_range_validator(cls, value: tuple[int, int]):
-    if value[0] > value[1]:
-      return (value[1], value[0])
-    return value
-
+  n_gram_range: Annotated[tuple[int, int], StartBeforeEndValidator]
 
   @property
   def spacy_pipeline_name(self):
@@ -149,18 +143,25 @@ class TopicModelingConfig(pydantic.BaseModel):
   # https://stackoverflow.com/questions/67898039/hdbscan-difference-between-parameters
 
   # Minimal number of topics
-  min_topic_size: int = pydantic.Field(default=15, gt=1)
+  min_topic_size: int = pydantic.Field(default=15, ge=2)
   # Maximum number of topics
   max_topic_size: Optional[float] = pydantic.Field(default=None, gt=0.0, le=1.0)
 
-  # Higher value produces more outliers. Lower value might make outliers be included into the topics. This corresponds to HDBSCAN min_samples * min_cluster_size
-  clustering_conservativeness: float = pydantic.Field(default=1, gt=0.0, le=1.0)
+  # How many documents with the same theme is required to make us confident that they are part of the same topic.
+  topic_confidence_threshold: Optional[int] = pydantic.Field(default=None, ge=2)
+
+  @pydantic.field_validator("topic_confidence_threshold", mode="after")
+  def __validate_topic_confidence_threshold(cls, value: int, info: pydantic.ValidationInfo):
+    if info.data["min_topic_size"] is None or value is None:
+      return value
+    return min(info.data["min_topic_size"], value)
+
   
   # Corresponds to UMAP n_neighbors parameter. By default we set this equal to min_topic_size. We keep min_dist=0.1 to help clustering since higher min_dist softens the grouping.
   # This determines the shape of the embedding. Higher values means UMAP will consider the global structure more when reducing the dimensions of the embedding.
-  reference_document_count: int = pydantic.Field(default=15, gt=1)
+  reference_document_count: int = pydantic.Field(default=15, ge=2)
 
-  max_topics: Optional[int] = pydantic.Field(default=None, gt=0)
+  max_topics: Optional[int] = pydantic.Field(default=None, ge=1)
 
   embedding_method: DocumentEmbeddingMethodEnum = DocumentEmbeddingMethodEnum.All_MiniLM_L6_V2
   

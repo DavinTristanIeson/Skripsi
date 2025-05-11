@@ -1,8 +1,7 @@
+from dataclasses import dataclass
 from typing import Sequence
 
-from modules.project.cache import ProjectCacheManager
 from modules.project.paths import ProjectPaths
-from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
 
@@ -14,17 +13,18 @@ class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
     # Compute
     workspace_path = config.paths.full_path(ProjectPaths.Workspace)
     self.task.log_pending(f"Loading cached dataset from \"{workspace_path}\"...")
-    self.state.cache.load_workspace() # Load workspace in cache
+    self.state.cache.workspaces.load() # Load workspace in cache
     self.task.log_success(f"Loaded cached dataset from \"{workspace_path}\"...")
 
 
+@dataclass
 class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
+  can_save: bool = True
   def run(self):
     # Dependencies
     column = self.state.column
     cache = self.state.cache
-    df = cache.load_workspace()
-    config = self.state.config
+    df = cache.workspaces.load()
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]
@@ -44,7 +44,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       mask = df[preprocess_name].notna()
       preprocess_documents = df.loc[mask, preprocess_name]
       self.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
-      cache.save_workspace(df)
+      cache.workspaces.save(df)
     
     if len(preprocess_documents) == 0:
       raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
@@ -59,11 +59,34 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     self.state.mask = mask
     self.state.embedding_documents = sbert_documents
     self.state.documents = preprocess_documents # type: ignore
-    self.state.model = BERTopicModelBuilder(
-      project_id=config.project_id,
-      column=column,
-      corpus_size=len(preprocess_documents)
-    ).build()
+
+@dataclass
+class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
+  def run(self):
+    # Dependencies
+    column = self.state.column
+    cache = self.state.cache
+    df = cache.workspaces.load()
+    preprocess_name = column.preprocess_column.name
+
+    raw_documents = df[column.name]
+    column.assert_internal_columns(df, with_preprocess=True, with_topics=False)
+    
+    # Cache
+    raw_preprocess_documents = df[preprocess_name]
+    mask = df[preprocess_name].notna()
+    preprocess_documents = raw_preprocess_documents[mask]
+    
+    original_documents: Sequence[str] = raw_documents[mask] # type: ignore
+    self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
+    sbert_documents = column.preprocessing.preprocess_light(original_documents)
+    # Light preprocessing for SBERT
+    self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
+
+    # Effect
+    self.state.mask = mask
+    self.state.embedding_documents = sbert_documents
+    self.state.documents = preprocess_documents # type: ignore
 
 __all__ = [
   "BERTopicDataLoaderProcedureComponent",

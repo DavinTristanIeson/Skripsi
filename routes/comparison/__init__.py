@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from modules.api.wrapper import ApiResult
 from modules.comparison.engine import TableComparisonResult
 
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 
 from .controller import compare_group_words, statistic_test
 from .model import ComparisonGroupWordsSchema, ComparisonStatisticTestSchema

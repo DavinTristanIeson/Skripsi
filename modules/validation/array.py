@@ -14,6 +14,20 @@ def array_field_constraint(*, exact: Optional[int] = None, min: Optional[int] = 
     return value
   return AfterValidator(validator)
 
+def __validate_start_le_end(value: Optional[tuple[Any, Any]], info: ValidationInfo):
+  if value is None:
+    return value
+  if len(value) != 2:
+    raise ValueError(f"{info.field_name} should contain at least two elements, but received {value} instead.")
+  if value[0] > value[1]:
+    return (value[1], value[0])
+  else:
+    return value
+
+StartBeforeEndValidator = AfterValidator(__validate_start_le_end)
+
+
 __all__ = [
-  "array_field_constraint"
+  "array_field_constraint",
+  "StartBeforeEndValidator",
 ]  

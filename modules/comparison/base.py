@@ -6,6 +6,7 @@ import pydantic
 import pandas as pd
 import scipy.stats
 
+from modules.comparison.exceptions import InvalidColumnTypeForComparisonMethodException, NotEnoughComparisonGroupsException
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
@@ -50,10 +51,14 @@ class _BaseValidatedComparison(abc.ABC):
   def check_is_valid(self)->_StatisticTestValidityModel:
     # For now we only support comparing two groups
     if len(self.groups) < 2:
-      raise ApiError(f"At least two groups has to be provided for a statistic test.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise NotEnoughComparisonGroupsException()
     supported_types = self.get_supported_types()
     if self.column.type not in supported_types:
-      raise ApiError(f"{self.get_name()} can only be used to compare columns of type {', '.join(supported_types)}, but received \"{self.column.type}\" instead.", http.HTTPStatus.UNPROCESSABLE_ENTITY)
+      raise InvalidColumnTypeForComparisonMethodException(
+        column_type=self.column.type,
+        method=self.get_name(),
+        supported_types=supported_types
+      )
     return self._check_is_valid()
 
 class _BaseEffectSize(_BaseValidatedComparison, abc.ABC):

@@ -6,7 +6,8 @@ import pandas as pd
 from modules.api.wrapper import ApiError
 from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.effect_size import CramerVEffectSize, GroupEffectSizeFactory, GroupEffectSizeMethodEnum
-from modules.comparison.engine import TableComparisonEmptyException, TableComparisonEngine
+from modules.comparison.engine import TableComparisonEngine
+from modules.comparison.exceptions import EmptyComparisonGroupException
 from modules.comparison.statistic_test import ChiSquaredStatisticTest, GroupStatisticTestFactory, StatisticTestMethodEnum
 from modules.comparison.utils import _check_chisq_contingency_table
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
@@ -30,7 +31,7 @@ class TableCorrelationPreprocessModule:
     config = self.cache.config
 
     column = config.data_schema.assert_of_type(column_name, supported_types)
-    df = self.cache.load_workspace()
+    df = self.cache.workspaces.load()
 
     if column.name not in df.columns:
       raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", HTTPStatus.NOT_FOUND)
@@ -45,7 +46,7 @@ class TableCorrelationPreprocessModule:
     )
 
   def consume(self, partial1: TableCorrelationPreprocessPartialResult, partial2: TableCorrelationPreprocessPartialResult):
-    workspace = self.cache.load_workspace()
+    workspace = self.cache.workspaces.load()
     mask = partial1.mask & partial2.mask
     df = workspace.loc[mask, :]
         
@@ -63,7 +64,7 @@ class TableCorrelationPreprocessModule:
 
   def extract(self, df: pd.DataFrame, column: SchemaColumn, *, transform_topics: bool = True):
     if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
-      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(df[column.name])
       return cast(pd.Series, categorical_data.rename_categories(tm_result.renamer))
     
@@ -79,7 +80,7 @@ class TableCorrelationPreprocessModule:
   
   def label_binary_variable(self, binary_variables: pd.Series | np.ndarray, column: SchemaColumn):
     if column.type == SchemaColumnTypeEnum.Topic:
-      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_column = pd.Categorical(binary_variables).rename_categories(tm_result.renamer)
       return list(categorical_column.categories)
     else:
@@ -145,7 +146,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
   partial1 = preprocess.apply_partial(input.column1, supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES)
   partial2 = preprocess.apply_partial(input.column2, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
 
-  workspace = cache.load_workspace()
+  workspace = cache.workspaces.load()
   total_count = len(workspace)
 
   df = preprocess.consume(partial1, partial2)
@@ -183,7 +184,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
           statistic_test_preference=input.statistic_test_preference,
           effect_size_preference=input.effect_size_preference,
         )
-      except TableComparisonEmptyException as e:
+      except EmptyComparisonGroupException as e:
         continue
 
       yes_count = result.groups[0].valid_count
@@ -199,7 +200,7 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
       ))
 
   if len(results) == 0:
-    raise ValueError(f"There are no valid subdatasets that can be made using {partial1.column.name}. This might be a developer error.")
+    raise ApiError(f"There are no valid subdatasets that can be made using {partial1.column.name}.", HTTPStatus.UNPROCESSABLE_ENTITY)
   
   statistic_test_method = GroupStatisticTestFactory(
     column=partial2.column,

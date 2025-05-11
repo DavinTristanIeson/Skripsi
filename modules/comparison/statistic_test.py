@@ -8,6 +8,7 @@ import pandas as pd
 import scipy.stats
 
 from modules.comparison.utils import _check_chisq_contingency_table, _check_non_normal_distribution, _check_normal_distribution, _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare
+from modules.exceptions.dependencies import InvalidValueTypeException
 from modules.logger import ProvisionedLogger
 from modules.api import ExposedEnum
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
@@ -124,7 +125,7 @@ class StatisticTestFactory:
     elif self.preference == StatisticTestMethodEnum.ChiSquared:
       return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+      raise InvalidValueTypeException(type="statistic test", value=self.preference)
     
 class ANOVAStatisticTest(_BaseStatisticTest):
   @classmethod
@@ -185,7 +186,7 @@ class GroupStatisticTestFactory:
     elif self.preference == GroupStatisticTestMethodEnum.ChiSquared:
       return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
-      raise ValueError(f"\"{self.preference}\" is not a valid statistic test method.")
+      raise InvalidValueTypeException(type="statistic test", value=self.preference)
    
 
 __all__ = [

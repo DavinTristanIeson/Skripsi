@@ -1,17 +1,20 @@
 import os
 
-from modules.api import ApiResult, ApiError
+from modules.api import ApiResult
 from modules.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.exceptions.dataframe import DataFrameLoadException
+from modules.exceptions.files import FileLoadingException, FileNotExistsException
 from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_data_source
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.engine import scheduler, topic_modeling_job_store
+from modules.task.storage import TaskStorage
 
 from ..model import ProjectMutationSchema, ProjectResource
 from .project_checks import _assert_valid_project_id
 
-from controllers.project import _assert_project_id_doesnt_exist
+from routes.dependencies.project import _assert_project_id_doesnt_exist
 
 logger = ProvisionedLogger().provision("Project Controller")
 
@@ -34,8 +37,7 @@ def get_all_projects():
       cache = ProjectCacheManager().get(folder)
       try:
         projects.append(ProjectResource.from_config(cache.config))
-      except ApiError as e:
-        logger.error(f"Failed to load the config in \"{folder}\" due to: {e}")
+      except FileLoadingException as e:
         continue
 
   return ApiResult(
@@ -83,9 +85,9 @@ def update_project(config: Config, body: ProjectMutationSchema):
   # Resolve project differences
 
   try:
-    df = config.load_workspace()
-  except ApiError:
-    df = get_cached_data_source(config.source)
+    workspace_df = config.load_workspace()
+  except (DataFrameLoadException, FileNotExistsException):
+    workspace_df = None
 
   logger.info(f"Resolving differences in the configurations of \"{config.project_id}\"")
 
@@ -96,15 +98,15 @@ def update_project(config: Config, body: ProjectMutationSchema):
     source=body.source,
     version=1,
   )
-  df, column_diffs = new_config.data_schema.resolve_difference(config.data_schema, df, get_cached_data_source(new_config.source))
+  df, column_diffs = new_config.data_schema.resolve_difference(
+    prev=config.data_schema,
+    workspace_df=workspace_df,
+    source_df=get_cached_data_source(new_config.source)
+  )
   cleanup_targets: list[str] = []
   for diff in column_diffs:
     if (diff.current is None or diff.current.type != diff.previous.type) and diff.previous.type == SchemaColumnTypeEnum.Textual:
-      cleanup_targets.append(ProjectPaths.BERTopic(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.DocumentEmbeddings(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.VisualizationEmbeddings(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.Topics(diff.previous.name))
-      cleanup_targets.append(ProjectPaths.Topics(diff.previous.name))
+      cleanup_targets.append(ProjectPaths.TopicModelingFolder(diff.previous.name))
   logger.info(f"Successfully resolved the differences in the column configurations of \"{config.project_id}\"")
 
   # Commit changes
@@ -113,7 +115,7 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
   # Invalidate cache
   ProjectCacheManager().invalidate(new_config.project_id)
-  scheduler.remove_all_jobs(topic_modeling_job_store)
+  TaskStorage().invalidate(prefix=new_config.project_id, clear=True)
   new_config.paths._cleanup([], cleanup_targets)
 
   return ApiResult(
@@ -129,6 +131,7 @@ def delete_project(config: Config):
   config.paths.cleanup(all=True)
   scheduler.remove_all_jobs(topic_modeling_job_store)
   ProjectCacheManager().invalidate(config.project_id)
+  TaskStorage().invalidate(prefix=config.project_id, clear=True)
 
   return ApiResult(
     data=None,
@@ -144,7 +147,7 @@ def reload_project(cache: ProjectCache):
   ProjectCacheManager().invalidate(config.project_id)  
 
   df = config.data_schema.fit(df)
-  cache.save_workspace(df)
+  cache.workspaces.save(df)
 
   return ApiResult(
     data=None,

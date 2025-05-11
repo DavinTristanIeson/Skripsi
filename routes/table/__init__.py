@@ -1,7 +1,7 @@
 from typing import Any
 from fastapi import APIRouter
 
-from controllers.topic import OptionalTopicModelingResultDependency
+from routes.dependencies.topic import OptionalTopicModelingResultDependency
 from routes.table.controller.filter import get_column_geographical_aggregate_values
 from routes.table.model import (
   DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema, GetTableGeographicalAggregateValuesSchema,
@@ -13,7 +13,7 @@ from routes.table.model import (
 from modules.api.wrapper import ApiResult
 from modules.table import PaginationParams
 
-from controllers.project import ProjectCacheDependency
+from routes.dependencies.project import ProjectCacheDependency
 
 from .controller import (
   paginate_table, get_column_counts,

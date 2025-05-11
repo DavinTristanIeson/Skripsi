@@ -5,6 +5,7 @@ import pandas as pd
 import pydantic
 
 from modules.api.wrapper import ApiError
+from modules.comparison.exceptions import EmptyComparisonGroupException
 from modules.config import Config, SchemaColumn
 from modules.project.cache import ProjectCacheManager
 from modules.table import TableEngine, NamedTableFilter
@@ -24,16 +25,11 @@ class TableComparisonGroupInfo(pydantic.BaseModel):
   valid_count: int
   total_count: int
 
-
 class TableComparisonResult(pydantic.BaseModel):
   warnings: list[str]
   groups: list[TableComparisonGroupInfo]
   significance: SignificanceResult
   effect_size: EffectSizeResult
-
-
-class TableComparisonEmptyException(Exception):
-  pass
 
 @dataclass
 class TableComparisonEngine:
@@ -114,7 +110,7 @@ class TableComparisonEngine:
     self._exclude_na_rows(groups, group_info)
     for group in groups:
       if len(group) == 0:
-        raise TableComparisonEmptyException(f"{group.name} does not have any values that can be compared.")
+        raise EmptyComparisonGroupException(f"{group.name} does not have any values that can be compared.")
 
     for group, ginfo in zip(groups, group_info):
       ginfo.valid_count = len(group)
@@ -165,5 +161,4 @@ __all__ = [
   "TableComparisonEngine",
   "TableComparisonResult",
   "TableComparisonGroupInfo",
-  "TableComparisonEmptyException"
 ]

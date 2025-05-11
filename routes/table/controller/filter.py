@@ -4,6 +4,7 @@ from typing import Optional, Sequence, cast
 import numpy as np
 import pandas as pd
 from modules.api import ApiResult
+from modules.exceptions.dependencies import InvalidValueTypeException
 from modules.table.filter_variants import TableFilter
 from routes.table.model import (
   DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
@@ -74,7 +75,7 @@ class _TableFilterPreprocessModule:
 
     # Use categorical dtype for topic
     if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
-      tm_result = self.cache.load_topic(cast(str, column.source_name))
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
       categorical_data = categorical_data.rename_categories(tm_result.renamer)
       data = pd.Series(categorical_data, name=column.name)
@@ -86,7 +87,7 @@ class _TableFilterPreprocessModule:
     )
 
   def apply_geographical(self, *, latitude_column_name: str, longitude_column_name: str, additional_column_constraints: dict[str, list[SchemaColumnTypeEnum]], aggregator: dict[str, pd.NamedAgg]):
-    df = self.cache.load_workspace()
+    df = self.cache.workspaces.load()
     config = self.cache.config
 
     latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(latitude_column_name, [SchemaColumnTypeEnum.Geospatial]))
@@ -234,7 +235,10 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
   elif params.method == TableColumnAggregateMethodEnum.Mean:
     data = grouped.mean()
   else:
-    raise ValueError(f"\"{params.method}\" is not a valid aggregation method.")
+    raise InvalidValueTypeException(
+      value=params.method,
+      type="aggregation method",
+    )
   
   data.dropna(inplace=True)
   if len(data) == 0:
@@ -339,7 +343,7 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
   data = result.data
   column = result.column
   
-  full_df = cache.load_workspace()
+  full_df = cache.workspaces.load()
   total_count = len(full_df)
 
   inside_count = len(data)
@@ -377,7 +381,7 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
     supported_types=[SchemaColumnTypeEnum.Unique]
   )
 
-  bertopic_model = cache.load_bertopic(column.name)
+  bertopic_model = cache.bertopic_models.load(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
   interpreter.top_n_words = 50
 
@@ -406,9 +410,10 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
     transform_topics=False
   )
   topics = result.data
+  column.assert_internal_columns(result.df, with_preprocess=True, with_topics=False)
   documents = result.df[column.preprocess_column.name]
 
-  bertopic_model = cache.load_bertopic(column.name)
+  bertopic_model = cache.bertopic_models.load(column.name)
   interpreter = BERTopicInterpreter(bertopic_model)
 
   bow = interpreter.represent_as_bow_sparse(cast(Sequence[str], documents))

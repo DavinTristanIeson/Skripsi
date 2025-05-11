@@ -4,6 +4,7 @@ from typing import Optional
 import pandas as pd
 import pydantic
 
+from modules.exceptions.files import CorruptedFileException, FileNotExistsException
 from modules.project.paths import ProjectPathManager, ProjectPaths
 
 class Topic(pydantic.BaseModel):
@@ -63,14 +64,25 @@ class TopicModelingResult(pydantic.BaseModel):
 
   @staticmethod
   def load(project_id: str, column: str)->"TopicModelingResult":
-    import orjson
-
     paths = ProjectPathManager(project_id=project_id)
     topics_path = paths.assert_path(ProjectPaths.Topics(column))
+    FileNotExistsException.verify(topics_path, error=FileNotExistsException.format_message(
+      path=topics_path,
+      purpose="topic modeling result",
+      problem="This may be because the topic modeling algorithm has not been run before for this column.",
+      solution="Try running the topic algorithm on this column."
+    ))
     with open(topics_path, 'r', encoding='utf-8') as f:
-      return TopicModelingResult.model_validate(
-        orjson.loads(f.read())
-      )
+      try:
+        return TopicModelingResult.model_validate_json(f.read())
+      except pydantic.ValidationError:
+        raise CorruptedFileException(
+          message=CorruptedFileException.format_message(
+            path=topics_path,
+            purpose="topic modeling result",
+            solution="Try running the topic modeling algorithm again to fix the file."
+          )
+        )
     
   def find(self, topic_id: int)->Optional[Topic]:
     for topic in self.topics:
