@@ -56,7 +56,7 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
   )
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
-  df = cache.workspaces.load()
+  df = cache.workspaces.load().copy()
   config = cache.config
   column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
 
@@ -69,10 +69,9 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   df[column.topic_column.name] = df[column.topic_column.name].astype("Int32")
 
   documents = df[column.preprocess_column.name]
-  document_topics = df[column.topic_column.name]
   mask = documents.notna()
   documents = documents[mask]
-  document_topics = document_topics[mask]
+  document_topics = df.loc[mask, column.topic_column.name]
 
   # Reset BERTopic model
   model_builder = EmptyBERTopicModelBuilder(
@@ -86,7 +85,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   )
 
   interpreter = BERTopicInterpreter(bertopic_model)
-  new_topics = interpreter.extract_topics()
+  new_topics = interpreter.extract_topics(map_topics = True)
 
   # Assign new labels
   topic_map = {topic.id: topic for topic in body.topics}

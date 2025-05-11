@@ -35,13 +35,19 @@ def evaluate_topics(
 
   diversity = topic_diversity(topic_words)
 
+  mask = pd.notna(document_topic_assignments)
+  document_topic_assignments = document_topic_assignments[mask]
   outlier_count = (document_topic_assignments == -1).sum()
+  total_count = len(document_topic_assignments)
+  valid_count = total_count - outlier_count
 
   return TopicEvaluationResult(
     coherence_v=cv_score,
     topic_diversity=diversity,
     coherence_v_per_topic=cv_scores_per_topic,
     outlier_count=outlier_count,
+    valid_count=valid_count,
+    total_count=total_count,
   )
 
 

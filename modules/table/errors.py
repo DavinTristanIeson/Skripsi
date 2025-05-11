@@ -36,6 +36,7 @@ class TableFilterWrongFieldValueTypeException(ApiErrorAdaptableException):
       http.HTTPStatus.UNPROCESSABLE_ENTITY
     )
 
+@dataclass
 class TableFilterColumnNotFoundException(ApiErrorAdaptableException):
   target: str
   project_name: str

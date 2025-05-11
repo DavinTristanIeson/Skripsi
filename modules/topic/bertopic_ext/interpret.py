@@ -95,6 +95,8 @@ class BERTopicInterpreter:
       if key == -1:
         continue
       if map_topics and topic_mapping is not None:
+        if key not in topic_mapping:
+          continue
         # get original Y value
         key = topic_mapping[key]
 

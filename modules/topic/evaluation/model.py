@@ -13,6 +13,8 @@ class TopicEvaluationResult(pydantic.BaseModel):
   topic_diversity: float
   coherence_v_per_topic: list[CoherenceVPerTopic]
   outlier_count: int
+  valid_count: int
+  total_count: int
 
 __all__ = [
   "TopicEvaluationResult"

@@ -145,7 +145,7 @@ class TaskStorage(metaclass=Singleton):
 
       if prefix is not None:
         logger.warning(f"Requesting the invalidation of task with prefix {prefix}")
-        affected_task_ids = filter(lambda key: key.startswith(prefix), self.stop_events.keys())
+        affected_task_ids = list(filter(lambda key: key.startswith(prefix), self.stop_events.keys()))
         for task_id in affected_task_ids:
           self.__invalidate_singular(task_id, clear=clear)
         
