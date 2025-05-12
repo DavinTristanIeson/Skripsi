@@ -1,20 +1,35 @@
 from dataclasses import dataclass
-from typing import Sequence
+import threading
+from typing import Sequence, cast
 
-from modules.project.paths import ProjectPaths
+from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.project.cache import ProjectCache
+from modules.project.paths import ProjectPathManager
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
-
+@dataclass
 class BERTopicDataLoaderProcedureComponent(BERTopicProcedureComponent):
+  project_id: str
+  column: str
   def run(self):
-    # Dependencies
-    config = self.state.config
-
     # Compute
-    workspace_path = config.paths.full_path(ProjectPaths.Workspace)
-    self.task.log_pending(f"Loading cached dataset from \"{workspace_path}\"...")
-    self.state.cache.workspaces.load() # Load workspace in cache
-    self.task.log_success(f"Loaded cached dataset from \"{workspace_path}\"...")
+    base_path = ProjectPathManager(project_id=self.project_id).base_path
+    self.task.log_pending(f"Loading configuration from project in \"{base_path}\"...")
+
+    cache = ProjectCache(
+      project_id=self.project_id,
+      lock=threading.RLock(),
+    )
+    config = cache.config
+    column = config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual])
+
+    self.task.log_success(f"Successfully loaded configuration from project in \"{base_path}\"...")
+
+    # Effects
+    self.state.config = config
+    self.state.column = cast(TextualSchemaColumn, column)
+    self.state.cache = cache
 
 
 @dataclass
@@ -24,7 +39,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     column = self.state.column
     cache = self.state.cache
-    df = cache.workspaces.load()
+    df = cache.workspaces.load(cached=False)
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]
@@ -66,7 +81,7 @@ class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     column = self.state.column
     cache = self.state.cache
-    df = cache.workspaces.load()
+    df = cache.workspaces.load(cached=False)
     preprocess_name = column.preprocess_column.name
 
     raw_documents = df[column.name]

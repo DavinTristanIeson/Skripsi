@@ -1,56 +1,23 @@
 import functools
 import http
-from typing import Sequence, cast
-from modules.config.config import Config
-from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
+
+from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
+from typing import cast
+from modules.topic.experiments.model import BERTopicHyperparameterCandidate
 from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.exceptions.files import FileLoadingException
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCache, ProjectCacheManager
-from modules.task.engine import scheduler
-from modules.task.responses import TaskResponse, TaskStatusEnum
-from modules.task.storage import AlternativeTaskResponse, TaskConflictResolutionBehavior, TaskStorage
-from modules.topic.evaluation.evaluate import evaluate_topics
+from modules.project.cache import ProjectCache
+from modules.task.responses import TaskResponse
+from modules.task.manager import TaskConflictResolutionBehavior, TaskManager
 from modules.topic.evaluation.model import TopicEvaluationResult
-from modules.topic.experiments.procedure import BERTopicExperimentLab
-from routes.topic.controller.task import start_topic_modeling
-from routes.topic.model import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, StartTopicModelingSchema, TopicModelExperimentSchema
+from routes.topic.model import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, TopicModelExperimentSchema
 
 logger = ProvisionedLogger().provision("Topic Controller")
 
-def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRequest):
-  taskstore = TaskStorage()
-  with taskstore.proxy_context(payload.task_id) as proxy:
-    cache = ProjectCacheManager().get(payload.project_id)
-  
-    config = cache.config
-    column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(payload.column, [SchemaColumnTypeEnum.Textual]))
-
-    proxy.log_pending(f"Loading cached documents and topics for \"{column.name}\"")
-    df = cache.workspaces.load()
-    column.assert_internal_columns(df, with_preprocess=True, with_topics=False)
-    
-    raw_documents = df[column.preprocess_column.name]
-    mask = raw_documents.notna() & (raw_documents != '')
-    documents: list[str] = raw_documents[mask].to_list()
-
-    tm_result = cache.topics.load(column.name)
-    bertopic_model = cache.bertopic_models.load(column.name)
-    proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
-
-    proxy.log_pending(f"Evaluating the topics...")
-    result = evaluate_topics(
-      bertopic_model=bertopic_model,
-      raw_documents=documents,
-      document_topic_assignments=df[column.topic_column.name],
-      topics=tm_result.topics,
-    )
-    proxy.log_success("Finished evaluating the topics.")
-    proxy.success(result)
-    cache.topic_evaluations.save(result, column.name)
   
 def perform_topic_model_evaluation(cache: ProjectCacheDependency, column: TextualSchemaColumn):
   request = EvaluateTopicModelResultTaskRequest(
@@ -58,12 +25,11 @@ def perform_topic_model_evaluation(cache: ProjectCacheDependency, column: Textua
     column=column.name,
   )
 
-  store = TaskStorage()
+  store = TaskManager()
   store.add_task(
-    scheduler=scheduler,
     task_id=request.task_id,
-    task=_perform_topic_model_evaluation_task,
-    args=[request],
+    task=topic_evaluation_task,
+    args=[request, store.proxy(request.task_id)],
     idle_message=f"Beginning the evaluation of the topic modeling results of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Cancel,
   )
@@ -85,13 +51,12 @@ def check_topic_model_evaluation_status(cache: ProjectCacheDependency, column: T
     column=column.name,
   )
 
-  store = TaskStorage()
   alternative_response = functools.partial(
     __get_topic_model_evaluation_result_alternative_response,
     cache=cache,
     column=column.name,
   )
-  task_result = store.get_task_result(
+  task_result = get_task_result_or_else(
     task_id=request.task_id,
     alternative_response=alternative_response,
   )
@@ -99,21 +64,8 @@ def check_topic_model_evaluation_status(cache: ProjectCacheDependency, column: T
     raise ApiError(f"Topic evaluation has not been started for \"{column.name}\" in project \"{config.metadata.name}\".", http.HTTPStatus.BAD_REQUEST)
   return task_result
 
-
-def _topic_modeling_experimentation_task(payload: BERTopicExperimentTaskRequest):
-  taskstore = TaskStorage()
-  with taskstore.proxy_context(payload.task_id) as proxy:
-    study = BERTopicExperimentLab(
-      task=proxy,
-      column=payload.column,
-      project_id=payload.project_id,
-      constraint=payload.constraint,
-      n_trials=payload.n_trials,
-    )
-    study.run()
-
 def perform_topic_model_experiment(cache: ProjectCache, column: TextualSchemaColumn, body: TopicModelExperimentSchema):
-  store = TaskStorage()
+  store = TaskManager()
   request = BERTopicExperimentTaskRequest(
     project_id=cache.config.project_id,
     column=column.name,
@@ -121,9 +73,8 @@ def perform_topic_model_experiment(cache: ProjectCache, column: TextualSchemaCol
     n_trials=body.n_trials,
   )
   store.add_task(
-    scheduler=scheduler,
     task_id=request.task_id,
-    task=_topic_modeling_experimentation_task,
+    task=topic_model_experiment_task,
     args=[request],
     idle_message=f"Beginning the experimentation of the hyperparameters of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Ignore
@@ -145,8 +96,8 @@ def __get_topic_model_experiment_result_alternative_response(cache: ProjectCache
       message=f"There had been an experiment on {column} to find the optimal hyperparameters starting from {result.start_at.strftime('%Y-%m-%d %H:%M:%S')}, but that experiment did not finish successfully."
     )
 
-def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn)->TaskResponse[BERTopicExperimentResult]:
-  store = TaskStorage()
+def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn, body: TopicModelExperimentSchema)->TaskResponse[TopicEvaluationResult]:
+  store = TaskManager()
   request = BERTopicExperimentTaskRequest(
     project_id=cache.config.project_id,
     column=column.name,
@@ -159,7 +110,7 @@ def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSche
     cache=cache,
     column=request.column,
   )
-  task_result = store.get_task_result(
+  task_result = get_task_result_or_else(
     task_id=request.task_id,
     alternative_response=alternative_response,
   )

@@ -165,6 +165,16 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel):
       )
     return data.str.contains(self.value)
   
+class IsTrueTableFilter(_BaseTableFilter, pydantic.BaseModel):
+  type: Literal[TableFilterTypeEnum.IsTrue] = TableFilterTypeEnum.IsTrue
+  def apply(self, params):
+    return access_series(self, params) == True
+
+class IsFalseTableFilter(_BaseTableFilter, pydantic.BaseModel):
+  type: Literal[TableFilterTypeEnum.IsFalse] = TableFilterTypeEnum.IsFalse
+  def apply(self, params):
+    return access_series(self, params) == False
+  
 TableFilterUnion = Union[
   AndTableFilter,
   OrTableFilter,
@@ -178,12 +188,14 @@ TableFilterUnion = Union[
   GreaterThanOrEqualToTableFilter,
   LessThanOrEqualToTableFilter,
   HasTextTableFilter,
+  IsTrueTableFilter,
+  IsFalseTableFilter
 ]
+
 TableFilter = Annotated[TableFilterUnion, pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]
 class NamedTableFilter(pydantic.BaseModel):
   name: str
   filter: TableFilter
-
   
 __all__ = [
   "AndTableFilter",
@@ -198,6 +210,8 @@ __all__ = [
   "GreaterThanOrEqualToTableFilter",
   "LessThanOrEqualToTableFilter",
   "HasTextTableFilter",
+  "IsTrueTableFilter",
+  "IsFalseTableFilter",
   "TableFilter",
   "NamedTableFilter"
 ]

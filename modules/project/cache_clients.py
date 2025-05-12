@@ -14,7 +14,9 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.exceptions.files import CorruptedFileException, FileLoadingException, FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
+from modules.project.lock import ProjectFileLockManager
 from modules.project.paths import ProjectPathManager, ProjectPaths
+from modules.storage.atomic import atomic_write
 from modules.storage.cache import CacheClient, CacheItem
 from modules.topic.bertopic_ext.dimensionality_reduction import VisualizationCachedUMAP
 from modules.topic.evaluation.model import TopicEvaluationResult
@@ -32,7 +34,6 @@ T = TypeVar("T")
 class ProjectCacheAdapter(Generic[T], abc.ABC):
   project_id: str
   cache: CacheClient[T]
-  lock: threading.RLock
 
   @abc.abstractmethod
   def _save(self, value: T, key: str)->Optional[CacheItem[T]]:
@@ -43,8 +44,7 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
     ...
 
   def save(self, value: T, key: str)->None:
-    with self.lock:
-      cached_item = self._save(value, key)
+    cached_item = self._save(value, key)
     if cached_item is not None:
       self.cache.set(cached_item)
     else:
@@ -57,8 +57,7 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
     cached_value = self.cache.get(key)
     if cached_value is not None:
       return cached_value
-    with self.lock:
-      loaded_value = self._load(key)
+    loaded_value = self._load(key)
     if isinstance(loaded_value, CacheItem):
       self.cache.set(loaded_value)
       return loaded_value.value
@@ -75,8 +74,14 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
 @dataclass
 class ConfigCacheAdapter:
   project_id: str
-  lock: threading.RLock
   cache: CacheClient[Config]
+  @property
+  def lock(self):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.Config,
+      wait=True,
+    )
   def save(self, config: Config)->None:
     with self.lock:
       config.save_to_json()
@@ -106,8 +111,15 @@ class ConfigCacheAdapter:
 class WorkspaceCacheAdapter:
   project_id: str
   cache: CacheClient[pd.DataFrame]
-  lock: threading.RLock
   config: ConfigCacheAdapter
+
+  @property
+  def lock(self):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.Workspace,
+      wait=True,
+    )
   
   def set(self, df: pd.DataFrame, key: str):
     self.cache.set(CacheItem(
@@ -118,10 +130,10 @@ class WorkspaceCacheAdapter:
   def get(self, key: str)->Optional[pd.DataFrame]:
     return self.cache.get(key)
 
-  def load(self)->pd.DataFrame:
+  def load(self, *, cached: bool = True)->pd.DataFrame:
     empty_key = ''
     cached_df = self.cache.get(empty_key)
-    if cached_df is not None:
+    if cached_df is not None and cached:
       return cached_df
     
     config = self.config.load()
@@ -136,7 +148,8 @@ class WorkspaceCacheAdapter:
   
   def save(self, df: pd.DataFrame):
     config = self.config.load()
-    config.save_workspace(df)
+    with self.lock:
+      config.save_workspace(df)
     self.cache.clear()
     self.cache.set(CacheItem(
       key='',
@@ -157,6 +170,14 @@ class TopicModelingResultCacheAdapter(ProjectCacheAdapter[TopicModelingResult]):
 @dataclass
 class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
   config: ConfigCacheAdapter
+
+  def lock(self, key: str):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.BERTopic(key),
+      wait=True,
+    )
+  
   def _load(self, key):
     from bertopic import BERTopic
     from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
@@ -175,7 +196,8 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
       corpus_size=0,
     ).build_embedding_model()
     try:
-      bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)
+      with self.lock(key):
+        bertopic_model: BERTopic = BERTopic.load(model_path, embedding_model=embedding_model)
     except Exception:
       raise CorruptedFileException(
         CorruptedFileException.format_message(
@@ -189,11 +211,19 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
   def _save(self, value, key):
     config = self.config.load()
     model_path = config.paths.allocate_path(ProjectPaths.BERTopic(key))
-    value.save(model_path, "safetensors", save_ctfidf=True)
+    with self.lock(key):
+      value.save(model_path, "safetensors", save_ctfidf=True)
 
 @dataclass
 class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
   config: ConfigCacheAdapter
+  def lock(self, key: str):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.VisualizationEmbeddings(key),
+      wait=True,
+    )
+  
   def __prepare(self, key: str):
     config = self.config.load()
     textual_column = cast(
@@ -209,7 +239,8 @@ class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
   
   def _load(self, key):
     visumap = self.__prepare(key)
-    visualization_vectors = visumap.load_cached_embeddings()
+    with self.lock(key):
+      visualization_vectors = visumap.load_cached_embeddings()
     if visualization_vectors is None:
       raise FileLoadingException(
         f"There are no document/topic embeddings for \"{visumap.column.name}\". The file may be corrupted or the topic modeling procedure has not been executed on this column."
@@ -222,6 +253,12 @@ class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
 
 @dataclass
 class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResult]):
+  def lock(self, key: str):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.TopicEvaluation(key),
+      wait=True,
+    )
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.full_path(ProjectPaths.TopicEvaluation(key))
@@ -231,16 +268,17 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
       problem=f"It seems that you have not performed any evaluations on the topics of \"{key}\".",
     ))
 
-    with open(file_path, 'r', encoding='utf-8') as f:
-      try:
-        result = TopicEvaluationResult.model_validate_json(f.read())
-      except ValidationError:
-        raise CorruptedFileException(
-          CorruptedFileException.format_message(
-            path=file_path,
-            purpose="topic evaluation results",
+    with self.lock(key):
+      with open(file_path, 'r', encoding='utf-8') as f:
+        try:
+          result = TopicEvaluationResult.model_validate_json(f.read())
+        except ValidationError:
+          raise CorruptedFileException(
+            CorruptedFileException.format_message(
+              path=file_path,
+              purpose="topic evaluation results",
+            )
           )
-        )
       
     self.cache.set(CacheItem(
       key=key,
@@ -251,12 +289,20 @@ class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResul
   def _save(self, value, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.allocate_path(ProjectPaths.TopicEvaluation(key))
-    with open(file_path, 'w', encoding='utf-8') as f:
-      f.write(value.model_dump_json())
+    with self.lock(key):
+      with atomic_write(file_path, mode="text") as f:
+        f.write(value.model_dump_json())
 
 
 @dataclass
 class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimentResult]):
+  def lock(self, key: str):
+    return ProjectFileLockManager().lock_file(
+      project_id=self.project_id,
+      path=ProjectPaths.TopicModelExperiments(key),
+      wait=True,
+    )
+  
   def _load(self, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.full_path(ProjectPaths.TopicModelExperiments(key))
@@ -269,17 +315,18 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
       )
     )
 
-    with open(file_path, 'r', encoding='utf-8') as f:
-      try:
-        result = BERTopicExperimentResult.model_validate_json(f.read())
-      except ValidationError:
-        raise CorruptedFileException(
-          CorruptedFileException.format_message(
-            path=file_path,
-            purpose="BERTopic experiment results",
+    with self.lock(key):
+      with open(file_path, 'r', encoding='utf-8') as f:
+        try:
+          result = BERTopicExperimentResult.model_validate_json(f.read())
+        except ValidationError:
+          raise CorruptedFileException(
+            CorruptedFileException.format_message(
+              path=file_path,
+              purpose="BERTopic experiment results",
+            )
           )
-        )
-      
+        
     self.cache.set(CacheItem(
       key=key,
       value=result,
@@ -289,5 +336,5 @@ class BERTopicExperimentResultCacheAdapter(ProjectCacheAdapter[BERTopicExperimen
   def _save(self, value, key):
     paths = ProjectPathManager(project_id=self.project_id)
     file_path = paths.allocate_path(ProjectPaths.TopicModelExperiments(key))
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with atomic_write(file_path, mode="text") as f:
       f.write(value.model_dump_json())

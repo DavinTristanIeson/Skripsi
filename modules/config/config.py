@@ -8,6 +8,7 @@ from modules.exceptions.dataframe import DataFrameLoadException
 from modules.exceptions.files import FileNotExistsException
 from modules.logger import ProvisionedLogger
 from modules.api import ApiError
+from modules.storage.atomic import atomic_write
 
 from .schema import SchemaManager
 from .source import DataSource
@@ -52,7 +53,7 @@ class Config(pydantic.BaseModel):
 
     config_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.Config)
     logger.info(f"Saving config file in \"{config_path}\"")
-    with open(config_path, 'w', encoding='utf-8') as f:
+    with atomic_write(config_path, mode="text") as f:
       json.dump(self.model_dump(context=ConfigSerializationContext(is_save=True)), f, indent=4, ensure_ascii=False)
     return
   
@@ -86,7 +87,8 @@ class Config(pydantic.BaseModel):
   def save_workspace(self, df: pd.DataFrame):
     workspace_path = self.paths.full_path(ProjectPaths.Workspace)
     logger.info(f"Saving workspace file in \"{workspace_path}\"")
-    df.to_parquet(workspace_path)
+    with atomic_write(workspace_path, mode="binary") as f:
+      df.to_parquet(f)
       
 __all__ = [
   "Config",

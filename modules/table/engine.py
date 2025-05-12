@@ -5,8 +5,7 @@ from typing import Any, Optional, Sequence, cast
 import pandas as pd
 
 from modules.logger import TimeLogger
-from modules.project.cache import ProjectCacheManager
-from modules.storage import CacheItem
+from modules.project.cache_manager import ProjectCacheManager
 from modules.config import Config
 
 from .pagination import PaginationMeta, PaginationParams
@@ -43,7 +42,12 @@ class TableEngine:
     if sort is None or sort.name not in df.columns:
       return df
     with TimeLogger("TableEngine", title="Applying sort to dataset..."):
-      return df.sort_values(by=sort.name, ascending=sort.asc)
+      if pd.api.types.is_bool_dtype(df[sort.name]):
+        # Invert ascending order. True boolean values should be ranked before False boolean values.
+        ascending = not sort.asc
+      else:
+        ascending = sort.asc
+      return df.sort_values(by=sort.name, ascending=ascending)
     
 
   def process_workspace(self, filter: Optional[TableFilter], sort: Optional[TableSort])->pd.DataFrame:

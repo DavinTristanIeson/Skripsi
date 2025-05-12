@@ -8,7 +8,7 @@ from modules.exceptions.files import FileLoadingException
 from modules.table import PaginationParams
 from modules.table.pagination import TablePaginationApiResult
 from modules.task.responses import TaskResponse, TaskStatusEnum
-from modules.task.storage import TaskStorage
+from modules.task.manager import TaskManager
 from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from modules.topic.model import TopicModelingResult
@@ -176,9 +176,9 @@ def patch__cancel_topic_experiment(
     constraint=None, # type: ignore
     n_trials=0,
   )
-  taskmaster = TaskStorage()
-  status = taskmaster.get_task_status(request.task_id)
-  if status == TaskStatusEnum.Idle or status == TaskStatusEnum.Pending:
+  taskmaster = TaskManager()
+  result = taskmaster.get_task(request.task_id)
+  if result is not None and (result.status == TaskStatusEnum.Idle or result.status == TaskStatusEnum.Pending):
     taskmaster.invalidate(task_id=request.task_id, clear=False)
     return ApiResult(
       data=None,

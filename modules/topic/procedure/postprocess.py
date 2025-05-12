@@ -1,11 +1,8 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
-from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
 from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
@@ -58,7 +55,7 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     cache = self.state.cache
     documents = self.state.documents
     model = self.state.model
-    df = cache.workspaces.load()
+    df = cache.workspaces.load(cached=False)
     mask = self.state.mask
 
     self.task.log_pending(f"Applying post-processing on the topics of \"{column.name}\"...")
@@ -84,10 +81,9 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     # Effect
     self.state.result = topic_modeling_result
     if self.can_save:
-      cache = ProjectCacheManager().get(config.project_id)
+      cache = self.state.cache
       cache.workspaces.save(df)
       cache.topics.save(topic_modeling_result, column.name)
-      ProjectCacheManager().invalidate(config.project_id)
 
 
 __all__ = [
