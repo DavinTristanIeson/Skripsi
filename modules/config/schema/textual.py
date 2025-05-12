@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Any, Optional, Sequence, cast
+from typing import Annotated, Any, Iterable, Optional, Sequence, cast
 import pandas as pd
 import pydantic
 import tqdm
@@ -115,7 +115,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
       min_df=self.min_df,
       max_df=self.max_df,
       max_features=self.max_unique_words,
-      ngram_range=self.n_gram_range, 
+      ngram_range=self.n_gram_range,
     )
 
     # Train naive vocabulary
@@ -128,11 +128,16 @@ class TextPreprocessingConfig(pydantic.BaseModel):
 
     analyzer = vectorizer.build_analyzer()
 
-    corpus: list[str] = list(map(
-      # This is an intentional cast
-      lambda doc: cast(str, None if len(doc) < self.min_document_length else ' '.join(doc)),
-      map(analyzer, greedy_corpus)
-    ))
+    corpus: list[str] = []
+    for original_text in greedy_corpus:
+      tokens: Sequence[str] = list(analyzer(original_text))
+      if len(tokens) < self.min_document_length:
+        corpus.append(cast(str, None))
+        continue
+      
+      # Make sure to join ngrams with _
+      joined_tokens = map(lambda token: token.replace(' ', '_'), tokens)
+      corpus.append(' '.join(joined_tokens))
 
     return corpus
   

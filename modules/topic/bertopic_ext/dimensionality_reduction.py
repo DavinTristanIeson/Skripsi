@@ -37,8 +37,7 @@ class BERTopicCachedUMAP(__CachedUMAP):
     from umap import UMAP
     return UMAP(
       random_state=2025,
-      n_neighbors=self.column.topic_modeling.reference_document_count
-        or self.column.topic_modeling.min_topic_size,
+      n_neighbors=self.column.topic_modeling.reference_document_count,
       min_dist=0.1,
       n_jobs=1,
       # BERTopic uses 5 dimensions

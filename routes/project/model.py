@@ -48,9 +48,9 @@ class CheckProjectIdSchema(pydantic.BaseModel):
 
 def validate_file_path(data: DataSource):
   if not os.path.exists(data.path):
-    raise ApiError(f"Cannot find any file at {data.path}. Are you sure you have provided the correct path?", http.HTTPStatus.NOT_FOUND)
+    raise ApiError(f"Cannot find any file at \"{data.path}\". Are you sure you have provided the correct path?", http.HTTPStatus.NOT_FOUND)
   if not os.path.isfile(data.path):
-    raise ApiError(f"The item at {data.path} is not a file. Are you sure you have provided the correct path?", http.HTTPStatus.BAD_REQUEST)
+    raise ApiError(f"The item at \"{data.path}\" is not a file. Are you sure you have provided the correct path?", http.HTTPStatus.BAD_REQUEST)
   return data
 DataSourceField = Annotated[DataSource, pydantic.AfterValidator(validate_file_path)]
 

@@ -70,14 +70,15 @@ class TableComparisonEngine:
     )
 
   def _exclude_overlapping_rows(self, groups: list[pd.Series], group_info: list[TableComparisonGroupInfo]):
-    valid_mask = list(map(lambda group: np.full(len(group), 1, dtype=np.bool_), groups))
+    # Use a pandas mask so that the indices are preserved
+    valid_mask = list(map(lambda group: pd.Series(data=True, index=group.index), groups))
     for i in range(len(groups)):
       for j in range(i + 1, len(groups)):
         data_A = groups[i].index
         data_B = groups[j].index
         overlap = data_A.intersection(data_B) # type: ignore
-        valid_mask[i][overlap] = 0
-        valid_mask[j][overlap] = 0
+        valid_mask[i][overlap] = False
+        valid_mask[j][overlap] = False
     
     for i, mask in enumerate(valid_mask):
       groups[i] = groups[i][mask]
@@ -110,7 +111,7 @@ class TableComparisonEngine:
     self._exclude_na_rows(groups, group_info)
     for group in groups:
       if len(group) == 0:
-        raise EmptyComparisonGroupException(f"{group.name} does not have any values that can be compared.")
+        raise EmptyComparisonGroupException(group=str(group.name))
 
     for group, ginfo in zip(groups, group_info):
       ginfo.valid_count = len(group)

@@ -47,7 +47,7 @@ class EmptyBERTopicModelBuilder:
     # We handle all preprocessing.
     vectorizer_model = CountVectorizer(
       min_df=1,
-      max_df=1,
+      max_df=1.0,
       stop_words=None,
     )
     return vectorizer_model
@@ -127,6 +127,7 @@ class BERTopicModelBuilder:
 
   def build(self)->"BERTopic":
     from bertopic import BERTopic
+    from bertopic.representation import KeyBERTInspired
 
     column = self.column
 
@@ -140,6 +141,7 @@ class BERTopicModelBuilder:
       hdbscan_model=self.build_hdbscan_model(),
       ctfidf_model=self.build_ctfidf_model(),
       vectorizer_model=self.build_vectorizer_model(),
+      representation_model=KeyBERTInspired(top_n_words=column.topic_modeling.top_n_words),
       top_n_words=int(column.topic_modeling.top_n_words),
       calculate_probabilities=False,
       verbose=True,
