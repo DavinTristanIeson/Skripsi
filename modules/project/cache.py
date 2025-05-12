@@ -102,12 +102,12 @@ class DataSourceCacheManager(metaclass=Singleton):
 
 def get_cached_data_source(source: "DataSource"):
   import hashlib
-  cache_key = hashlib.md5(str(source).encode(encoding='utf-8')).digest().decode(encoding='utf-8')
+  cache_key = hashlib.md5(str(source).encode(encoding='utf-8')).hexdigest()
   cache = DataSourceCacheManager().cache
 
   cached_dataframe = cache.get(cache_key)
   if cached_dataframe is not None:
-    logger.info(f"Loaded data source {source.path} from {cache}")
+    logger.info(f"Loaded data source {source.path} from Cache {cache.name}")
     return cached_dataframe
   
   if not os.path.exists(source.path):

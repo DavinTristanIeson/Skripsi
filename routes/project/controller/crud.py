@@ -111,11 +111,11 @@ def update_project(cache: ProjectCache, body: ProjectMutationSchema):
   logger.info(f"Successfully resolved the differences in the column configurations of \"{config.project_id}\"")
 
   # Commit changes
-  new_config.save_to_json()
-  new_config.save_workspace(df)
+  cache.config_cache.save(new_config)
+  cache.workspaces.save(df)
 
   # Invalidate cache
-  ProjectCacheManager().invalidate(new_config.project_id)
+  cache.invalidate()
   TaskManager().invalidate(prefix=new_config.project_id, clear=True)
   new_config.paths._cleanup(
     directories=[],
@@ -134,9 +134,9 @@ def update_project(cache: ProjectCache, body: ProjectMutationSchema):
 
 def delete_project(config: Config):
   config.paths.cleanup(all=True)
-  ProjectCacheManager().invalidate(config.project_id)
+  cache = ProjectCacheManager().get(config.project_id)
+  cache.invalidate()
   TaskManager().invalidate(prefix=config.project_id, clear=True)
-
   return ApiResult(
     data=None,
     message=f"Project \"{config.metadata.name}\" has been successfully deleted."
@@ -145,12 +145,12 @@ def delete_project(config: Config):
 def reload_project(cache: ProjectCache):
   config = cache.config
   df = get_cached_data_source(config.source)
+  df = config.data_schema.fit(df)
 
   config.paths.cleanup()
-  ProjectCacheManager().invalidate(config.project_id)  
+  cache.invalidate()
   TaskManager().invalidate(prefix=config.project_id, clear=True)
 
-  df = config.data_schema.fit(df)
   cache.workspaces.save(df)
 
   return ApiResult(

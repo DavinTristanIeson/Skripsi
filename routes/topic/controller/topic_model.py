@@ -4,8 +4,8 @@ import http
 from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
 from routes.dependencies.project import ProjectCacheDependency
 from modules.exceptions.files import FileLoadingException
-from routes.topic.controller.tasks import topic_modeling_task
-from routes.topic.model import StartTopicModelingSchema, TopicModelingTaskRequest
+from routes.topic.controller.tasks import TopicModelingTaskRequest, topic_modeling_task
+from routes.topic.model import StartTopicModelingSchema
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config import TextualSchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
@@ -50,7 +50,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
       df.drop(column.preprocess_column.name, axis=1, inplace=True)
     if column.topic_column.name in df.columns:
       df.drop(column.topic_column.name, axis=1, inplace=True)
-    config.save_workspace(df)
+    cache.workspaces.save(df)
   
   if not options.use_cached_document_vectors or not options.use_cached_umap_vectors or not options.use_preprocessed_documents:
     logger.info(f"Cleaning up BERTopic experiments from {column.name}.")
@@ -69,12 +69,11 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     column=column.name,
   )
 
-  taskmanager = TaskManager()
   store = TaskManager()
   store.add_task(
     task_id=request.task_id,
     task=topic_modeling_task,
-    args=[taskmanager.proxy(request.task_id), request],
+    args=[store.proxy(request.task_id), request],
     conflict_resolution=TaskConflictResolutionBehavior.Ignore,
     idle_message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
   )

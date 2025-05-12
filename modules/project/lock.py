@@ -3,6 +3,7 @@ import threading
 from typing import Optional
 
 from modules.baseclass import Singleton
+from modules.logger.provisioner import ProvisionedLogger
 from modules.project.exceptions import UnallowedColumnOperationException, UnallowedFileOperationException
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from filelock import FileLock, BaseFileLock
@@ -15,10 +16,15 @@ class GlobalProjectLock:
   column: Optional[str]
   timeout: Optional[float]
 
+  @property
+  def logger(self):
+    return ProvisionedLogger().provision("GlobalProjectLock")
+
   def __enter__(self):
     try:
       self.file_lock.acquire(timeout=self.timeout)
       self.thread_lock.acquire(timeout=self.timeout if self.timeout is not None else -1)
+      self.logger.debug(f"Acquire lock for {self.path or self.column}")
     except TimeoutError as e:
       self.file_lock.release()
       self.thread_lock.release()
@@ -31,6 +37,7 @@ class GlobalProjectLock:
   def __exit__(self, type, value, traceback):
     self.file_lock.release()
     self.thread_lock.release()
+    self.logger.debug(f"Released lock for {self.path or self.column}")
 
 # Lock is applied on a per-project basis.
 # Multiple files can be edited at once so we cannot lock on a per-file basis.
@@ -65,7 +72,7 @@ class ProjectFileLockManager(metaclass=Singleton):
     )
 
   def lock_column(self, project_id: str, column: str, *, wait: bool):
-    lockpath = ProjectPathManager(project_id=project_id).allocate_path(f"{ProjectPaths.Column(column)}.lock")
+    lockpath = ProjectPathManager(project_id=project_id).allocate_path(f"{ProjectPaths.TopicModelingFolder(column)}.lock")
     lock = self.provision(
       key=lockpath,
       column=column,

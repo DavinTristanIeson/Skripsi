@@ -62,7 +62,6 @@ async def create__project(body: ProjectMutationSchema)->ApiResult[ProjectResourc
 
 @router.put('/{project_id}')
 async def update__project(cache: ProjectCacheDependency, body: ProjectMutationSchema)->ApiResult[ProjectResource]:
-  config = cache.config
   # WARN DATA RACE
   return update_project(cache, body)
 

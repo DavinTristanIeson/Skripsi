@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 from enum import Enum
 import multiprocessing
-from multiprocessing.synchronize import Event
+import multiprocessing.managers
+from queue import Queue
 import queue
 import threading
 from typing import Any, Callable, Optional
@@ -25,13 +26,15 @@ class TaskConflictResolutionBehavior(str, Enum):
 
 class TaskManager(metaclass=Singleton):
   results: dict[str, TaskResponse]
-  stop_events: dict[str, Event]
+  stop_events: dict[str, threading.Event]
   lock: threading.RLock
-  queue: multiprocessing.Queue
+  queue: Queue
+  manager: multiprocessing.managers.SyncManager
   def __init__(self) -> None:
     self.results = {}
     self.stop_events = {}
-    self.queue = multiprocessing.Queue()
+    self.manager = multiprocessing.Manager()
+    self.queue = self.manager.Queue()
     self.lock = threading.RLock()
     
   def get_task(self, task_id: str)->Optional[TaskResponse]:
@@ -79,7 +82,7 @@ class TaskManager(metaclass=Singleton):
 
       if prefix is not None:
         logger.warning(f"Requesting the invalidation of task with prefix {prefix}")
-        affected_task_ids = filter(lambda key: key.startswith(prefix), self.results.keys())
+        affected_task_ids = list(filter(lambda key: key.startswith(prefix), self.results.keys()))
         for task_id in affected_task_ids:
           self.invalidate_task(task_id, clear=clear)
         
@@ -90,7 +93,7 @@ class TaskManager(metaclass=Singleton):
       self.results[task_id] = response
     stop_event = self.stop_events.get(task_id, None)
     if stop_event is None:
-      stop_event = multiprocessing.Event()
+      stop_event = self.manager.Event()
       self.stop_events[task_id] = stop_event
 
     return TaskManagerProxy(
@@ -131,7 +134,7 @@ class TaskManager(metaclass=Singleton):
         status=TaskStatusEnum.Idle
       )
       self.results[task_id] = response
-      self.stop_events[task_id] = multiprocessing.Event()  
+      self.stop_events[task_id] = self.manager.Event() 
       scheduler.add_job(
         task,
         args=args,
@@ -153,11 +156,11 @@ class TaskManager(metaclass=Singleton):
         continue
       with self.lock:
         logger.debug(f"Task response queue received response for task {response.id}.")
+        if response.id not in self.results:
+          # Response is already invalidated or has never been started. This may be a response from a lingering process.
+          logger.debug(f"Ignored response for task {response.id}.")
+          return
         self.results[response.id] = response
-        if response.data is not None:
-          task_stop_event = self.stop_events.get(response.id, None)
-          if task_stop_event is not None:
-            task_stop_event.set()
   
   @contextmanager
   def run(self):

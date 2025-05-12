@@ -7,7 +7,7 @@ from modules.project.cache import ProjectCache
 from modules.project.lock import ProjectThreadLockManager
 
 from watchdog.observers import Observer
-from watchdog.events import DirDeletedEvent, DirModifiedEvent, DirMovedEvent, FileDeletedEvent, FileModifiedEvent, FileMovedEvent, FileSystemEventHandler, FileSystemEvent
+from watchdog.events import DirDeletedEvent, DirModifiedEvent, DirMovedEvent, FileDeletedEvent, FileModifiedEvent, FileMovedEvent, FileSystemEventHandler
 
 from modules.project.paths import DATA_DIRECTORY, ProjectPaths
 import pathlib
@@ -28,7 +28,7 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
     
     data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
     relative_path = pathlib.Path(path).relative_to(data_directory)
-    if len(relative_path.parts) == 0:
+    if len(relative_path.parts) < 2:
       return
     
     project_id = relative_path.parts[0]

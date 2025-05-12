@@ -129,9 +129,7 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
     directories = [
       ProjectPaths.TopicModelingFolderName,
     ]
-    files = [
-      ProjectPaths.Workspace,
-    ]
+    files = []
 
     if all:
       files.extend([

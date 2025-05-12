@@ -1,28 +1,26 @@
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import functools
 import logging
-import multiprocessing
-from multiprocessing.synchronize import Event
+from queue import Queue
+import threading
 from typing import Any
 
 from modules.logger.provisioner import ProvisionedLogger
 from modules.task.responses import TaskLog, TaskResponse, TaskStatusEnum
 
-
 class TaskStopException(Exception):
   pass
-
 
 @dataclass
 class TaskManagerProxy:
   id: str
-  queue: multiprocessing.Queue
-  stop_event: Event
+  queue: Queue
+  stop_event: threading.Event
   response: TaskResponse
 
   def flush(self):
-    self.queue.put(self.response.model_dump(), block=True)
+    self.queue.put(self.response, block=True)
   
   @functools.cached_property
   def logger(self):
@@ -33,7 +31,7 @@ class TaskManagerProxy:
       raise TaskStopException()
 
   def log(self, message: str, status: TaskStatusEnum):
-    self.logger.info(f"({status}) {message}")
+    self.logger.info(f"{self.id}: ({status}) {message}")
     self.response.logs.append(TaskLog(
       message=message,
       status=status,
@@ -51,7 +49,7 @@ class TaskManagerProxy:
     self.log(message, TaskStatusEnum.Pending)
     
   def success(self, data: Any):
-    self.logger.info(f"TASK {self.id} SUCCESS: {data}")
+    self.logger.info(f"{self.id}: ({TaskStatusEnum.Success}) {data}")
     self.response.status = TaskStatusEnum.Success
     self.response.data = data
     self.flush()

@@ -13,6 +13,7 @@ from modules.topic.evaluation.model import TopicEvaluationResult
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from modules.topic.model import TopicModelingResult
 from routes.topic.controller.evaluation import apply_topic_model_hyperparameter, check_topic_model_evaluation_status, check_topic_model_experiment_status, perform_topic_model_evaluation, perform_topic_model_experiment
+from routes.topic.controller.tasks import BERTopicExperimentTaskRequest
 
 from .controller import (
   get_document_visualization_results, get_topic_visualization_results,
@@ -21,7 +22,7 @@ from .controller import (
   check_topic_modeling_status, start_topic_modeling
 )
 from .model import (
-  BERTopicExperimentTaskRequest, ColumnTopicModelingResultResource, DocumentPerTopicResource,
+  ColumnTopicModelingResultResource, DocumentPerTopicResource,
   DocumentTopicsVisualizationResource, RefineTopicsSchema,
   StartTopicModelingSchema, TopicModelExperimentSchema, TopicVisualizationResource, TopicsOfColumnSchema
 )
@@ -193,7 +194,6 @@ def get__topic_experiment_status(
   column: TextualSchemaColumnDependency,
   topic_modeling_result: TopicModelingResultDependency,
 )->TaskResponse[BERTopicExperimentResult]:
-
   return check_topic_model_experiment_status(
     cache=cache,
     column=column,

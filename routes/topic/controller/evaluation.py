@@ -3,7 +3,7 @@ import http
 
 from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
 from typing import cast
-from modules.topic.experiments.model import BERTopicHyperparameterCandidate
+from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config.schema.base import SchemaColumnTypeEnum
@@ -14,7 +14,9 @@ from modules.project.cache import ProjectCache
 from modules.task.responses import TaskResponse
 from modules.task.manager import TaskConflictResolutionBehavior, TaskManager
 from modules.topic.evaluation.model import TopicEvaluationResult
-from routes.topic.model import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, TopicModelExperimentSchema
+from routes.topic.controller.tasks import BERTopicExperimentTaskRequest, EvaluateTopicModelResultTaskRequest, topic_evaluation_task, topic_model_experiment_task
+from routes.topic.controller.topic_model import start_topic_modeling
+from routes.topic.model import StartTopicModelingSchema, TopicModelExperimentSchema
 
 logger = ProvisionedLogger().provision("Topic Controller")
 
@@ -29,7 +31,7 @@ def perform_topic_model_evaluation(cache: ProjectCacheDependency, column: Textua
   store.add_task(
     task_id=request.task_id,
     task=topic_evaluation_task,
-    args=[request, store.proxy(request.task_id)],
+    args=[store.proxy(request.task_id), request],
     idle_message=f"Beginning the evaluation of the topic modeling results of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Cancel,
   )
@@ -75,7 +77,7 @@ def perform_topic_model_experiment(cache: ProjectCache, column: TextualSchemaCol
   store.add_task(
     task_id=request.task_id,
     task=topic_model_experiment_task,
-    args=[request],
+    args=[store.proxy(request.task_id), request],
     idle_message=f"Beginning the experimentation of the hyperparameters of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Ignore
   )
@@ -96,8 +98,7 @@ def __get_topic_model_experiment_result_alternative_response(cache: ProjectCache
       message=f"There had been an experiment on {column} to find the optimal hyperparameters starting from {result.start_at.strftime('%Y-%m-%d %H:%M:%S')}, but that experiment did not finish successfully."
     )
 
-def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn, body: TopicModelExperimentSchema)->TaskResponse[TopicEvaluationResult]:
-  store = TaskManager()
+def check_topic_model_experiment_status(cache: ProjectCache, column: TextualSchemaColumn)->TaskResponse[BERTopicExperimentResult]:
   request = BERTopicExperimentTaskRequest(
     project_id=cache.config.project_id,
     column=column.name,
@@ -141,7 +142,7 @@ def apply_topic_model_hyperparameter(
   config.save_to_json()
   cache.config_cache.invalidate()
   config.paths.cleanup_topic_modeling(column.name)
-  TaskStorage().invalidate(prefix=f"{config.project_id}__{column.name}", clear=True)
+  TaskManager().invalidate(prefix=f"{config.project_id}__{column.name}", clear=True)
 
   start_topic_modeling(
     cache=cache,
