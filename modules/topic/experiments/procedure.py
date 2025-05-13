@@ -45,7 +45,7 @@ class BERTopicExperimentLab:
       response=TaskResponse.Idle("placeholder"),
     )
 
-  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, column: TextualSchemaColumn, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
     cache = shared_state.cache
     column = shared_state.column
 

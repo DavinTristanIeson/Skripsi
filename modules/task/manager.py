@@ -44,22 +44,23 @@ class TaskManager(metaclass=Singleton):
     return result
   
   def invalidate_task(self, task_id: str, *, clear: bool):
-    stop_event = self.stop_events.get(task_id, None)
-    if stop_event is not None:
-      stop_event.set()
-      self.stop_events.pop(task_id)
-    
-    has_apscheduler_job = scheduler.get_job(task_id) is not None
-    if has_apscheduler_job:
-      try:
-        scheduler.remove_job(task_id)
-      except JobLookupError:
-        pass
+    with self.lock:
+      stop_event = self.stop_events.get(task_id, None)
+      if stop_event is not None:
+        stop_event.set()
+        self.stop_events.pop(task_id)
+      
+      has_apscheduler_job = scheduler.get_job(task_id) is not None
+      if has_apscheduler_job:
+        try:
+          scheduler.remove_job(task_id)
+        except JobLookupError:
+          pass
 
-    if clear:
-      if task_id in self.results:
-        # Remove task
-        self.results.pop(task_id)
+      if clear:
+        if task_id in self.results:
+          # Remove task
+          self.results.pop(task_id)
     logger.warning(f"Task {task_id} has been invalidated")
 
   def invalidate(
