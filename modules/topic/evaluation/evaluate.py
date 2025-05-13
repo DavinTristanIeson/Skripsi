@@ -5,6 +5,7 @@ import pandas as pd
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.evaluation.method import cv_coherence, topic_diversity
 from modules.topic.evaluation.model import TopicEvaluationResult, CoherenceVPerTopic
+from modules.topic.exceptions import UnsyncedDocumentVectorsException
 from modules.topic.model import Topic
 
 if TYPE_CHECKING:
@@ -14,8 +15,14 @@ def evaluate_topics(
   raw_documents: Sequence[str],
   topics: list[Topic],
   bertopic_model: "BERTopic",
-  document_topic_assignments: pd.Series | np.ndarray
+  document_topic_assignments: pd.Series | np.ndarray,
+  umap_vectors: np.ndarray
 ):
+  mask = pd.notna(document_topic_assignments)
+  document_topic_assignments = document_topic_assignments[mask]
+  
+ 
+  
   topic_words: list[list[str]] = []
   for topic in topics:
     sorted_topic_words = sorted(topic.words, key=lambda word: word[1], reverse=True)
@@ -34,9 +41,7 @@ def evaluate_topics(
   ))
 
   diversity = topic_diversity(topic_words)
-
-  mask = pd.notna(document_topic_assignments)
-  document_topic_assignments = document_topic_assignments[mask]
+  
   outlier_count = (document_topic_assignments == -1).sum()
   total_count = len(document_topic_assignments)
   valid_count = total_count - outlier_count

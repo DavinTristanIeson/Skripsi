@@ -1,6 +1,8 @@
 
 from typing import Sequence
 
+import numpy as np
+
 
 def topic_diversity(topics: Sequence[Sequence[str]]):
   # based on OCTIS implementation and the equation in https://www.researchgate.net/publication/343173999_Topic_Modeling_in_Embedding_Spaces
@@ -32,7 +34,12 @@ def cv_coherence(topic_words: Sequence[Sequence[str]], corpus: Sequence[Sequence
 
   return cv_score, cv_scores_per_topic
 
+def silhouette_score(document_topic_assignments: np.ndarray, umap_vectors: np.ndarray):
+  from sklearn.metrics import silhouette_score
+  return silhouette_score(umap_vectors, document_topic_assignments, metric="euclidean")
+
 __all__ = [
   "cv_coherence",
-  "topic_diversity"
+  "topic_diversity",
+  "silhouette_score"
 ]

@@ -2,6 +2,8 @@ import functools
 import http
 from typing import Sequence, cast
 from modules.config.config import Config
+from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
+from modules.topic.exceptions import MissingCachedTopicModelingResult, UnsyncedDocumentVectorsException
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from routes.dependencies.project import ProjectCacheDependency
 from modules.api.wrapper import ApiError, ApiResult
@@ -36,17 +38,33 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     raw_documents = df[column.preprocess_column.name]
     mask = raw_documents.notna() & (raw_documents != '')
     documents: list[str] = raw_documents[mask].to_list()
+    document_topic_assignments = df[mask, column.topic_column.name]
 
     tm_result = cache.topics.load(column.name)
     bertopic_model = cache.bertopic_models.load(column.name)
+    models = BERTopicIndividualModels.cast(bertopic_model)
+    cached_umap_vectors = models.umap_model.load_cached_embeddings()
+    if cached_umap_vectors is None:
+      raise MissingCachedTopicModelingResult(
+        type="umap vectors",
+        column=column.name
+      )
+    if len(cached_umap_vectors) != len(document_topic_assignments):
+      raise UnsyncedDocumentVectorsException(
+        type="UMAP vectors",
+        expected_rows=len(document_topic_assignments),
+        observed_rows=len(cached_umap_vectors),
+        column=column.name,
+      )
     proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
 
     proxy.log_pending(f"Evaluating the topics...")
     result = evaluate_topics(
       bertopic_model=bertopic_model,
       raw_documents=documents,
-      document_topic_assignments=df[column.topic_column.name],
+      document_topic_assignments=document_topic_assignments,
       topics=tm_result.topics,
+      umap_vectors=cached_umap_vectors
     )
     proxy.log_success("Finished evaluating the topics.")
     proxy.success(result)

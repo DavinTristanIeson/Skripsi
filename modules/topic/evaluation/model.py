@@ -10,6 +10,7 @@ class CoherenceVPerTopic(pydantic.BaseModel):
   
 class TopicEvaluationResult(pydantic.BaseModel):
   coherence_v: float
+  silhouette_score: float
   topic_diversity: float
   coherence_v_per_topic: list[CoherenceVPerTopic]
   outlier_count: int
