@@ -7,6 +7,7 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCacheManager
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
 from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
+from modules.topic.exceptions import FoundNoTopicsException
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
 
@@ -70,6 +71,8 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     df[column.topic_column.name] = document_topic_mapping_column
 
     topics = BERTopicInterpreter(model).extract_topics()
+    if len(topics) == 0:
+      raise FoundNoTopicsException(column=column.name)
 
     topic_modeling_result = TopicModelingResult(
       project_id=config.project_id,

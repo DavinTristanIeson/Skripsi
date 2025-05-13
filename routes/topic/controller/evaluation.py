@@ -3,6 +3,7 @@ import http
 from typing import Sequence, cast
 from modules.config.config import Config
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
+from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
 from modules.topic.exceptions import MissingCachedTopicModelingResult, UnsyncedDocumentVectorsException
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
 from routes.dependencies.project import ProjectCacheDependency
@@ -27,7 +28,6 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
   taskstore = TaskStorage()
   with taskstore.proxy_context(payload.task_id) as proxy:
     cache = ProjectCacheManager().get(payload.project_id)
-  
     config = cache.config
     column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(payload.column, [SchemaColumnTypeEnum.Textual]))
 
@@ -38,15 +38,20 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     raw_documents = df[column.preprocess_column.name]
     mask = raw_documents.notna() & (raw_documents != '')
     documents: list[str] = raw_documents[mask].to_list()
-    document_topic_assignments = df[mask, column.topic_column.name]
+    document_topic_assignments = df.loc[mask, column.topic_column.name]
 
     tm_result = cache.topics.load(column.name)
+
     bertopic_model = cache.bertopic_models.load(column.name)
-    models = BERTopicIndividualModels.cast(bertopic_model)
-    cached_umap_vectors = models.umap_model.load_cached_embeddings()
+    umap_model = BERTopicCachedUMAP(
+      project_id=payload.project_id,
+      column=column,
+      low_memory=True,
+    )
+    cached_umap_vectors = umap_model.load_cached_embeddings()
     if cached_umap_vectors is None:
       raise MissingCachedTopicModelingResult(
-        type="umap vectors",
+        type="UMAP vectors",
         column=column.name
       )
     if len(cached_umap_vectors) != len(document_topic_assignments):
@@ -61,10 +66,10 @@ def _perform_topic_model_evaluation_task(payload: EvaluateTopicModelResultTaskRe
     proxy.log_pending(f"Evaluating the topics...")
     result = evaluate_topics(
       bertopic_model=bertopic_model,
-      raw_documents=documents,
+      documents=documents,
       document_topic_assignments=document_topic_assignments,
       topics=tm_result.topics,
-      umap_vectors=cached_umap_vectors
+      umap_vectors=cached_umap_vectors,
     )
     proxy.log_success("Finished evaluating the topics.")
     proxy.success(result)
@@ -198,12 +203,7 @@ def apply_topic_model_hyperparameter(
     )
   )
 
-  if candidate.min_topic_size is not None:
-    column.topic_modeling.min_topic_size = candidate.min_topic_size
-  if candidate.max_topics is not None:
-    column.topic_modeling.max_topics = candidate.max_topics
-  if candidate.topic_confidence_threshold is not None:
-    column.topic_modeling.topic_confidence_threshold = candidate.topic_confidence_threshold
+  column = candidate.apply(column, copy=False)
   
   config.save_to_json()
   cache.config_cache.invalidate()

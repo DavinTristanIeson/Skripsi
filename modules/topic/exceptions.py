@@ -4,6 +4,14 @@ from typing import Literal
 
 from modules.api.wrapper import ApiError, ApiErrorAdaptableException
 
+@dataclass
+class FoundNoTopicsException(ApiErrorAdaptableException):
+  column: str
+  def to_api(self):
+    return ApiError(
+      message=f"We were unable to find any topics in the corpus of {self.column}. This may be because your hyperparameters are too strict. Try changing your hyperparameters to be more lax.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
 
 @dataclass
 class RequiresTopicModelingException(ApiErrorAdaptableException):

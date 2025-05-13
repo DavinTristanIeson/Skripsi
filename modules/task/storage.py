@@ -46,7 +46,7 @@ class TaskStorageProxy:
     self.log(message, TaskStatusEnum.Pending)
     
   def success(self, data: Any):
-    logger.info(f"TASK {self.id} SUCCESS: {data}")
+    logger.info(f"TASK {self.id} SUCCESS")
     self.response.status = TaskStatusEnum.Success
     self.response.data = data
 

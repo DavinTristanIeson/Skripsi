@@ -2,7 +2,8 @@
 from http import HTTPStatus
 from modules.api.wrapper import ApiError
 from modules.topic.bertopic_ext.builder import BERTopicIndividualModels
-from modules.topic.exceptions import RequiresTopicModelingException
+from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
+from modules.topic.exceptions import MissingCachedTopicModelingResult, RequiresTopicModelingException, UnsyncedDocumentVectorsException
 
 from .base import BERTopicProcedureComponent
 
@@ -41,25 +42,33 @@ class BERTopicEmbeddingProcedureComponent(BERTopicProcedureComponent):
 class BERTopicCacheOnlyEmbeddingProcedureComponent(BERTopicProcedureComponent):
   def run(self):
     # Dependencies
+    cache = self.state.cache
     column = self.state.column
-    model = self.state.model
-    
-    individual_models = BERTopicIndividualModels.cast(model)
-    embedding_model = individual_models.embedding_model
-    
-    # Cache
-    embeddings = embedding_model.load_cached_embeddings()
-    if embeddings is None:
-      raise RequiresTopicModelingException(
-        issue=f"There are no cached embeddings in \"{embedding_model.embedding_path}\".",
+    documents = self.state.documents
+
+    # Compute
+    umap_model = BERTopicCachedUMAP(
+      project_id=cache.config.project_id,
+      column=column,
+      low_memory=True,
+    )
+    cached_umap_vectors = umap_model.load_cached_embeddings()
+
+    if cached_umap_vectors is None:
+      raise MissingCachedTopicModelingResult(
+        type="UMAP vectors",
         column=column.name
       )
-    
-    self.task.log_success(f"Using cached document vectors for \"{column.name}\" from \"{embedding_model.embedding_path}\".")
-    self.state.document_vectors = embeddings
-    
+    if len(cached_umap_vectors) != len(documents):
+      raise UnsyncedDocumentVectorsException(
+        type="UMAP vectors",
+        expected_rows=len(documents),
+        observed_rows=len(cached_umap_vectors),
+        column=column.name,
+      )
+
     # Effect
-    self.state.document_vectors = embeddings
+    self.state.document_vectors = cached_umap_vectors
 
 
 __all__ = [

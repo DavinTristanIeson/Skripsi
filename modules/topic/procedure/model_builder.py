@@ -15,3 +15,23 @@ class BERTopicModelBuilderProcedureComponent(BERTopicProcedureComponent):
       corpus_size=len(documents)
     ).build()
 
+
+class BERTopicWithoutEmbeddingsModelBuilderProcedureComponent(BERTopicProcedureComponent):
+  def run(self):
+    # Dependencies
+    column = self.state.column
+    config = self.state.config
+    documents = self.state.documents
+
+    # Effect
+    model = BERTopicModelBuilder(
+      project_id=config.project_id,
+      column=column,
+      corpus_size=len(documents)
+    ).build()
+
+    from bertopic.dimensionality._base import BaseDimensionalityReduction
+    model.umap_model = BaseDimensionalityReduction()
+
+    self.state.model = model
+
