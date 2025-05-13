@@ -2,6 +2,7 @@ import http
 
 import numpy as np
 import pandas as pd
+from modules.topic.exceptions import UnsyncedDocumentVectorsException
 from routes.topic.model import DocumentTopicsVisualizationResource, DocumentVisualizationResource, TopicVisualizationResource
 from modules.api.wrapper import ApiError, ApiResult
 from modules.config.schema.schema_variants import TextualSchemaColumn
@@ -23,7 +24,12 @@ def _assert_visualization_vectors_synced_with_workspace_df(cache: ProjectCache, 
   documents = df.loc[mask, column.name]
 
   if mask.sum() != visualization_vectors.shape[0]:
-    raise ApiError("The topic modeling results are not in sync with the document visualization results. The file may be corrupted. Try running the topic modeling procedure again.", http.HTTPStatus.BAD_REQUEST)
+    raise UnsyncedDocumentVectorsException(
+      type="visualization document vectors",
+      expected_rows=mask.sum(),
+      observed_rows=visualization_vectors.shape[0],
+      column=column.name,
+    )
   
   return visualization_vectors, document_topic_assignments, documents
 

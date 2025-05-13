@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import datetime
 import functools
 import multiprocessing
+import queue
 import threading
 from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
@@ -16,7 +17,7 @@ from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
 from modules.topic.procedure.embedding import BERTopicCacheOnlyEmbeddingProcedureComponent
-from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
+from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent, BERTopicWithoutEmbeddingsModelBuilderProcedureComponent
 from modules.topic.procedure.postprocess import BERTopicPostprocessProcedureComponent
 from modules.topic.procedure.preprocess import BERTopicCacheOnlyPreprocessProcedureComponent, BERTopicDataLoaderProcedureComponent
 from modules.topic.procedure.topic_modeling import BERTopicCacheOnlyTopicModelingProcedureComponent, BERTopicExperimentalTopicModelingProcedureComponent
@@ -38,13 +39,13 @@ class BERTopicExperimentLab:
     return TaskManagerProxy(
       id="placeholder",
       # but don't share queue. We discard the contents of queue.
-      queue=multiprocessing.Queue(),
+      queue=queue.Queue(),
       # Share stop events
       stop_event=self.task.stop_event,
       response=TaskResponse.Idle("placeholder"),
     )
 
-  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, column: TextualSchemaColumn, experiment_result: BERTopicExperimentResult):
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, column: TextualSchemaColumn, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
     cache = shared_state.cache
     column = shared_state.column
 
@@ -57,24 +58,25 @@ class BERTopicExperimentLab:
 
     # Shallow copy only, don't deep copy.
     state = copy(shared_state)
-    state.column = candidate.apply(column)
+    state.column = candidate.apply(column, copy=True)
 
     try:
       procedures: list[BERTopicProcedureComponent] = [
-        BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
-        BERTopicCacheOnlyEmbeddingProcedureComponent(state=state, task=placeholder_task),
+        BERTopicWithoutEmbeddingsModelBuilderProcedureComponent(state=state, task=placeholder_task),
         BERTopicExperimentalTopicModelingProcedureComponent(state=state, task=placeholder_task),
         BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
       ]
       for procedure in procedures:
         procedure.run()
       evaluation = evaluate_topics(
-        raw_documents=cast(Sequence[str], state.documents),
+        documents=cast(Sequence[str], state.documents),
         topics=state.result.topics,
         bertopic_model=state.model,
         document_topic_assignments=state.document_topic_assignments,
+        umap_vectors=shared_state.document_vectors,
       )
     except Exception as e:
+      logger.exception(e)
       self.task.log_error(f"Failed to run trial {trial.number + 1} with the following hyperparameters: {candidate} due to the following error: {str(e)}.")
       result = BERTopicExperimentTrialResult(
         evaluation=None,
@@ -85,7 +87,7 @@ class BERTopicExperimentLab:
       with lock:
         experiment_result.trials.append(result)
         cache.bertopic_experiments.save(experiment_result, column.name)
-        raise e
+      return -1.0
 
     self.task.log_success(f"Finished running trial {trial.number + 1} with the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v:.4f} and diversity of {evaluation.topic_diversity:.4f}.")
     result = BERTopicExperimentTrialResult(
@@ -115,9 +117,10 @@ class BERTopicExperimentLab:
 
     self.task.log_pending("Evaluating the current topics...")
     evaluation = evaluate_topics(
-      raw_documents=cast(Sequence[str], state.documents),
+      documents=cast(Sequence[str], state.documents),
       topics=state.result.topics,
       bertopic_model=state.model,
+      umap_vectors=state.document_vectors,
       document_topic_assignments=state.document_topic_assignments,
     )
     self.task.log_success("Finished evaluating the current topics.")
@@ -133,6 +136,7 @@ class BERTopicExperimentLab:
     shared_procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=shared_state, task=placeholder_task, project_id=self.project_id, column=self.column),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=placeholder_task),
+      BERTopicCacheOnlyEmbeddingProcedureComponent(state=shared_state, task=placeholder_task),
     ]
     for procedure in shared_procedures:
       procedure.run()

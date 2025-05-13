@@ -49,7 +49,7 @@ class TaskManagerProxy:
     self.log(message, TaskStatusEnum.Pending)
     
   def success(self, data: Any):
-    self.logger.info(f"{self.id}: ({TaskStatusEnum.Success}) {data}")
+    self.logger.info(f"{self.id}: SUCCESS")
     self.response.status = TaskStatusEnum.Success
     self.response.data = data
     self.flush()

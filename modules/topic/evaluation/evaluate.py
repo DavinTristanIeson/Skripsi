@@ -3,18 +3,20 @@ from typing import TYPE_CHECKING, Sequence, cast
 import numpy as np
 import pandas as pd
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
-from modules.topic.evaluation.method import cv_coherence, topic_diversity
-from modules.topic.evaluation.model import TopicEvaluationResult, CoherenceVPerTopic
+from modules.topic.evaluation.method import cv_coherence, silhouette_score, topic_diversity
+from modules.topic.evaluation.model import TopicCoherenceV, TopicEvaluationResult, IndividualTopicEvaluationResult
+from modules.topic.exceptions import UnsyncedDocumentVectorsException
 from modules.topic.model import Topic
 
 if TYPE_CHECKING:
   from bertopic import BERTopic
 
 def evaluate_topics(
-  raw_documents: Sequence[str],
+  documents: Sequence[str],
   topics: list[Topic],
   bertopic_model: "BERTopic",
-  document_topic_assignments: pd.Series | np.ndarray
+  document_topic_assignments: pd.Series | np.ndarray,
+  umap_vectors: np.ndarray
 ):
   topic_words: list[list[str]] = []
   for topic in topics:
@@ -23,28 +25,49 @@ def evaluate_topics(
     only_topic_words = list(map(lambda word: word[0], top_n_topic_words))
     topic_words.append(only_topic_words)
   interpreter = BERTopicInterpreter(bertopic_model)
-  documents = list(interpreter.tokenize(cast(Sequence[str], raw_documents)))
+  tokenized_documents = list(interpreter.tokenize(cast(Sequence[str], documents)))
 
-  cv_score, cv_scores_per_topic_raw = cv_coherence(topic_words, documents)
+  cv_score, cv_scores_per_topic_raw = cv_coherence(
+    topic_words=topic_words,
+    corpus=tokenized_documents
+  )
   cv_scores_per_topic_nparray = np.array(cv_scores_per_topic_raw)
 
-  cv_scores_per_topic = list(map(
-    lambda topic, coherence, std, support: CoherenceVPerTopic(topic=topic, coherence=coherence, std_dev=std, support=support),
-    topics, cv_scores_per_topic_nparray[:, 0], cv_scores_per_topic_nparray[:, 1], cv_scores_per_topic_nparray[:, 2]
-  ))
+  mean_silhouette_score, topic_silhouette_scores = silhouette_score(
+    topics=topics,
+    document_topic_assignments=np.array(document_topic_assignments),
+    umap_vectors=umap_vectors
+  )
 
-  diversity = topic_diversity(topic_words)
+  topic_evaluation_results: list[IndividualTopicEvaluationResult] = []
+  for topic_id, topic in enumerate(topics):
+    coherence = cv_scores_per_topic_nparray[topic_id]
+    topic_silhouette = topic_silhouette_scores[topic_id]
+    topic_evaluation_results.append(IndividualTopicEvaluationResult(
+      topic=topic,
+      silhouette_score=float(topic_silhouette),
+      coherence=TopicCoherenceV(
+        coherence=coherence[0],
+        std_dev=coherence[1],
+        support=coherence[2],
+      )
+    ))
 
-  mask = pd.notna(document_topic_assignments)
-  document_topic_assignments = document_topic_assignments[mask]
+  diversity = topic_diversity(
+    topics=topic_words
+  )
+  
   outlier_count = (document_topic_assignments == -1).sum()
   total_count = len(document_topic_assignments)
   valid_count = total_count - outlier_count
 
   return TopicEvaluationResult(
-    coherence_v=cv_score,
+    coherence_v=float(cv_score),
     topic_diversity=diversity,
-    coherence_v_per_topic=cv_scores_per_topic,
+    silhouette_score=float(mean_silhouette_score),
+
+    topics=topic_evaluation_results,
+    
     outlier_count=outlier_count,
     valid_count=valid_count,
     total_count=total_count,

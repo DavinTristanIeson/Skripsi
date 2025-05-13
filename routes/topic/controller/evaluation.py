@@ -1,5 +1,6 @@
 import functools
 import http
+from typing import cast
 
 from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
 from typing import cast
@@ -132,12 +133,7 @@ def apply_topic_model_hyperparameter(
     )
   )
 
-  if candidate.min_topic_size is not None:
-    column.topic_modeling.min_topic_size = candidate.min_topic_size
-  if candidate.max_topics is not None:
-    column.topic_modeling.max_topics = candidate.max_topics
-  if candidate.topic_confidence_threshold is not None:
-    column.topic_modeling.topic_confidence_threshold = candidate.topic_confidence_threshold
+  column = candidate.apply(column, copy=False)
   
   config.save_to_json()
   cache.config_cache.invalidate()

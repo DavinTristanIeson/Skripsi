@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-import multiprocessing
-from multiprocessing.synchronize import Event
 import threading
 from typing import cast
 
@@ -10,7 +8,9 @@ from modules.project.cache import ProjectCache
 from modules.project.lock import ProjectFileLockManager
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.task.proxy import TaskManagerProxy
+from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP
 from modules.topic.evaluation.evaluate import evaluate_topics
+from modules.topic.exceptions import MissingCachedTopicModelingResult, UnsyncedDocumentVectorsException
 from modules.topic.experiments.model import BERTopicHyperparameterConstraint
 from modules.topic.experiments.procedure import BERTopicExperimentLab
 from modules.topic.procedure.procedure import BERTopicProcedureFacade
@@ -47,7 +47,6 @@ class BERTopicExperimentTaskRequest:
   def task_id(self):
     return f"{self.project_id}__{self.column}__bertopic-experiment"
 
-
 def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicModelResultTaskRequest):
   # We're only using the writer 
   cache = ProjectCache(
@@ -70,14 +69,33 @@ def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicM
 
   tm_result = cache.topics.load(column.name)
   bertopic_model = cache.bertopic_models.load(column.name)
+  umap_model = BERTopicCachedUMAP(
+    project_id=request.project_id,
+    column=column,
+    low_memory=True,
+  )
+  cached_umap_vectors = umap_model.load_cached_embeddings()
+  if cached_umap_vectors is None:
+    raise MissingCachedTopicModelingResult(
+      type="UMAP vectors",
+      column=column.name
+    )
+  if len(cached_umap_vectors) != len(document_topic_assignments):
+    raise UnsyncedDocumentVectorsException(
+      type="UMAP vectors",
+      expected_rows=len(document_topic_assignments),
+      observed_rows=len(cached_umap_vectors),
+      column=column.name,
+    )
   proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
 
   proxy.log_pending(f"Evaluating the topics...")
   result = evaluate_topics(
     bertopic_model=bertopic_model,
-    raw_documents=documents,
+    documents=documents,
     topics=tm_result.topics,
     document_topic_assignments=document_topic_assignments,
+    umap_vectors=cached_umap_vectors,
   )
   proxy.log_success("Finished evaluating the topics.")
   proxy.success(result)

@@ -16,6 +16,9 @@ class ApiErrorAdaptableException(abc.ABC, Exception):
   @abc.abstractmethod
   def to_api(self)->ApiError:
     ...
+
+  def __str__(self):
+    return self.to_api().message
     
 class ApiResult(pydantic.BaseModel, Generic[T]):
   data: T

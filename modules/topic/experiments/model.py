@@ -16,8 +16,9 @@ class BERTopicHyperparameterCandidate(pydantic.BaseModel):
   max_topics: Optional[int]
   topic_confidence_threshold: Optional[int]
 
-  def apply(self, column: TextualSchemaColumn):
-    column = column.model_copy(deep=True)
+  def apply(self, column: TextualSchemaColumn, copy: bool):
+    if copy:
+      column = column.model_copy(deep=True)
     if self.min_topic_size is not None:
       column.topic_modeling.min_topic_size = self.min_topic_size
     if self.max_topics is not None:
