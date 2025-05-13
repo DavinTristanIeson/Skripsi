@@ -14,10 +14,17 @@ LOCK_INDICATOR = ".lock"
 def is_unimportant_file_path(path: str):
   return path.endswith(TRASH_INDICATOR) or path.endswith(LOCK_INDICATOR)
 
+def replace_or_rename(src_path: str, dest_path: str):
+  try:
+    os.replace(src_path, dest_path)
+  except OSError as e:
+    logger.debug(f"Failed to use os.replace due to {e}. Falling back to os.rename.")
+    os.rename(src_path, dest_path)
+
 def soft_delete_directory(src_path: str, dest_path: str):
   if os.path.exists(dest_path):
     shutil.rmtree(dest_path)
-  os.replace(src_path, dest_path)
+  replace_or_rename(src_path, dest_path)
   trash_files = filter(
     is_unimportant_file_path,
     os.listdir(dest_path)
@@ -37,7 +44,7 @@ def soft_delete(path: str, *, soft: bool):
         # Clean up trash
         soft_delete_directory(path, soft_delete_path)
       else:
-        os.replace(path, soft_delete_path)
+        replace_or_rename(path, soft_delete_path)
       logger.debug(f"Deleted {path} successfully. A copy of {path} can still be accessed from {soft_delete_path}")
     else:
       if os.path.isdir(path):
@@ -71,12 +78,12 @@ def atomic_write(path: str, *, mode: Literal['text', 'binary']):
 
     trash_path = f"{path}{TRASH_INDICATOR}"
     try:
-      os.replace(path, trash_path)
+      replace_or_rename(path, trash_path)
       logger.debug(f"Created a trash backup of {path} in {trash_path}")
     except OSError as e:
       logger.error(f"Failed to create a trash backup of {path} in {trash_path} due to {e}")
       
-    os.replace(temp_path, path)
+    replace_or_rename(temp_path, path)
     logger.debug(f"Replaced the file at {path} with the file at {temp_path}.")
   finally:
     if os.path.exists(temp_path):
