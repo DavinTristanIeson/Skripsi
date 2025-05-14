@@ -1,7 +1,6 @@
 import abc
 from enum import Enum
-from typing import Iterable, Optional, Sequence
-from collections import Counter
+from typing import Optional, Sequence
 
 import pandas as pd
 import pydantic

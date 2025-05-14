@@ -55,8 +55,13 @@ class _TableFilterPreprocessModule:
 
     # Sort the results first for ordered categorical and temporal
     sort: Optional[TableSort] = None
-    if sort is None and column.is_ordered:
-      sort = TableSort(name=column.name, asc=True)
+    if sort is None:
+      if column.is_ordered:
+        sort = TableSort(name=column.name, asc=True)
+      elif column.type == SchemaColumnTypeEnum.Boolean:
+        # True before FAlse
+        sort = TableSort(name=column.name, asc=False)
+
     df = engine.process_workspace(self.filter, sort)
 
     if column.name not in df.columns:
@@ -78,6 +83,13 @@ class _TableFilterPreprocessModule:
       tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
       categorical_data = categorical_data.rename_categories(tm_result.renamer)
+      data = pd.Series(categorical_data, name=column.name)
+    if column.type == SchemaColumnTypeEnum.Boolean:
+      categorical_data = pd.Categorical(data)
+      categorical_data = categorical_data.rename_categories({
+        True: "True",
+        False: "False"
+      })
       data = pd.Series(categorical_data, name=column.name)
 
     return _TableFilterPreprocessResult(
