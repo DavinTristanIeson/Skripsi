@@ -50,7 +50,6 @@ class BERTopicExperimentTaskRequest:
 def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicModelResultTaskRequest):
   # We're only using the writer 
   cache = ProjectCache(
-    lock=threading.RLock(),
     project_id=request.project_id
   )
 

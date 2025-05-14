@@ -50,28 +50,42 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
       if checked_path == ProjectPaths.Config:
         project_cache.config_cache.invalidate()
         return
-      # Test column
-      # Parts: topic modeling, column, file
-      is_topic_modeling_folder = (checked_path == ProjectPaths.TopicModelingFolderName and len(path_parts) >= 3)
-      if not is_topic_modeling_folder:
+      
+      # region Test column
+      if checked_path != ProjectPaths.TopicModelingFolderName:
         return
       
+
+      # Parts: topic modeling
+      if len(path_parts) <= 1:
+        project_cache.invalidate_topic_modeling(column=None)
+        return
+
+      # Parts: topic modeling, column
+      column = path_parts[1]
+
+      if len(path_parts) <= 2:
+        # Parts topic modeling
+        # Invalidated the folder, but not nested folders.
+        project_cache.invalidate_topic_modeling(column=column)
+        return
+              
       # Format is topic-modeling/{column}/{file}
       checked_path = path_parts[2]
       if checked_path == ProjectPaths.BERTopicFolder:
-        project_cache.bertopic_models.invalidate()
+        project_cache.bertopic_models.invalidate(key=column)
         return
       if checked_path == ProjectPaths.VisualizationEmbeddingsFileName:
-        project_cache.visualization_vectors.invalidate()
+        project_cache.visualization_vectors.invalidate(key=column)
         return
       if checked_path == ProjectPaths.TopicEvaluationFileName:
-        project_cache.topic_evaluations.invalidate()
+        project_cache.topic_evaluations.invalidate(key=column)
         return
       if checked_path == ProjectPaths.TopicModelExperimentsFileName:
-        project_cache.bertopic_experiments.invalidate()
+        project_cache.bertopic_experiments.invalidate(key=column)
         return
       if checked_path == ProjectPaths.TopicsFileName:
-        project_cache.topics.invalidate()
+        project_cache.topics.invalidate(key=column)
         return
     return
   
@@ -106,7 +120,6 @@ class ProjectCacheManager(metaclass=Singleton):
       if cache is None:
         cache = ProjectCache(
           project_id=project_id,
-          lock=ProjectThreadLockManager().get(project_id),
         )
     self.projects[project_id] = cache
     return cache

@@ -32,7 +32,7 @@ def perform_topic_model_evaluation(cache: ProjectCacheDependency, column: Textua
   store.add_task(
     task_id=request.task_id,
     task=topic_evaluation_task,
-    args=[store.proxy(request.task_id), request],
+    args=[request],
     idle_message=f"Beginning the evaluation of the topic modeling results of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Cancel,
   )
@@ -78,7 +78,7 @@ def perform_topic_model_experiment(cache: ProjectCache, column: TextualSchemaCol
   store.add_task(
     task_id=request.task_id,
     task=topic_model_experiment_task,
-    args=[store.proxy(request.task_id), request],
+    args=[request],
     idle_message=f"Beginning the experimentation of the hyperparameters of \"{request.column}\".",
     conflict_resolution=TaskConflictResolutionBehavior.Ignore
   )

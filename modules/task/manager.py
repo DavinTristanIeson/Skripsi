@@ -8,16 +8,19 @@ import threading
 from typing import Any, Callable, Optional
 
 from apscheduler.jobstores.base import JobLookupError
+from apscheduler.executors.pool import ProcessPoolExecutor
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.jobstores.memory import MemoryJobStore
 
 from modules.baseclass import Singleton
 from modules.logger import ProvisionedLogger
-from modules.task.engine import scheduler
 from modules.task.proxy import TaskManagerProxy
 from .responses import TaskLog, TaskResponse, TaskStatusEnum
 
 
 logger = ProvisionedLogger().provision("Task")
-
+# Register apscheduler logger
+ProvisionedLogger().provision("apscheduler")
 
 class TaskConflictResolutionBehavior(str, Enum):
   Queue = "queue"
@@ -30,15 +33,29 @@ class TaskManager(metaclass=Singleton):
   lock: threading.RLock
   queue: Queue
   manager: multiprocessing.managers.SyncManager
+  scheduler: AsyncIOScheduler
+
   def __init__(self) -> None:
     self.results = {}
     self.stop_events = {}
     self.manager = multiprocessing.Manager()
     self.queue = self.manager.Queue()
     self.lock = threading.RLock()
+    self.scheduler = AsyncIOScheduler(
+      executors=dict(
+        # 2 subprocesses to run tasks in parallel.
+        default=ProcessPoolExecutor(
+          max_workers=2,
+        )
+      ),
+      jobstores=dict(
+        default=MemoryJobStore(),
+      ),
+    )
     
   def get_task(self, task_id: str)->Optional[TaskResponse]:
-    result = self.results.get(task_id, None)
+    with self.lock:
+      result = self.results.get(task_id, None)
     if result is None:
       return None
     return result
@@ -50,10 +67,10 @@ class TaskManager(metaclass=Singleton):
         stop_event.set()
         self.stop_events.pop(task_id)
       
-      has_apscheduler_job = scheduler.get_job(task_id) is not None
+      has_apscheduler_job = self.scheduler.get_job(task_id) is not None
       if has_apscheduler_job:
         try:
-          scheduler.remove_job(task_id)
+          self.scheduler.remove_job(task_id)
         except JobLookupError:
           pass
 
@@ -88,7 +105,8 @@ class TaskManager(metaclass=Singleton):
           self.invalidate_task(task_id, clear=clear)
         
   def proxy(self, task_id: str)->TaskManagerProxy:
-    response = self.results.get(task_id, None)
+    with self.lock:
+      response = self.results.get(task_id, None)
     if response is None:
       response = TaskResponse.Idle(task_id)
       self.results[task_id] = response
@@ -136,12 +154,16 @@ class TaskManager(metaclass=Singleton):
       )
       self.results[task_id] = response
       self.stop_events[task_id] = self.manager.Event() 
-      scheduler.add_job(
+      self.scheduler.add_job(
         task,
-        args=args,
+        # Insert the proxy as the first argument.
+        # DON'T LET THE CALLER CREATE THE PROXY. IT IS VERY LIKELY THAT THE CALLER WILL CREATE A PROXY WITH AN OUTDATED RESPONSE
+        # (especially after we've invalidated the response)
+        args=[self.proxy(task_id), *args],
         # misfire_grace_time prevents the jobs from being canceled
         # https://stackoverflow.com/questions/65690003/how-to-manage-a-task-queue-using-apscheduler
         id=task_id,
+        coalesce=True,
         misfire_grace_time=None,
         max_instances=1,
       )
@@ -165,7 +187,7 @@ class TaskManager(metaclass=Singleton):
   
   @contextmanager
   def run(self):
-    scheduler.start()
+    self.scheduler.start()
     receiver_thread_stop_event = threading.Event()
     try:
       receiver_thread = threading.Thread(target=self.receive_task_response, name="Receive Task Response", args=(receiver_thread_stop_event,))
@@ -178,7 +200,7 @@ class TaskManager(metaclass=Singleton):
     with self.lock:
       for event in self.stop_events.values():
         event.set()
-    scheduler.shutdown()
+    self.scheduler.shutdown()
 
 
 

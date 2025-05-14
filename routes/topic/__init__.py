@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from fastapi import APIRouter
 
+from modules.project.lock import ProjectFileLockManager
 from routes.dependencies.project import ProjectCacheDependency
 from routes.dependencies.topic import TextualSchemaColumnDependency, TopicModelingResultDependency
 from modules.api.wrapper import ApiError, ApiResult
@@ -75,7 +76,11 @@ def put__refine_topics(
   topic_modeling_result: TopicModelingResultDependency
 )->ApiResult[None]:
   # WARN DATA RACE
-  with cache.lock:
+  with ProjectFileLockManager().lock_column(
+    project_id=cache.config.project_id,
+    column=column.name,
+    wait=False,
+  ):
     return refine_topics(
       cache=cache,
       body=body,

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import http
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import numpy as np
 import pandas as pd
 
@@ -28,13 +28,9 @@ logger = ProvisionedLogger().provision("ProjectCache")
 @dataclass
 class ProjectCache:
   id: str
-  # This lock is used to prevent other threads from touching files which are in the process of being modified.
-  # Cache clients and adapters have their own locks, so this lock doesn't need to be passed down to them.
-  lock: threading.RLock
 
-  def __init__(self, project_id: str, lock: threading.RLock):
+  def __init__(self, project_id: str):
     self.id = project_id
-    self.lock = lock
     self.config_cache = ConfigCacheAdapter(
       project_id=project_id,
       cache=CacheClient[Config](
@@ -84,16 +80,18 @@ class ProjectCache:
   @property
   def config(self)->Config:
     return self.config_cache.load()
+  
+  def invalidate_topic_modeling(self, column: Optional[str]):
+    self.topics.invalidate(key=column)
+    self.bertopic_models.invalidate(key=column)
+    self.visualization_vectors.invalidate(key=column)
+    self.topic_evaluations.invalidate(key=column)
+    self.bertopic_experiments.invalidate(key=column)
     
   def invalidate(self):
-    with self.lock:
-      self.config_cache.invalidate()
-      self.workspaces.invalidate()
-      self.topics.invalidate()
-      self.bertopic_models.invalidate()
-      self.visualization_vectors.invalidate()
-      self.topic_evaluations.invalidate()
-      self.bertopic_experiments.invalidate()
+    self.config_cache.invalidate()
+    self.workspaces.invalidate()
+    self.invalidate_topic_modeling(column=None)
 
 class DataSourceCacheManager(metaclass=Singleton):
   cache: CacheClient[pd.DataFrame]

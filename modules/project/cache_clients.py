@@ -66,8 +66,8 @@ class ProjectCacheAdapter(Generic[T], abc.ABC):
       ))
       return loaded_value
     
-  def invalidate(self):
-    self.cache.clear()
+  def invalidate(self, key: Optional[str] = None, prefix: Optional[str] = None):
+    self.cache.invalidate(key=key, prefix=prefix)
   
 @dataclass
 class ConfigCacheAdapter:
@@ -80,6 +80,7 @@ class ConfigCacheAdapter:
       path=ProjectPaths.Config,
       wait=True,
     )
+  
   def save(self, config: Config)->None:
     logger.debug(f"CACHE ({self.cache.name}): SAVE CONFIG")
     with self.lock:

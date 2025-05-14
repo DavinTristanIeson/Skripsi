@@ -73,7 +73,7 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   store.add_task(
     task_id=request.task_id,
     task=topic_modeling_task,
-    args=[store.proxy(request.task_id), request],
+    args=[request],
     conflict_resolution=TaskConflictResolutionBehavior.Ignore,
     idle_message=f"Requested topic modeling algorithm to be applied to \"{column.name}\".",
   )

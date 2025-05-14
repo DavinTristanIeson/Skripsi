@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 from routes.dependencies.project import ProjectCacheDependency, ProjectExistsDependency, ProjectLockDependency
 from modules.api.wrapper import ApiResult
-from modules.project.lock import ProjectThreadLockManager
 
 from .controller import (
   infer_column_from_dataset,

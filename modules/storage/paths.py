@@ -1,13 +1,9 @@
 import abc
-from dataclasses import dataclass
-import http
 import os
 import shutil
 
-from modules.api import ApiError
 from modules.exceptions.files import FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
-from modules.storage.atomic import soft_delete
 from modules.storage.exceptions import FileSystemCleanupError
 
 logger = ProvisionedLogger().provision("AbstractPathManager")
@@ -51,7 +47,8 @@ class AbstractPathManager(abc.ABC):
       dir = self.full_path(rawdir)
       try:
         if os.path.exists(dir):
-          soft_delete(dir, soft=soft)
+          shutil.rmtree(dir)
+          logger.debug(f"Deleted directory: \"{dir}\".")
       except Exception as e:
         raise FileSystemCleanupError(
           path=dir,
@@ -60,7 +57,8 @@ class AbstractPathManager(abc.ABC):
     for rawfile in files:
       file = self.full_path(rawfile)
       try:
-        soft_delete(file, soft=soft)
+        os.remove(file)
+        logger.debug(f"Deleted file: \"{file}\".")
       except Exception as e:
         raise FileSystemCleanupError(
           path=file,
