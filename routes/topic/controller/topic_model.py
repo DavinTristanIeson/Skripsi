@@ -57,12 +57,12 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
     cleanup_files.append(ProjectPaths.TopicModelExperiments(column.name))
 
   cleanup_files.append(ProjectPaths.Topics(column.name))
-  ProjectCacheManager().invalidate(config.project_id)
   config.paths._cleanup(
     directories=[ProjectPaths.BERTopic(column.name)],
     files=cleanup_files,
     soft=True
   )
+  cache.invalidate_topic_modeling(column=column.name)
 
   request = TopicModelingTaskRequest(
     project_id=config.project_id,

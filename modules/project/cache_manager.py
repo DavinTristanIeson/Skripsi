@@ -26,6 +26,10 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
     else:
       return
     
+    if path.endswith(".log") or path.endswith(".lock"):
+      # Irrelevant. Don't need to preserve.
+      return
+    
     data_directory = os.path.join(os.getcwd(), DATA_DIRECTORY)
     relative_path = pathlib.Path(path).relative_to(data_directory)
     if len(relative_path.parts) < 2:
@@ -75,6 +79,12 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
       if checked_path == ProjectPaths.BERTopicFolder:
         project_cache.bertopic_models.invalidate(key=column)
         return
+      if checked_path == ProjectPaths.DocumentEmbeddingsFileName:
+        project_cache.document_vectors.invalidate(key=column)
+        return
+      if checked_path == ProjectPaths.UMAPEmbeddingsFileName:
+        project_cache.umap_vectors.invalidate(key=column)
+        return
       if checked_path == ProjectPaths.VisualizationEmbeddingsFileName:
         project_cache.visualization_vectors.invalidate(key=column)
         return
@@ -91,20 +101,15 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
   
   def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
     super().on_modified(event)
-    logger.debug(f"Observed event {event.event_type} on {event.src_path}")
     self.invalidate_cache_from_event(event.src_path)
     
   def on_deleted(self, event: DirDeletedEvent | FileDeletedEvent) -> None:
     super().on_deleted(event)
-    logger.debug(f"Observed event {event.event_type} on {event.src_path}")
     self.invalidate_cache_from_event(event.src_path)
   
   def on_moved(self, event: DirMovedEvent | FileMovedEvent) -> None:
     super().on_moved(event)
-    logger.debug(f"Observed event {event.event_type} on {event.src_path} (moved to {event.dest_path})")
     self.invalidate_cache_from_event(event.dest_path)
-
-
 
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]

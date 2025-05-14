@@ -13,7 +13,7 @@ from modules.project.cache import ProjectCache
 from modules.table import TableEngine, TablePaginationApiResult
 from modules.table.filter_variants import AndTableFilter, NotEmptyTableFilter
 from modules.table.pagination import PaginationParams
-from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic, TopicModelingResult
 
@@ -74,7 +74,9 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   document_topics = df.loc[mask, column.topic_column.name]
 
   # Reset BERTopic model
-  model_builder = EmptyBERTopicModelBuilder(
+  model_builder = BERTopicModelBuilder(
+    corpus_size=len(documents),
+    project_id=cache.config.project_id,
     column=column,
   )
   bertopic_model = model_builder.build()

@@ -13,7 +13,7 @@ from .model import (
   ComparisonGroupWordsSchema,
 )
 from routes.table.model import TableTopicsResource
-from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder, EmptyBERTopicModelBuilder
 
 def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
   config = cache.config
@@ -45,22 +45,15 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
 
 
 def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache):
-  from bertopic import BERTopic
-
   config = cache.config
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
   df = cache.workspaces.load()
   engine = TableEngine(config=config)
 
-  builder = EmptyBERTopicModelBuilder(
-    column=column,
-  )
-  bertopic_model = builder.build()
-
   documents: list[str] = []
   document_topics: list[int] = []
   for group_id, group in enumerate(params.groups):
-    group_df = engine.filter(df, AndTableFilter(
+    group_mask = engine._filter_mask(df, AndTableFilter(
       operands=[
         group.filter,
         NotEmptyTableFilter(
@@ -68,9 +61,15 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
         )
       ]
     ))
-    subcorpus = cast(Sequence[str], group_df)
-    documents.extend(group_df[column.preprocess_column.name])
+    group_df = df[group_mask]
+    subcorpus = cast(Sequence[str], group_df[column.preprocess_column.name])
+    documents.extend(subcorpus)
     document_topics.extend([group_id] * len(subcorpus))
+
+  model_builder = EmptyBERTopicModelBuilder(
+    column=column,
+  )
+  bertopic_model = model_builder.build()
 
   bertopic_model.fit(
     cast(list[str], documents),

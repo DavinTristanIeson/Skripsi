@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from modules.api.wrapper import ApiError
-from modules.project.cache_clients import BERTopicExperimentResultCacheAdapter, BERTopicModelCacheAdapter, ConfigCacheAdapter, TopicEvaluationResultCacheAdapter, TopicModelingResultCacheAdapter, VisualizationEmbeddingsCacheAdapter, WorkspaceCacheAdapter
+from modules.project.cache_clients import BERTopicExperimentResultCacheAdapter, BERTopicModelCacheAdapter, ConfigCacheAdapter, DocumentEmbeddingsCacheAdapter, TopicEvaluationResultCacheAdapter, TopicModelingResultCacheAdapter, UMAPEmbeddingsCacheAdapter, VisualizationEmbeddingsCacheAdapter, WorkspaceCacheAdapter
 
 from modules.config import Config, DataSource
 
@@ -57,11 +57,28 @@ class ProjectCache:
         name="BERTopic Models", maxsize=5, ttl=5 * 60
       ),
     )
+    self.document_vectors = DocumentEmbeddingsCacheAdapter(
+      project_id=project_id,
+      config=self.config_cache,
+      workspace=self.workspaces,
+      cache=CacheClient[np.ndarray](
+        name="Document Vectors", maxsize=5, ttl=5 * 60
+      ),
+    )
+    self.umap_vectors = UMAPEmbeddingsCacheAdapter(
+      project_id=project_id,
+      config=self.config_cache,
+      workspace=self.workspaces,
+      cache=CacheClient[np.ndarray](
+        name="UMAP Vectors", maxsize=5, ttl=5 * 60
+      ),
+    )
     self.visualization_vectors = VisualizationEmbeddingsCacheAdapter(
       project_id=project_id,
       config=self.config_cache,
+      workspace=self.workspaces,
       cache=CacheClient[np.ndarray](
-        name="Visualization Embeddings", maxsize=5, ttl=5 * 60
+        name="Visualization Vectors", maxsize=5, ttl=5 * 60
       ),
     )
     self.topic_evaluations = TopicEvaluationResultCacheAdapter(
@@ -84,6 +101,8 @@ class ProjectCache:
   def invalidate_topic_modeling(self, column: Optional[str]):
     self.topics.invalidate(key=column)
     self.bertopic_models.invalidate(key=column)
+    self.document_vectors.invalidate(key=column)
+    self.umap_vectors.invalidate(key=column)
     self.visualization_vectors.invalidate(key=column)
     self.topic_evaluations.invalidate(key=column)
     self.bertopic_experiments.invalidate(key=column)

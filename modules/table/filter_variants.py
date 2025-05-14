@@ -68,7 +68,7 @@ class AndTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
     mask = params.mask(True)
     for operand in self.operands:
       new_mask = operand.apply(params)
-      mask = np.bitwise_and(mask, new_mask)
+      mask = mask & new_mask
     return mask
   
 class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
@@ -80,14 +80,14 @@ class OrTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
     mask = params.mask(False)
     for operand in self.operands:
       new_mask = operand.apply(params)
-      mask = np.bitwise_or(mask, new_mask)
+      mask = mask | new_mask
     return mask
 
 class NotTableFilter(_BaseCompoundTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.Not] = TableFilterTypeEnum.Not
   operand: "TableFilter"
   def apply(self, params):
-    return np.bitwise_not(self.operand.apply(params))
+    return ~self.operand.apply(params)
   
 class EmptyTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.Empty] = TableFilterTypeEnum.Empty
@@ -115,8 +115,8 @@ class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel):
     values = list(map(lambda value: parse_value(self, params, value=value, operand="values"), self.values))
     mask = params.mask(False)
     for value in values:
-      new_mask = np.bitwise_and(data.notna(), (data == value))
-      mask = np.bitwise_or(mask, new_mask)
+      new_mask = data.notna() & (data == value)
+      mask = mask | new_mask
     return mask
 
 class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel):

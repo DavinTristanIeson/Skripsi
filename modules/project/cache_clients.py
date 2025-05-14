@@ -14,8 +14,11 @@ from modules.project.lock import ProjectFileLockManager
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.storage.atomic import atomic_write
 from modules.storage.cache import CacheClient, CacheItem
-from modules.topic.bertopic_ext.dimensionality_reduction import VisualizationCachedUMAP
+from modules.storage.transformer import CachedEmbeddingBehavior
+from modules.topic.bertopic_ext.dimensionality_reduction import BERTopicCachedUMAP, VisualizationCachedUMAP
+from modules.topic.bertopic_ext.embedding import BERTopicEmbeddingModelFactory
 from modules.topic.evaluation.model import TopicEvaluationResult
+from modules.topic.exceptions import MissingCachedTopicModelingResult, UnsyncedDocumentVectorsException
 from modules.topic.experiments.model import BERTopicExperimentResult
 from modules.topic.model import TopicModelingResult
 
@@ -217,42 +220,110 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
     with self.lock(key):
       value.save(model_path, "safetensors", save_ctfidf=True)
 
+
 @dataclass
-class VisualizationEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
+class GenericEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray], abc.ABC):
   config: ConfigCacheAdapter
+  workspace: WorkspaceCacheAdapter
+
+  @abc.abstractmethod
+  def _get_file_path(self, column: str)->str:
+    ...
+
   def lock(self, key: str):
     return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
-      path=ProjectPaths.VisualizationEmbeddings(key),
+      path=self._get_file_path(key),
       wait=True,
     )
   
-  def __prepare(self, key: str):
+  @abc.abstractmethod
+  def _get_cached_model(self, column: TextualSchemaColumn)->CachedEmbeddingBehavior:
+    ...
+
+  @abc.abstractmethod
+  def _get_label(self)->str:
+    ...
+  
+  def _prepare(self, key: str):
     config = self.config.load()
     textual_column = cast(
       TextualSchemaColumn,
       config.data_schema.assert_of_type(key, [SchemaColumnTypeEnum.Textual])
     )
-    visumap = VisualizationCachedUMAP(
-      project_id=self.project_id,
-      column=textual_column,
-      low_memory=True
-    )
-    return visumap
+    return self._get_cached_model(textual_column), textual_column
   
   def _load(self, key):
-    visumap = self.__prepare(key)
+    cached_model, textual_column = self._prepare(key)
     with self.lock(key):
-      visualization_vectors = visumap.load_cached_embeddings()
-    if visualization_vectors is None:
-      raise FileLoadingException(
-        f"There are no document/topic embeddings for \"{visumap.column.name}\". The file may be corrupted or the topic modeling procedure has not been executed on this column."
+      cached_vectors = cached_model.load_cached_embeddings()
+    df = self.workspace.load()
+    documents_column = df[textual_column.preprocess_column.name]
+    mask = documents_column.notna() & (documents_column.str.len() > 0)
+    corpus_size = len(df[mask])
+    if cached_vectors is None:
+      raise MissingCachedTopicModelingResult(
+        type=self._get_label(),
+        column=key,
       )
-    return visualization_vectors
+    if len(cached_vectors) != corpus_size:
+      raise UnsyncedDocumentVectorsException(
+        type=self._get_label(),
+        expected_rows=corpus_size,
+        observed_rows=len(cached_vectors),
+        column=key,
+      )
+
+    return cached_vectors
   
   def _save(self, value, key):
-    visumap = self.__prepare(key)
-    visumap.save_embeddings(value)
+    cached_model, textual_column = self._prepare(key)
+    cached_model.save_embeddings(value)
+
+
+@dataclass
+class DocumentEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
+  def _get_file_path(self, column: str)->str:
+    return ProjectPaths.DocumentEmbeddings(column)
+
+  def _get_cached_model(self, column)->CachedEmbeddingBehavior:
+    return BERTopicEmbeddingModelFactory(
+      project_id=self.project_id,
+      column=column
+    ).build()
+
+  def _get_label(self)->str:
+    return "document vectors"
+  
+@dataclass
+class UMAPEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
+  def _get_file_path(self, column: str)->str:
+    return ProjectPaths.UMAPEmbeddings(column)
+
+  def _get_cached_model(self, column)->CachedEmbeddingBehavior:
+    return BERTopicCachedUMAP(
+      project_id=self.project_id,
+      column=column,
+      low_memory=True
+    )
+
+  def _get_label(self)->str:
+    return "UMAP vectors"
+
+@dataclass
+class VisualizationEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
+  def _get_file_path(self, column: str)->str:
+    return ProjectPaths.VisualizationEmbeddings(column)
+
+  def _get_cached_model(self, column)->CachedEmbeddingBehavior:
+    return VisualizationCachedUMAP(
+      project_id=self.project_id,
+      column=column,
+      low_memory=True
+    )
+
+  def _get_label(self)->str:
+    return "visualization vectors"
 
 @dataclass
 class TopicEvaluationResultCacheAdapter(ProjectCacheAdapter[TopicEvaluationResult]):

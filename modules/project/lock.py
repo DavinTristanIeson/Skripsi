@@ -26,8 +26,6 @@ class GlobalProjectLock:
       self.thread_lock.acquire(timeout=self.timeout if self.timeout is not None else -1)
       self.logger.debug(f"Acquire lock for {self.path or self.column}")
     except TimeoutError as e:
-      self.file_lock.release()
-      self.thread_lock.release()
       if self.path is not None:
         raise UnallowedFileOperationException(path=self.path)
       if self.column is not None:
@@ -76,7 +74,7 @@ class ProjectFileLockManager(metaclass=Singleton):
     lock = self.provision(
       key=lockpath,
       column=column,
-      timeout=5.0 if wait else None,
+      timeout=5.0 if not wait else None,
     )
     return lock
 
@@ -87,6 +85,6 @@ class ProjectFileLockManager(metaclass=Singleton):
     lock = self.provision(
       key=lockpath,
       path=file_path,
-      timeout=5.0 if wait else None,
+      timeout=5.0 if not wait else None,
     )
     return lock

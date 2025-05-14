@@ -79,7 +79,7 @@ class _TableFilterParams:
   config: Config
 
   def mask(self, flag: bool):
-    return np.full(len(self.data), flag, dtype=np.bool_)
+    return pd.Series(flag, index=self.data.index)
   
 class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   target: str
@@ -87,13 +87,13 @@ class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   model_config = pydantic.ConfigDict(use_enum_values=True)
  
   @abc.abstractmethod
-  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series:
     pass
 
 class _BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC):
   model_config = pydantic.ConfigDict(use_enum_values=True)
   @abc.abstractmethod
-  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series:
     pass
 
 class TableSort(pydantic.BaseModel, abc.ABC):

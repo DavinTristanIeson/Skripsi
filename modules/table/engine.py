@@ -28,15 +28,20 @@ class TableEngine:
       [filter, sort]
     ))
     
-  def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
+  def _filter_mask(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.Series:
     if filter is None:
-      return df
+      return pd.Series(True, index=df.index)
     with TimeLogger("TableEngine", title="Applying filter to dataset..."):
       mask = filter.apply(_TableFilterParams(
         config=self.config,
         data=df
       ))
-      return df[mask]
+      return mask
+  def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
+    if filter is None:
+      return df
+    mask = self._filter_mask(df, filter)
+    return df[mask]
   
   def sort(self, df: pd.DataFrame, sort: Optional[TableSort])->pd.DataFrame:
     if sort is None or sort.name not in df.columns:

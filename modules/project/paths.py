@@ -32,7 +32,7 @@ class ProjectPaths(SimpleNamespace):
   
   @staticmethod
   def TopicModelingFolder(name: str)->str:
-    return os.path.join(ProjectPaths.TopicModelingFolderName, name)
+    return os.path.join(ProjectPaths.TopicModelingFolderName, ProjectPaths.Column(name))
   
   TopicsFileName = "topics.json"
   @staticmethod

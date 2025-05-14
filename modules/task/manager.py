@@ -169,7 +169,6 @@ class TaskManager(metaclass=Singleton):
       )
     logger.warning(f"Task {task_id} has been added.")
 
-  
   def receive_task_response(self, stop_event: threading.Event):
     logger.info(f"Task response queue is ready.")
     while not stop_event.is_set():
@@ -177,6 +176,8 @@ class TaskManager(metaclass=Singleton):
         response: TaskResponse = self.queue.get(timeout=2)
       except (TimeoutError, queue.Empty, queue.Full):
         continue
+      except EOFError:
+        break
       with self.lock:
         logger.debug(f"Task response queue received response for task {response.id}.")
         if response.id not in self.results:

@@ -68,24 +68,7 @@ def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicM
 
   tm_result = cache.topics.load(column.name)
   bertopic_model = cache.bertopic_models.load(column.name)
-  umap_model = BERTopicCachedUMAP(
-    project_id=request.project_id,
-    column=column,
-    low_memory=True,
-  )
-  cached_umap_vectors = umap_model.load_cached_embeddings()
-  if cached_umap_vectors is None:
-    raise MissingCachedTopicModelingResult(
-      type="UMAP vectors",
-      column=column.name
-    )
-  if len(cached_umap_vectors) != len(document_topic_assignments):
-    raise UnsyncedDocumentVectorsException(
-      type="UMAP vectors",
-      expected_rows=len(document_topic_assignments),
-      observed_rows=len(cached_umap_vectors),
-      column=column.name,
-    )
+  cached_umap_vectors = cache.umap_vectors.load(column.name)
   proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
 
   proxy.log_pending(f"Evaluating the topics...")

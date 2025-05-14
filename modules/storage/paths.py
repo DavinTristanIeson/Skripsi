@@ -45,6 +45,8 @@ class AbstractPathManager(abc.ABC):
     logger.info(f"Cleaning up the following directories: {directories_str}; and files: {files_str}.")
     for rawdir in directories:
       dir = self.full_path(rawdir)
+      if not os.path.exists(dir):
+        continue
       try:
         if os.path.exists(dir):
           shutil.rmtree(dir)
@@ -56,6 +58,8 @@ class AbstractPathManager(abc.ABC):
         )
     for rawfile in files:
       file = self.full_path(rawfile)
+      if not os.path.exists(file):
+        continue
       try:
         os.remove(file)
         logger.debug(f"Deleted file: \"{file}\".")
