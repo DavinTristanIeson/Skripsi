@@ -1,5 +1,7 @@
 import os
 
+import pydantic
+
 from modules.api import ApiResult
 from modules.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
@@ -37,7 +39,7 @@ def get_all_projects():
       cache = ProjectCacheManager().get(folder)
       try:
         projects.append(ProjectResource.from_config(cache.config))
-      except FileLoadingException as e:
+      except (FileLoadingException, pydantic.ValidationError) as e:
         continue
 
   return ApiResult(

@@ -59,7 +59,7 @@ class _TableFilterPreprocessModule:
       if column.is_ordered:
         sort = TableSort(name=column.name, asc=True)
       elif column.type == SchemaColumnTypeEnum.Boolean:
-        # True before FAlse
+        # True before False
         sort = TableSort(name=column.name, asc=False)
 
     df = engine.process_workspace(self.filter, sort)
@@ -198,7 +198,7 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
 
   freqdist = data.value_counts()
   # Ensure every value has a stable sort
-  freqdist = freqdist.sort_index()
+  freqdist = freqdist.sort_index(ascending=result.column.type != SchemaColumnTypeEnum.Boolean)
 
   return ApiResult(
     data=TableColumnFrequencyDistributionResource(

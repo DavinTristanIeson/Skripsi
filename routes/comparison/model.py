@@ -13,6 +13,11 @@ class ComparisonStatisticTestSchema(pydantic.BaseModel):
   effect_size_preference: EffectSizeMethodEnum
   exclude_overlapping_rows: bool
 
-class ComparisonGroupWordsSchema(pydantic.BaseModel):
+class CompareSubdatasetsSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
+
+class SubdatasetCooccurrenceResource(pydantic.BaseModel):
+  labels: list[str]
+  cooccurrences: list[list[int]]
+  frequencies: list[int]

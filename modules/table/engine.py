@@ -28,7 +28,7 @@ class TableEngine:
       [filter, sort]
     ))
     
-  def _filter_mask(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.Series:
+  def filter_mask(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.Series:
     if filter is None:
       return pd.Series(True, index=df.index)
     with TimeLogger("TableEngine", title="Applying filter to dataset..."):
@@ -40,7 +40,7 @@ class TableEngine:
   def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
     if filter is None:
       return df
-    mask = self._filter_mask(df, filter)
+    mask = self.filter_mask(df, filter)
     return df[mask]
   
   def sort(self, df: pd.DataFrame, sort: Optional[TableSort])->pd.DataFrame:

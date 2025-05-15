@@ -10,7 +10,8 @@ from modules.topic.bertopic_ext import BERTopicInterpreter
 
 from .model import (
   ComparisonStatisticTestSchema,
-  ComparisonGroupWordsSchema,
+  CompareSubdatasetsSchema,
+  SubdatasetCooccurrenceResource,
 )
 from routes.table.model import TableTopicsResource
 from modules.topic.bertopic_ext.builder import BERTopicModelBuilder, EmptyBERTopicModelBuilder
@@ -44,7 +45,7 @@ def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
   )
 
 
-def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache):
+def compare_group_words(params: CompareSubdatasetsSchema, cache: ProjectCache):
   config = cache.config
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
   df = cache.workspaces.load()
@@ -53,7 +54,7 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
   documents: list[str] = []
   document_topics: list[int] = []
   for group_id, group in enumerate(params.groups):
-    group_mask = engine._filter_mask(df, AndTableFilter(
+    group_mask = engine.filter_mask(df, AndTableFilter(
       operands=[
         group.filter,
         NotEmptyTableFilter(
@@ -84,6 +85,29 @@ def compare_group_words(params: ComparisonGroupWordsSchema, cache: ProjectCache)
     topics=topics,
   ), message=None)
   
+
+def subdataset_cooccurrence(params: CompareSubdatasetsSchema, cache: ProjectCache):
+  config = cache.config
+  df = cache.workspaces.load()
+  engine = TableEngine(config=config)
+
+  masks = list(map(lambda group: engine.filter_mask(df, group.filter), params.groups))
+  frequencies = list(map(lambda mask: mask.sum(), masks))
+  group_names = list(map(lambda group: group.name, params.groups))
+  cooccurrences = np.full((len(params.groups), len(params.groups)), 0)
+  for gid1, group1 in enumerate(params.groups):
+    mask1 = masks[gid1]
+    for gid2, group2 in enumerate(params.groups):
+      mask2 = masks[gid2]
+      cooccur_mask = mask1 & mask2
+      cooccurrence = cooccur_mask.sum()
+      cooccurrences[gid1, gid2] += cooccurrence
+      
+  return SubdatasetCooccurrenceResource(
+    labels=group_names,
+    cooccurrences=cooccurrences.tolist(),
+    frequencies=frequencies
+  )
 
 __all__ = [
   "statistic_test",
