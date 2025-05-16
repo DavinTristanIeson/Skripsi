@@ -410,26 +410,10 @@ class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
 
 class BooleanSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Boolean]
-  infer_boolean: bool
-  positive_label: Optional[str]
-  negative_label: Optional[str]
-
   def fit(self, df):
     if pd.api.types.is_bool_dtype(df[self.name]):
       return
-    if self.infer_boolean:
-      data = df[self.name].astype(pd.BooleanDtype())
-      df[self.name] = data
-      return
-    
-    string_data = df[self.name].astype(pd.StringDtype())
-    data = pd.Series(pd.NA, dtype=pd.BooleanDtype())
-    if self.positive_label is not None:
-      true_mask = string_data == self.positive_label
-      data[true_mask] = True
-    if self.negative_label is not None:
-      false_mask = string_data == self.negative_label
-      data[false_mask] = False
+    data = df[self.name].astype(pd.BooleanDtype())
     df[self.name] = data
   
 SchemaColumn = Annotated[
