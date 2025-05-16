@@ -12,10 +12,11 @@ from .embedding import BERTopicEmbeddingModelFactory, SupportedBERTopicEmbedding
 if TYPE_CHECKING:
   from bertopic import BERTopic
   from bertopic.vectorizers import ClassTfidfTransformer
-  from bertopic.representation import MaximalMarginalRelevance
+  from bertopic.representation import KeyBERTInspired
   from hdbscan import HDBSCAN
   from umap import UMAP
   from sklearn.feature_extraction.text import CountVectorizer
+
 
 
 logger = ProvisionedLogger().provision("Topic Modeling")
@@ -26,7 +27,7 @@ class BERTopicIndividualModels:
   hdbscan_model: "HDBSCAN"
   vectorizer_model: "CountVectorizer"
   ctfidf_model: "ClassTfidfTransformer"
-  representation_model: "MaximalMarginalRelevance"
+  representation_model: "KeyBERTInspired"
 
   @staticmethod
   def cast(model: "BERTopic")->"BERTopicIndividualModels":
@@ -124,10 +125,15 @@ class BERTopicModelBuilder:
   
   def build_ctfidf_model(self)->"ClassTfidfTransformer":
     return EmptyBERTopicModelBuilder(self.column).build_ctfidf_model()
+  
+  def build_representation_model(self)->"KeyBERTInspired":
+    from bertopic.representation import KeyBERTInspired
+    return KeyBERTInspired(
+      top_n_words=self.column.topic_modeling.top_n_words
+    )
 
   def build(self)->"BERTopic":
     from bertopic import BERTopic
-    from bertopic.representation import KeyBERTInspired
 
     column = self.column
 
@@ -141,7 +147,7 @@ class BERTopicModelBuilder:
       hdbscan_model=self.build_hdbscan_model(),
       ctfidf_model=self.build_ctfidf_model(),
       vectorizer_model=self.build_vectorizer_model(),
-      representation_model=KeyBERTInspired(top_n_words=column.topic_modeling.top_n_words),
+      representation_model=self.build_representation_model(),
       top_n_words=int(column.topic_modeling.top_n_words),
       calculate_probabilities=False,
       verbose=True,

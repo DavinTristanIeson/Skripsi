@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from modules.project.cache import ProjectCache, ProjectCacheManager
-from modules.task import TaskStorageProxy
+from modules.project.cache import ProjectCache
+from modules.project.cache_manager import ProjectCacheManager
+from modules.task import TaskManagerProxy
 from modules.config import Config, TextualSchemaColumn
 from modules.topic.model import TopicModelingResult
 
@@ -17,10 +18,7 @@ if TYPE_CHECKING:
 class BERTopicIntermediateState:
   config: Config
   column: TextualSchemaColumn
-  
-  @property
-  def cache(self)->ProjectCache:
-    return ProjectCacheManager().get(self.config.project_id)
+  cache: ProjectCache
 
   # Configured BERTopic model
   model: "BERTopic"
@@ -42,7 +40,7 @@ class BERTopicIntermediateState:
 @dataclass
 class BERTopicProcedureComponent(abc.ABC):
   state: BERTopicIntermediateState
-  task: TaskStorageProxy
+  task: TaskManagerProxy
   @abc.abstractmethod
   def run(self):
     pass

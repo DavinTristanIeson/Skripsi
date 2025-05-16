@@ -44,28 +44,9 @@ class BERTopicCacheOnlyEmbeddingProcedureComponent(BERTopicProcedureComponent):
     # Dependencies
     cache = self.state.cache
     column = self.state.column
-    documents = self.state.documents
 
     # Compute
-    umap_model = BERTopicCachedUMAP(
-      project_id=cache.config.project_id,
-      column=column,
-      low_memory=True,
-    )
-    cached_umap_vectors = umap_model.load_cached_embeddings()
-
-    if cached_umap_vectors is None:
-      raise MissingCachedTopicModelingResult(
-        type="UMAP vectors",
-        column=column.name
-      )
-    if len(cached_umap_vectors) != len(documents):
-      raise UnsyncedDocumentVectorsException(
-        type="UMAP vectors",
-        expected_rows=len(documents),
-        observed_rows=len(cached_umap_vectors),
-        column=column.name,
-      )
+    cached_umap_vectors = cache.umap_vectors.load(column.name)
 
     # Effect
     self.state.document_vectors = cached_umap_vectors

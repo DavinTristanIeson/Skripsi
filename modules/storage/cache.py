@@ -90,6 +90,7 @@ class CacheClient(Generic[T]):
           self.records.pop(cache_key, None)
 
   def clear(self):
+    logger.debug(f"[{self.name}] CLEAR")
     with self.lock:
       self.records.clear()
 

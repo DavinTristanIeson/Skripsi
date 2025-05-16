@@ -55,8 +55,13 @@ class _TableFilterPreprocessModule:
 
     # Sort the results first for ordered categorical and temporal
     sort: Optional[TableSort] = None
-    if sort is None and column.is_ordered:
-      sort = TableSort(name=column.name, asc=True)
+    if sort is None:
+      if column.is_ordered:
+        sort = TableSort(name=column.name, asc=True)
+      elif column.type == SchemaColumnTypeEnum.Boolean:
+        # True before False
+        sort = TableSort(name=column.name, asc=False)
+
     df = engine.process_workspace(self.filter, sort)
 
     if column.name not in df.columns:
@@ -78,6 +83,13 @@ class _TableFilterPreprocessModule:
       tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
       categorical_data = categorical_data.rename_categories(tm_result.renamer)
+      data = pd.Series(categorical_data, name=column.name)
+    if column.type == SchemaColumnTypeEnum.Boolean:
+      categorical_data = pd.Categorical(data)
+      categorical_data = categorical_data.rename_categories({
+        True: "True",
+        False: "False"
+      })
       data = pd.Series(categorical_data, name=column.name)
 
     return _TableFilterPreprocessResult(
@@ -186,7 +198,7 @@ def get_column_frequency_distribution(params: GetTableColumnSchema, cache: Proje
 
   freqdist = data.value_counts()
   # Ensure every value has a stable sort
-  freqdist = freqdist.sort_index()
+  freqdist = freqdist.sort_index(ascending=result.column.type != SchemaColumnTypeEnum.Boolean)
 
   return ApiResult(
     data=TableColumnFrequencyDistributionResource(
@@ -348,22 +360,34 @@ def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
 
   inside_count = len(data)
   notna_count = data.count()
-  na_count = inside_count - notna_count
 
   outlier_count: int | None = None
-  if column.type == SchemaColumnTypeEnum.Topic:
+  true_count: int | None = None
+  false_count: int | None = None
+  if result.column.type == SchemaColumnTypeEnum.Boolean:
+    true_count = (data == True).sum()
+    false_count = (data == False).sum()
+    notna_count -= (true_count + false_count)
+  elif column.type == SchemaColumnTypeEnum.Topic:
     outlier_count = (data == -1).sum()
     notna_count -= outlier_count
+
+  na_count = inside_count - notna_count
 
   return ApiResult(
     data=TableColumnCountsResource(
       column=column,
+
+      total=total_count,
       inside=inside_count,
       outside=total_count - inside_count,
+
       invalid=na_count,
       valid=notna_count,
-      total=total_count,
-      outlier=outlier_count
+
+      outlier=outlier_count,
+      true=true_count,
+      false=false_count,
     ),
     message=None
   )

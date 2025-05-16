@@ -7,38 +7,6 @@ from modules.table.filter_variants import TableFilter
 from modules.topic.experiments.model import BERTopicHyperparameterCandidate, BERTopicHyperparameterConstraint
 from modules.topic.model import Topic, TopicModelingResult
 
-@dataclass
-class TopicModelingTaskRequest:
-  project_id: str
-  column: str
-
-  @property
-  def task_id(self):
-    # To enable sequential runs. The ID makes all topic modeling jobs for the same project ID the same, while misfire_grace_time prevents the jobs from being canceled
-    # This is necessary to avoid data races for the same project.
-    # https://stackoverflow.com/questions/65690003/how-to-manage-a-task-queue-using-apscheduler
-    return f"{self.project_id}__topic-modeling__{self.column}"
-  
-@dataclass
-class EvaluateTopicModelResultTaskRequest:
-  project_id: str
-  column: str
-
-  @property
-  def task_id(self):
-    return f"{self.project_id}__evaluate-topic-model-result__{self.column}"
-
-@dataclass
-class BERTopicExperimentTaskRequest:
-  project_id: str
-  column: str
-  n_trials: int
-  constraint: BERTopicHyperparameterConstraint
-
-  @property
-  def task_id(self):
-    return f"{self.project_id}__bertopic-experiment__{self.column}"
-
 # Schema
 class StartTopicModelingSchema(pydantic.BaseModel):
   use_cached_document_vectors: bool

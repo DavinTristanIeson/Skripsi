@@ -38,6 +38,7 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
     return OrderedCategoricalSchemaColumn(
       type=SchemaColumnTypeEnum.OrderedCategorical,
       name=f"{self.name} (Bins)",
+      min_frequency=0,
       internal=True,
       source_name=self.name,
     )
@@ -95,24 +96,33 @@ class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True)
     df[self.name] = data
     df[self.bins_column.name] = self.__histogram(data)
   
+
+def _fit_category(raw_data: pd.Series, min_frequency: int):
+  if raw_data.dtype == 'category':
+    data = pd.Categorical(raw_data)
+  else:  
+    data = pd.Categorical(raw_data.astype(pd.StringDtype()))
+  frequency_distribution = data.value_counts()
+  removed_categories = frequency_distribution[frequency_distribution < min_frequency].index
+  data = data.remove_categories(removed_categories)
+  return data
+
 class CategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Categorical]
+  min_frequency: int = pydantic.Field(default=0)
 
   @property
   def is_categorical(self)->bool:
     return True
   
   def fit(self, df):
-    raw_data = df[self.name]
-    if raw_data.dtype == 'category':
-      data = pd.Categorical(raw_data)
-    else:  
-      data = pd.Categorical(raw_data.astype(pd.StringDtype()))
+    data = _fit_category(df[self.name], self.min_frequency)
     df[self.name] = data
   
 class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.OrderedCategorical]
   category_order: Optional[list[str]] = None
+  min_frequency: int = pydantic.Field(default=0)
 
   @property
   def is_ordered(self)->bool:
@@ -123,11 +133,7 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, froz
     return True
 
   def fit(self, df):
-    raw_data = df[self.name]
-    if raw_data.dtype == 'category':
-      data = pd.Categorical(raw_data)
-    else:  
-      data = pd.Categorical(raw_data.astype(pd.StringDtype()))
+    data = _fit_category(df[self.name], self.min_frequency)
 
     category_order: Optional[list[str]] = None  
     if self.category_order is not None:
@@ -401,6 +407,14 @@ class UniqueSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
     mask = data.str.len() == 0
     data[mask] = pd.NA 
     df[self.name] = data
+
+class BooleanSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
+  type: Literal[SchemaColumnTypeEnum.Boolean]
+  def fit(self, df):
+    if pd.api.types.is_bool_dtype(df[self.name]):
+      return
+    data = df[self.name].astype(pd.BooleanDtype())
+    df[self.name] = data
   
 SchemaColumn = Annotated[
   Union[
@@ -413,6 +427,7 @@ SchemaColumn = Annotated[
     GeospatialSchemaColumn,
     UniqueSchemaColumn,
     TopicSchemaColumn,
+    BooleanSchemaColumn
   ],
   pydantic.Field(discriminator="type"),
   DiscriminatedUnionValidator
@@ -426,4 +441,5 @@ __all__ = [
   "CategoricalSchemaColumn",
   "ContinuousSchemaColumn",
   "GeospatialSchemaColumn",
+  "BooleanSchemaColumn",
 ]

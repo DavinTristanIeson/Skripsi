@@ -5,7 +5,7 @@ import pandas as pd
 
 from modules.project.paths import ProjectPaths
 from modules.table.serialization import serialize_pandas
-from modules.task.storage import TaskStorage
+from modules.task.manager import TaskManager
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
@@ -13,7 +13,7 @@ from modules.project.cache import ProjectCache
 from modules.table import TableEngine, TablePaginationApiResult
 from modules.table.filter_variants import AndTableFilter, NotEmptyTableFilter
 from modules.table.pagination import PaginationParams
-from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
+from modules.topic.bertopic_ext.builder import BERTopicModelBuilder
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
 from modules.topic.model import Topic, TopicModelingResult
 
@@ -74,7 +74,9 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   document_topics = df.loc[mask, column.topic_column.name]
 
   # Reset BERTopic model
-  model_builder = EmptyBERTopicModelBuilder(
+  model_builder = BERTopicModelBuilder(
+    corpus_size=len(documents),
+    project_id=cache.config.project_id,
     column=column,
   )
   bertopic_model = model_builder.build()
@@ -106,7 +108,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   cache.topics.save(new_tm_result, column.name)
   cache.workspaces.save(df)
   # Invalidate tasks
-  TaskStorage().invalidate(prefix=config.project_id, clear=True)
+  TaskManager().invalidate(prefix=config.project_id, clear=True)
   # Clean up experiments
   config.paths._cleanup(
     directories=[],
@@ -114,6 +116,7 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
       ProjectPaths.TopicModelExperiments(column.name),
       ProjectPaths.TopicEvaluation(column.name),
     ],
+    soft=True
   )
 
   return ApiResult(

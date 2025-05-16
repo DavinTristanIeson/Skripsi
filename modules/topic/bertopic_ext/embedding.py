@@ -18,6 +18,7 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config.schema.textual import DocumentEmbeddingMethodEnum
 from modules.logger import TimeLogger
+from modules.storage.atomic import atomic_write
 from modules.storage.transformer import SavedModelTransformerBehavior, CachedEmbeddingTransformerBehavior
 
 if TYPE_CHECKING:
@@ -134,7 +135,7 @@ class LsaSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerB
     import pickle
     embedding_model_dirpath = os.path.dirname(self.embedding_model_path)
     os.makedirs(embedding_model_dirpath, exist_ok=True)
-    with open(self.embedding_model_path, 'wb') as f:
+    with atomic_write(self.embedding_model_path, mode="binary") as f:
       pickle.dump(model, f)
   
   def _load_model(self):

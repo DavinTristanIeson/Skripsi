@@ -1,10 +1,7 @@
 import abc
-from dataclasses import dataclass
-import http
 import os
 import shutil
 
-from modules.api import ApiError
 from modules.exceptions.files import FileNotExistsException
 from modules.logger.provisioner import ProvisionedLogger
 from modules.storage.exceptions import FileSystemCleanupError
@@ -41,13 +38,15 @@ class AbstractPathManager(abc.ABC):
     os.makedirs(dirpath, exist_ok=True)
     return full_path
   
-  def _cleanup(self, directories: list[str], files: list[str]):
+  def _cleanup(self, directories: list[str], files: list[str], *, soft: bool):
     """``directories`` and ``files`` should be relative to ``base_path``."""
     directories_str = ', '.join(map(lambda dir: f'"{dir}"', directories))
     files_str = ', '.join(map(lambda file: f'"{file}"', files))
     logger.info(f"Cleaning up the following directories: {directories_str}; and files: {files_str}.")
     for rawdir in directories:
       dir = self.full_path(rawdir)
+      if not os.path.exists(dir):
+        continue
       try:
         if os.path.exists(dir):
           shutil.rmtree(dir)
@@ -59,9 +58,10 @@ class AbstractPathManager(abc.ABC):
         )
     for rawfile in files:
       file = self.full_path(rawfile)
+      if not os.path.exists(file):
+        continue
       try:
-        if os.path.exists(file):
-          os.remove(file)
+        os.remove(file)
         logger.debug(f"Deleted file: \"{file}\".")
       except Exception as e:
         raise FileSystemCleanupError(

@@ -25,6 +25,12 @@ class _BaseDataSource(pydantic.BaseModel, abc.ABC, frozen=True):
 
 logger = ProvisionedLogger().provision("Config")
 
+def preprocess_source_dataframe(df: pd.DataFrame):
+  df.reset_index(drop=True, inplace=True)
+  unnamed_columns = list(filter(lambda col: col.startswith("Unnamed: "), df.columns))
+  df.drop(unnamed_columns, axis=1, inplace=True)
+  return df
+
 class CSVDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.CSV]
   delimiter: str = ','
@@ -32,14 +38,14 @@ class CSVDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   def load(self)->pd.DataFrame:
     df = pd.read_csv(self.path, delimiter=self.delimiter, on_bad_lines="skip", encoding='utf-8')
     logger.info(f"Loaded data source from {self.path}")
-    return df
+    return preprocess_source_dataframe(df)
 
 class ParquetDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.Parquet]
   def load(self)->pd.DataFrame:
     df = pd.read_parquet(self.path)
     logger.info(f"Loaded data source from {self.path}")
-    return df
+    return preprocess_source_dataframe(df)
   
 class ExcelDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
   type: Literal[DataSourceTypeEnum.Excel]
@@ -51,7 +57,7 @@ class ExcelDataSource(_BaseDataSource, pydantic.BaseModel, frozen=True):
       kwargs["sheet_name"] = self.sheet_name
     df = pd.read_excel(self.path)
     logger.info(f"Loaded data source from {self.path}")
-    return df
+    return preprocess_source_dataframe(df)
 
 # Definitely should be frozen. They should be stable since they're going to be used with lru_cache.
 DataSource = Annotated[Union[CSVDataSource, ParquetDataSource, ExcelDataSource], pydantic.Field(discriminator="type"), DiscriminatedUnionValidator]

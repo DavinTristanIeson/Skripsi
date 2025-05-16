@@ -32,31 +32,35 @@ class ProjectPaths(SimpleNamespace):
   
   @staticmethod
   def TopicModelingFolder(name: str)->str:
-    return os.path.join(ProjectPaths.TopicModelingFolderName, name)
+    return os.path.join(ProjectPaths.TopicModelingFolderName, ProjectPaths.Column(name))
   
+  TopicsFileName = "topics.json"
   @staticmethod
   def Topics(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), "topics.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicsFileName)
 
+  DocumentEmbeddingsFileName = "document_vectors.npy"
   @staticmethod
   def DocumentEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column),
-      "document_vectors.npy"
+      ProjectPaths.DocumentEmbeddingsFileName
     )
 
+  UMAPEmbeddingsFileName = "umap_vectors.npy"
   @staticmethod
   def UMAPEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column), 
-      "umap_vectors.npy"
+      ProjectPaths.UMAPEmbeddingsFileName    
     )
   
+  VisualizationEmbeddingsFileName = "visualization_vectors.npy"
   @staticmethod
   def VisualizationEmbeddings(column: str):
     return os.path.join(
       ProjectPaths.TopicModelingFolder(column),
-      "visualization_vectors.npy"
+      ProjectPaths.VisualizationEmbeddingsFileName
     )
   
   @staticmethod
@@ -69,13 +73,34 @@ class ProjectPaths(SimpleNamespace):
   def BERTopic(column: str):
     return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.BERTopicFolder)
   
+  TopicModelExperimentsFileName = "topic_model_experiments.json"
   @staticmethod
   def TopicModelExperiments(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_model_experiments.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicModelExperimentsFileName)
   
+  TopicEvaluationFileName = "topic_evaluation.json"
   @staticmethod
   def TopicEvaluation(column: str):
-    return os.path.join(ProjectPaths.TopicModelingFolder(column), f"topic_evaluation.json")
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicEvaluationFileName)
+  
+  # Logs
+  LogsFolder = "logs"
+
+  @staticmethod
+  def ColumnLogsFolder(column: str):
+    return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.LogsFolder)
+
+  @staticmethod
+  def TopicModelingLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_modeling.log")
+  
+  @staticmethod
+  def TopicEvaluationLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_evaluation.log")
+  
+  @staticmethod
+  def TopicModelExperimentLogs(column: str):
+    return os.path.join(ProjectPaths.ColumnLogsFolder(column), "topic_model_experiments.log")
 
 logger = ProvisionedLogger().provision("Wordsmith Data Loader")
 
@@ -104,23 +129,21 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
     directories = [
       ProjectPaths.TopicModelingFolderName,
     ]
-    files = [
-      ProjectPaths.Workspace,
-    ]
+    files = []
 
     if all:
       files.extend([
         ProjectPaths.UserDataFolder,
         ProjectPaths.Config,
       ])
-    self._cleanup(directories, files)
+    self._cleanup(directories, files, soft=not all)
 
   def cleanup_topic_modeling(self, column: str):
     directories = [
       ProjectPaths.TopicModelingFolder(column),
     ]
     files = []
-    self._cleanup(directories, files)
+    self._cleanup(directories, files, soft=True)
 
 __all__ = [
   "ProjectPathManager",

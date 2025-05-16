@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import datetime
 import functools
+import multiprocessing
+import queue
 import threading
 from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
@@ -9,9 +11,8 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.exceptions.files import FileLoadingException
 from modules.logger.provisioner import ProvisionedLogger
-from modules.project.cache import ProjectCacheManager
 from modules.task.responses import TaskResponse
-from modules.task.storage import TaskStorageProxy
+from modules.task.manager import TaskManagerProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
@@ -28,28 +29,32 @@ logger = ProvisionedLogger().provision("Topic Modeling")
 
 @dataclass
 class BERTopicExperimentLab:
-  task: TaskStorageProxy
+  task: TaskManagerProxy
   project_id: str
   column: str
   n_trials: int
   constraint: BERTopicHyperparameterConstraint
 
   def get_placeholder_task(self):
-    return TaskStorageProxy(
+    return TaskManagerProxy(
       id="placeholder",
+      # but don't share queue. We discard the contents of queue.
+      queue=queue.Queue(),
+      # Share stop events
       stop_event=self.task.stop_event,
       response=TaskResponse.Idle("placeholder"),
     )
 
-  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, column: TextualSchemaColumn, experiment_result: BERTopicExperimentResult):
-    cache = ProjectCacheManager().get(self.project_id)
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
+    cache = shared_state.cache
+    column = shared_state.column
 
     if self.task.stop_event.is_set():
       trial.study.stop()
 
     candidate = self.constraint.suggest(trial)
     placeholder_task = self.get_placeholder_task()
-    self.task.log_pending(f"Starting trial {trial.number + 1} with the following hyperparameters: {candidate}")
+    self.task.log_pending(f"Running a trial for the following hyperparameters: {candidate}")
 
     # Shallow copy only, don't deep copy.
     state = copy(shared_state)
@@ -79,9 +84,10 @@ class BERTopicExperimentLab:
         error=str(e),
         trial_number=trial.number + 1,
       )
-      experiment_result.trials.append(result)
-      cache.bertopic_experiments.save(experiment_result, column.name)
-      return -1
+      with lock:
+        experiment_result.trials.append(result)
+        cache.bertopic_experiments.save(experiment_result, column.name)
+      return -1.0
 
     self.task.log_success(f"Finished running trial {trial.number + 1} with the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v:.4f} and diversity of {evaluation.topic_diversity:.4f}.")
     result = BERTopicExperimentTrialResult(
@@ -90,8 +96,9 @@ class BERTopicExperimentLab:
       error=None,
       trial_number=trial.number + 1,
     )
-    experiment_result.trials.append(result)
-    cache.bertopic_experiments.save(experiment_result, column.name)
+    with lock:
+      experiment_result.trials.append(result)
+      cache.bertopic_experiments.save(experiment_result, column.name)
 
     return evaluation.coherence_v
   
@@ -121,25 +128,21 @@ class BERTopicExperimentLab:
     return evaluation
   
   def run(self):
-    cache = ProjectCacheManager().get(self.project_id)
-    config = cache.config
-    column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(self.column, [SchemaColumnTypeEnum.Textual]))
-
-    start_time = datetime.datetime.now()
-    
     shared_state = BERTopicIntermediateState()
-    shared_state.config = config
-    shared_state.column = column
-
     placeholder_task = self.get_placeholder_task()
 
+    start_time = datetime.datetime.now()
+
     shared_procedures: list[BERTopicProcedureComponent] = [
-      BERTopicDataLoaderProcedureComponent(state=shared_state, task=placeholder_task),
+      BERTopicDataLoaderProcedureComponent(state=shared_state, task=placeholder_task, project_id=self.project_id, column=self.column),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=placeholder_task),
       BERTopicCacheOnlyEmbeddingProcedureComponent(state=shared_state, task=placeholder_task),
     ]
     for procedure in shared_procedures:
       procedure.run()
+    # Loaded from DataLoaderProcedureComponent
+    column = shared_state.column
+    cache = shared_state.cache
 
     try:
       evaluation = cache.topic_evaluations.load(column.name)
@@ -161,8 +164,8 @@ class BERTopicExperimentLab:
     experiment = functools.partial(
       self.experiment,
       shared_state=shared_state,
-      column=column,
-      experiment_result=experiment_result
+      experiment_result=experiment_result,
+      lock=threading.Lock(),
     )
     
     import optuna
@@ -171,7 +174,7 @@ class BERTopicExperimentLab:
       experiment,
       n_trials=self.n_trials,
       show_progress_bar=True,
-      # Optuna's n_jobs uses multithreading, not multiprocessing
+      # Optuna's n_jobs uses multithreading, not multiprocessing so this is save to use.
       n_jobs=-1,
       catch=Exception,
       gc_after_trial=True,

@@ -1,15 +1,17 @@
 import os
 
+import pydantic
+
 from modules.api import ApiResult
 from modules.config import Config
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.exceptions.dataframe import DataFrameLoadException
 from modules.exceptions.files import FileLoadingException, FileNotExistsException
-from modules.project.cache import ProjectCache, ProjectCacheManager, get_cached_data_source
+from modules.project.cache import ProjectCache, get_cached_data_source
+from modules.project.cache_manager import ProjectCacheManager
 from modules.project.paths import DATA_DIRECTORY, ProjectPathManager, ProjectPaths
 from modules.logger.provisioner import ProvisionedLogger
-from modules.task.engine import scheduler, topic_modeling_job_store
-from modules.task.storage import TaskStorage
+from modules.task.manager import TaskManager
 
 from ..model import ProjectMutationSchema, ProjectResource
 from .project_checks import _assert_valid_project_id
@@ -37,7 +39,7 @@ def get_all_projects():
       cache = ProjectCacheManager().get(folder)
       try:
         projects.append(ProjectResource.from_config(cache.config))
-      except FileLoadingException as e:
+      except (FileLoadingException, pydantic.ValidationError) as e:
         continue
 
   return ApiResult(
@@ -81,11 +83,12 @@ def create_project(body: ProjectMutationSchema):
     message=f"Your new project \"{body.metadata.name}\", has been successfully created."
   )
 
-def update_project(config: Config, body: ProjectMutationSchema):
+def update_project(cache: ProjectCache, body: ProjectMutationSchema):
   # Resolve project differences
 
+  config = cache.config
   try:
-    workspace_df = config.load_workspace()
+    workspace_df = cache.workspaces.load(cached=False)
   except (DataFrameLoadException, FileNotExistsException):
     workspace_df = None
 
@@ -110,13 +113,17 @@ def update_project(config: Config, body: ProjectMutationSchema):
   logger.info(f"Successfully resolved the differences in the column configurations of \"{config.project_id}\"")
 
   # Commit changes
-  new_config.save_to_json()
-  new_config.save_workspace(df)
+  cache.config_cache.save(new_config)
+  cache.workspaces.save(df)
 
   # Invalidate cache
-  ProjectCacheManager().invalidate(new_config.project_id)
-  TaskStorage().invalidate(prefix=new_config.project_id, clear=True)
-  new_config.paths._cleanup([], cleanup_targets)
+  cache.invalidate()
+  TaskManager().invalidate(prefix=new_config.project_id, clear=True)
+  new_config.paths._cleanup(
+    directories=[],
+    files=cleanup_targets,
+    soft=True
+  )
 
   return ApiResult(
     data=ProjectResource(
@@ -129,10 +136,9 @@ def update_project(config: Config, body: ProjectMutationSchema):
 
 def delete_project(config: Config):
   config.paths.cleanup(all=True)
-  scheduler.remove_all_jobs(topic_modeling_job_store)
-  ProjectCacheManager().invalidate(config.project_id)
-  TaskStorage().invalidate(prefix=config.project_id, clear=True)
-
+  cache = ProjectCacheManager().get(config.project_id)
+  cache.invalidate()
+  TaskManager().invalidate(prefix=config.project_id, clear=True)
   return ApiResult(
     data=None,
     message=f"Project \"{config.metadata.name}\" has been successfully deleted."
@@ -141,12 +147,12 @@ def delete_project(config: Config):
 def reload_project(cache: ProjectCache):
   config = cache.config
   df = get_cached_data_source(config.source)
+  df = config.data_schema.fit(df)
 
   config.paths.cleanup()
-  scheduler.remove_all_jobs(topic_modeling_job_store)
-  ProjectCacheManager().invalidate(config.project_id)  
+  cache.invalidate()
+  TaskManager().invalidate(prefix=config.project_id, clear=True)
 
-  df = config.data_schema.fit(df)
   cache.workspaces.save(df)
 
   return ApiResult(

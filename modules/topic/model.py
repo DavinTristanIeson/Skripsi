@@ -6,6 +6,7 @@ import pydantic
 
 from modules.exceptions.files import CorruptedFileException, FileNotExistsException
 from modules.project.paths import ProjectPathManager, ProjectPaths
+from modules.storage.atomic import atomic_write
 
 class Topic(pydantic.BaseModel):
   id: int
@@ -59,7 +60,8 @@ class TopicModelingResult(pydantic.BaseModel):
   def save_as_json(self, column: str):
     paths = ProjectPathManager(project_id=self.project_id)
     topics_path = paths.allocate_path(ProjectPaths.Topics(column))
-    with open(topics_path, 'w', encoding='utf-8') as f:
+
+    with atomic_write(topics_path, mode="text") as f:
       f.write(self.model_dump_json(indent=4))
 
   @staticmethod

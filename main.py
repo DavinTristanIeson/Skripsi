@@ -8,20 +8,23 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from modules.api.wrapper import ApiErrorResult
+from modules.project.cache_manager import ProjectCacheManager
+from modules.task.manager import TaskManager
 import routes
 
 from modules.logger import ProvisionedLogger
 from modules.api import register_error_handlers
-from modules.task import scheduler
 
 @asynccontextmanager
 async def lifespan(app):
-  try:
-    scheduler.start()
-    yield
-  except asyncio.exceptions.CancelledError:
-    pass
-  scheduler.shutdown()
+  cachemanager = ProjectCacheManager()
+  taskmanager = TaskManager()
+  with cachemanager.run():
+    with taskmanager.run():
+      try:
+        yield
+      except asyncio.exceptions.CancelledError:
+        pass
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -34,7 +37,8 @@ app.add_middleware(
 is_app = os.getenv("APP")
 ProvisionedLogger().configure(
   level=logging.WARNING if is_app else logging.DEBUG,
-  terminal=True
+  terminal=True,
+  file=None
 )
 
 api_app = FastAPI(lifespan=lifespan, responses={

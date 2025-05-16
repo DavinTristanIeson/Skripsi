@@ -31,10 +31,9 @@ class TableFilterTypeEnum(str, Enum):
   # Textual
   HasText = "has_text"
 
-  # Multi-Categorical
-  Includes = "includes"
-  Excludes = "excludes"
-  Only = "only"
+  # Boolean
+  IsTrue = "is_true",
+  IsFalse = "is_false",
 
 ExposedEnum().register(TableFilterTypeEnum)
 
@@ -66,6 +65,12 @@ ALLOWED_FILTER_TYPES_FOR_COLUMNS = {
   SchemaColumnTypeEnum.Continuous: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Geospatial: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
   SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Temporal: __ALLOWED_FILTER_TYPES_FOR_ORDERED_COLUMNS,
+  SchemaColumnTypeEnum.Boolean: [
+    *__ALLOWED_FILTER_TYPES_FOR_ALL_COLUMNS,
+    TableFilterTypeEnum.IsTrue,
+    TableFilterTypeEnum.IsFalse,
+  ]
 }
 
 @dataclass
@@ -74,7 +79,7 @@ class _TableFilterParams:
   config: Config
 
   def mask(self, flag: bool):
-    return np.full(len(self.data), flag, dtype=np.bool_)
+    return pd.Series(flag, index=self.data.index)
   
 class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   target: str
@@ -82,13 +87,13 @@ class _BaseTableFilter(pydantic.BaseModel, abc.ABC):
   model_config = pydantic.ConfigDict(use_enum_values=True)
  
   @abc.abstractmethod
-  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series:
     pass
 
 class _BaseCompoundTableFilter(pydantic.BaseModel, abc.ABC):
   model_config = pydantic.ConfigDict(use_enum_values=True)
   @abc.abstractmethod
-  def apply(self, params: _TableFilterParams)->pd.Series | np.ndarray:
+  def apply(self, params: _TableFilterParams)->pd.Series:
     pass
 
 class TableSort(pydantic.BaseModel, abc.ABC):

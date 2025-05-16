@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 from modules.logger.provisioner import ProvisionedLogger
 from modules.logger.time import TimeLogger
-from modules.project.cache import ProjectCacheManager
+from modules.project.cache_manager import ProjectCacheManager
 from modules.project.paths import ProjectPaths
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
