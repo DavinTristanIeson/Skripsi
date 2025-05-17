@@ -77,6 +77,7 @@ class TaskManagerProxy:
       ))
     finally:
       self.flush()
+      ProvisionedLogger().configure(terminal=False, level=logging.DEBUG, file=None)
 
 __all__ = [
   "TaskManagerProxy"

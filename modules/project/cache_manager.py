@@ -18,7 +18,7 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
     super().__init__()
     self.projects = projects
 
-  def invalidate_cache_from_event(self, event_path: str | bytes):
+  def invalidate_cache_from_event(self, event_path: str | bytes, event_type: str):
     if isinstance(event_path, str):
       path = event_path
     elif isinstance(event_path, bytes):
@@ -36,7 +36,7 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
       return
     
     project_id = relative_path.parts[0]
-    logger.debug(f"Project cache invalidator will be checking the following path {relative_path.parts} for which cache to invalidate.")
+    logger.debug(f"Project cache invalidator will be checking the following path {relative_path.parts} (type: {event_type}) for which cache to invalidate.")
 
     project_lock = ProjectThreadLockManager().get(project_id)
     with project_lock:
@@ -101,15 +101,17 @@ class ProjectCacheInvalidatorEventHandler(FileSystemEventHandler):
   
   def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
     super().on_modified(event)
-    self.invalidate_cache_from_event(event.src_path)
+    if event.is_directory:
+      return
+    self.invalidate_cache_from_event(event_path=event.src_path, event_type=event.event_type)
     
   def on_deleted(self, event: DirDeletedEvent | FileDeletedEvent) -> None:
     super().on_deleted(event)
-    self.invalidate_cache_from_event(event.src_path)
+    self.invalidate_cache_from_event(event_path=event.src_path, event_type=event.event_type)
   
   def on_moved(self, event: DirMovedEvent | FileMovedEvent) -> None:
     super().on_moved(event)
-    self.invalidate_cache_from_event(event.dest_path)
+    self.invalidate_cache_from_event(event_path=event.dest_path, event_type=event.event_type)
 
 class ProjectCacheManager(metaclass=Singleton):
   projects: dict[str, ProjectCache]

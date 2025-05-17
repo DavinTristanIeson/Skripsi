@@ -35,9 +35,9 @@ class BERTopicExperimentLab:
   n_trials: int
   constraint: BERTopicHyperparameterConstraint
 
-  def get_placeholder_task(self):
+  def get_placeholder_task(self, trial_id: int):
     return TaskManagerProxy(
-      id="placeholder",
+      id=f"Trial {trial_id}",
       # but don't share queue. We discard the contents of queue.
       queue=queue.Queue(),
       # Share stop events
@@ -45,7 +45,7 @@ class BERTopicExperimentLab:
       response=TaskResponse.Idle("placeholder"),
     )
 
-  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult, lock: threading.Lock):
+  def experiment(self, trial: "Trial", shared_state: BERTopicIntermediateState, experiment_result: BERTopicExperimentResult, lock: threading.Lock, evaluation_semaphore: threading.Semaphore):
     cache = shared_state.cache
     column = shared_state.column
 
@@ -53,7 +53,7 @@ class BERTopicExperimentLab:
       trial.study.stop()
 
     candidate = self.constraint.suggest(trial)
-    placeholder_task = self.get_placeholder_task()
+    placeholder_task = self.get_placeholder_task(trial.number)
     self.task.log_pending(f"Running a trial for the following hyperparameters: {candidate}")
 
     # Shallow copy only, don't deep copy.
@@ -68,13 +68,14 @@ class BERTopicExperimentLab:
       ]
       for procedure in procedures:
         procedure.run()
-      evaluation = evaluate_topics(
-        documents=cast(Sequence[str], state.documents),
-        topics=state.result.topics,
-        bertopic_model=state.model,
-        document_topic_assignments=state.document_topic_assignments,
-        umap_vectors=shared_state.document_vectors,
-      )
+      with evaluation_semaphore:
+        evaluation = evaluate_topics(
+          documents=cast(Sequence[str], state.documents),
+          topics=state.result.topics,
+          bertopic_model=state.model,
+          document_topic_assignments=state.document_topic_assignments,
+          umap_vectors=shared_state.document_vectors,
+        )
     except Exception as e:
       logger.exception(e)
       self.task.log_error(f"Failed to run trial {trial.number + 1} with the following hyperparameters: {candidate} due to the following error: {str(e)}.")
@@ -103,7 +104,7 @@ class BERTopicExperimentLab:
     return evaluation.coherence_v
   
   def evaluate_current(self, shared_state: BERTopicIntermediateState, column: TextualSchemaColumn):
-    placeholder_task = self.get_placeholder_task()
+    placeholder_task = self.get_placeholder_task(0)
     state = copy(shared_state)
     more_procedures: list[BERTopicProcedureComponent] = [
       BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
@@ -129,7 +130,7 @@ class BERTopicExperimentLab:
   
   def run(self):
     shared_state = BERTopicIntermediateState()
-    placeholder_task = self.get_placeholder_task()
+    placeholder_task = self.get_placeholder_task(0)
 
     start_time = datetime.datetime.now()
 
@@ -166,6 +167,8 @@ class BERTopicExperimentLab:
       shared_state=shared_state,
       experiment_result=experiment_result,
       lock=threading.Lock(),
+      # Coherence V evaluation creates new processes, so we want to limit it to just two at a time to prevent it from spawning too many processes.
+      evaluation_semaphore=threading.Semaphore(2),
     )
     
     import optuna
@@ -174,8 +177,8 @@ class BERTopicExperimentLab:
       experiment,
       n_trials=self.n_trials,
       show_progress_bar=True,
-      # Optuna's n_jobs uses multithreading, not multiprocessing so this is save to use.
-      n_jobs=-1,
+      # Four at a time. HDBSCAN and C-TF-IDF are performant enough for this. Plus HDBSCAN got joblib for parameter caching.
+      n_jobs=4,
       catch=Exception,
       gc_after_trial=True,
       callbacks=[]

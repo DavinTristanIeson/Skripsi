@@ -3,9 +3,8 @@ from typing import TYPE_CHECKING, Sequence, cast
 import numpy as np
 import pandas as pd
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
-from modules.topic.evaluation.method import cv_coherence, silhouette_score, topic_diversity
+from modules.topic.evaluation.method import cv_coherence, topic_diversity
 from modules.topic.evaluation.model import TopicCoherenceV, TopicEvaluationResult, IndividualTopicEvaluationResult
-from modules.topic.exceptions import UnsyncedDocumentVectorsException
 from modules.topic.model import Topic
 
 if TYPE_CHECKING:
@@ -33,19 +32,11 @@ def evaluate_topics(
   )
   cv_scores_per_topic_nparray = np.array(cv_scores_per_topic_raw)
 
-  mean_silhouette_score, topic_silhouette_scores = silhouette_score(
-    topics=topics,
-    document_topic_assignments=np.array(document_topic_assignments),
-    umap_vectors=umap_vectors
-  )
-
   topic_evaluation_results: list[IndividualTopicEvaluationResult] = []
   for topic_id, topic in enumerate(topics):
     coherence = cv_scores_per_topic_nparray[topic_id]
-    topic_silhouette = topic_silhouette_scores[topic_id]
     topic_evaluation_results.append(IndividualTopicEvaluationResult(
       topic=topic,
-      silhouette_score=float(topic_silhouette),
       coherence=TopicCoherenceV(
         coherence=coherence[0],
         std_dev=coherence[1],
@@ -64,8 +55,6 @@ def evaluate_topics(
   return TopicEvaluationResult(
     coherence_v=float(cv_score),
     topic_diversity=diversity,
-    silhouette_score=float(mean_silhouette_score),
-
     topics=topic_evaluation_results,
     
     outlier_count=outlier_count,

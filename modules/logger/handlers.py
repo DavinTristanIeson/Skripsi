@@ -37,6 +37,14 @@ class RotatingFileHandlerProvisioner(metaclass=Singleton):
         logger.removeHandler(handler)
       except ValueError:
         continue
+  
+  def remove_file_with_prefix(self, logger: logging.Logger):
+    # pretty bad way to do this, but oh well
+    for handler in self.__handlers.values():
+      try:
+        logger.removeHandler(handler)
+      except ValueError:
+        continue
 
 
 @dataclass

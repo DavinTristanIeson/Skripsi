@@ -4,6 +4,7 @@ from typing import cast
 
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
+from modules.logger.paths import LogPathManager, LogPaths
 from modules.project.cache import ProjectCache
 from modules.project.lock import ProjectFileLockManager
 from modules.project.paths import ProjectPathManager, ProjectPaths
@@ -85,8 +86,8 @@ def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicM
 
 # PROCESS CONTEXT WARN
 def topic_evaluation_task(proxy: TaskManagerProxy, request: EvaluateTopicModelResultTaskRequest):
-  paths = ProjectPathManager(project_id=request.project_id)
-  log_path = paths.allocate_path(ProjectPaths.TopicEvaluationLogs(request.column))
+  paths = LogPathManager()
+  log_path = paths.allocate_path(LogPaths.TopicEvaluationLogs)
   with proxy.context(log_file=log_path):
     file_lock = ProjectFileLockManager().lock_column(
       project_id=request.project_id,
@@ -97,8 +98,8 @@ def topic_evaluation_task(proxy: TaskManagerProxy, request: EvaluateTopicModelRe
       topic_evaluation_task_inner(proxy, request)
 
 def topic_modeling_task(proxy: TaskManagerProxy, request: TopicModelingTaskRequest):
-  paths = ProjectPathManager(project_id=request.project_id)
-  log_path = paths.allocate_path(ProjectPaths.TopicModelingLogs(request.column))
+  paths = LogPathManager()
+  log_path = paths.allocate_path(LogPaths.TopicModelingLogs)
   with proxy.context(log_file=log_path):
     file_lock = ProjectFileLockManager().lock_column(
       project_id=request.project_id,
@@ -114,8 +115,8 @@ def topic_modeling_task(proxy: TaskManagerProxy, request: TopicModelingTaskReque
       facade.run()
 
 def topic_model_experiment_task(proxy: TaskManagerProxy, request: BERTopicExperimentTaskRequest):
-  paths = ProjectPathManager(project_id=request.project_id)
-  log_path = paths.allocate_path(ProjectPaths.TopicModelExperimentLogs(request.column))
+  paths = LogPathManager()
+  log_path = paths.allocate_path(LogPaths.TopicModelExperimentLogs)
   with proxy.context(log_file=log_path):
     file_lock = ProjectFileLockManager().lock_column(
       project_id=request.project_id,
