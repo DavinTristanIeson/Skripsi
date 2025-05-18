@@ -202,7 +202,7 @@ class EtaSquaredEffectSize(_BaseEffectSize):
       local_mean = group.mean()
       ssw += np.power(group - local_mean, 2).sum()
       ssb += len(group) * np.power(local_mean - global_mean, 2)
-    eta_squared = ssw / ssb
+    eta_squared = ssb / (ssb + ssw)
 
     return EffectSizeResult(
       type=GroupEffectSizeMethodEnum.EtaSquared,
