@@ -195,10 +195,14 @@ class EtaSquaredEffectSize(_BaseEffectSize):
     # https://stackoverflow.com/questions/52083501/how-to-compute-correlation-ratio-or-eta-in-python
     ssw = 0
     ssb = 0
+    group_total = sum(map(np.sum, self.groups))
+    group_length = sum(map(len, self.groups))
+    global_mean = group_total / group_length
     for group in self.groups:
-      ssw += np.power(group - group.mean(), 2).sum()
-      ssb += len(group) * np.power(np.mean(group) - np.mean(group), 2)
-    eta_squared = np.power(ssb / (ssb + ssw), 0.5)
+      local_mean = group.mean()
+      ssw += np.power(group - local_mean, 2).sum()
+      ssb += len(group) * np.power(local_mean - global_mean, 2)
+    eta_squared = ssw / ssb
 
     return EffectSizeResult(
       type=GroupEffectSizeMethodEnum.EtaSquared,

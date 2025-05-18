@@ -47,6 +47,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       raw_preprocess_documents = df[preprocess_name]
       mask = df[preprocess_name].notna()
       preprocess_documents = raw_preprocess_documents[mask]
+      self.task.log_success(f"Using the preprocessed documents in column \"{column.preprocess_column.name}\".")
     else:
       # Compute
       original_mask = raw_documents.notna()

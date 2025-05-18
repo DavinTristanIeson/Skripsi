@@ -1,13 +1,11 @@
 from dataclasses import dataclass
 import datetime
 import functools
-import multiprocessing
 import queue
 import threading
 from typing import TYPE_CHECKING, Sequence, cast
 from copy import copy
 
-from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.exceptions.files import FileLoadingException
 from modules.logger.provisioner import ProvisionedLogger
@@ -16,8 +14,7 @@ from modules.task.manager import TaskManagerProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
-from modules.topic.procedure.embedding import BERTopicCacheOnlyEmbeddingProcedureComponent
-from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent, BERTopicWithoutEmbeddingsModelBuilderProcedureComponent
+from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
 from modules.topic.procedure.postprocess import BERTopicPostprocessProcedureComponent
 from modules.topic.procedure.preprocess import BERTopicCacheOnlyPreprocessProcedureComponent, BERTopicDataLoaderProcedureComponent
 from modules.topic.procedure.topic_modeling import BERTopicCacheOnlyTopicModelingProcedureComponent, BERTopicExperimentalTopicModelingProcedureComponent
@@ -62,7 +59,7 @@ class BERTopicExperimentLab:
 
     try:
       procedures: list[BERTopicProcedureComponent] = [
-        BERTopicWithoutEmbeddingsModelBuilderProcedureComponent(state=state, task=placeholder_task),
+        BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
         BERTopicExperimentalTopicModelingProcedureComponent(state=state, task=placeholder_task),
         BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
       ]
@@ -74,7 +71,6 @@ class BERTopicExperimentLab:
           topics=state.result.topics,
           bertopic_model=state.model,
           document_topic_assignments=state.document_topic_assignments,
-          umap_vectors=shared_state.document_vectors,
         )
     except Exception as e:
       logger.exception(e)
@@ -121,7 +117,6 @@ class BERTopicExperimentLab:
       documents=cast(Sequence[str], state.documents),
       topics=state.result.topics,
       bertopic_model=state.model,
-      umap_vectors=state.document_vectors,
       document_topic_assignments=state.document_topic_assignments,
     )
     self.task.log_success("Finished evaluating the current topics.")
@@ -137,7 +132,6 @@ class BERTopicExperimentLab:
     shared_procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=shared_state, task=placeholder_task, project_id=self.project_id, column=self.column),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=placeholder_task),
-      BERTopicCacheOnlyEmbeddingProcedureComponent(state=shared_state, task=placeholder_task),
     ]
     for procedure in shared_procedures:
       procedure.run()

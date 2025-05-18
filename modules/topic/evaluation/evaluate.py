@@ -15,14 +15,13 @@ def evaluate_topics(
   topics: list[Topic],
   bertopic_model: "BERTopic",
   document_topic_assignments: pd.Series | np.ndarray,
-  umap_vectors: np.ndarray
 ):
   topic_words: list[list[str]] = []
   for topic in topics:
     sorted_topic_words = sorted(topic.words, key=lambda word: word[1], reverse=True)
-    top_n_topic_words = sorted_topic_words[:10]
-    only_topic_words = list(map(lambda word: word[0], top_n_topic_words))
-    topic_words.append(only_topic_words)
+    topic_words.append(
+      list(map(lambda word: word[0], sorted_topic_words[:10]))
+    )
   interpreter = BERTopicInterpreter(bertopic_model)
   tokenized_documents = list(interpreter.tokenize(cast(Sequence[str], documents)))
 

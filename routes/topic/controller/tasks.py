@@ -69,7 +69,6 @@ def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicM
 
   tm_result = cache.topics.load(column.name)
   bertopic_model = cache.bertopic_models.load(column.name)
-  cached_umap_vectors = cache.umap_vectors.load(column.name)
   proxy.log_success(f"Successfully loaded cached documents and topics for {column.name}.")
 
   proxy.log_pending(f"Evaluating the topics...")
@@ -78,7 +77,6 @@ def topic_evaluation_task_inner(proxy: TaskManagerProxy, request: EvaluateTopicM
     documents=documents,
     topics=tm_result.topics,
     document_topic_assignments=document_topic_assignments,
-    umap_vectors=cached_umap_vectors,
   )
   proxy.log_success("Finished evaluating the topics.")
   proxy.success(result)

@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 from typing import Optional
 import pydantic
 
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.table.filter_variants import TableFilter
-from modules.topic.experiments.model import BERTopicHyperparameterCandidate, BERTopicHyperparameterConstraint
+from modules.topic.experiments.model import BERTopicHyperparameterConstraint
 from modules.topic.model import Topic, TopicModelingResult
 
 # Schema
