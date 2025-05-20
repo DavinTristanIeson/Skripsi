@@ -5,7 +5,7 @@ from modules.project.cache import ProjectCache
 
 from ..model import (
   StatisticTestSchema,
-  GroupStatisticTestSchema,
+  OmnibusStatisticTestSchema,
 )
 
 def statistic_test(params: StatisticTestSchema, cache: ProjectCache):
@@ -25,10 +25,7 @@ def statistic_test(params: StatisticTestSchema, cache: ProjectCache):
   
   return result
 
-def pairwise_statistic_tests(cache: ProjectCache):
-  pass
-
-def group_statistic_test(cache: ProjectCache, input: GroupStatisticTestSchema):
+def omnibus_statistic_test(cache: ProjectCache, input: OmnibusStatisticTestSchema):
   config = cache.config
   config.data_schema.assert_of_type(input.column, [
     SchemaColumnTypeEnum.Categorical,
@@ -42,7 +39,7 @@ def group_statistic_test(cache: ProjectCache, input: GroupStatisticTestSchema):
     config=config,
     groups=input.groups,
   )
-  result = engine.compare_group(
+  result = engine.compare_omnibus(
     df,
     column_name=input.column,
     statistic_test_preference=input.statistic_test_preference,

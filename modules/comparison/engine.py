@@ -11,8 +11,8 @@ from modules.table import TableEngine, NamedTableFilter
 from modules.logger import ProvisionedLogger
 
 from .base import _StatisticTestValidityModel, SignificanceResult, EffectSizeResult
-from .effect_size import EffectSizeFactory, EffectSizeMethodEnum, GroupEffectSizeFactory
-from .statistic_test import GroupStatisticTestFactory, GroupStatisticTestMethodEnum, StatisticTestFactory, StatisticTestMethodEnum
+from .effect_size import EffectSizeFactory, EffectSizeMethodEnum, OmnibusEffectSizeFactory
+from .statistic_test import OmnibusStatisticTestFactory, OmnibusStatisticTestMethodEnum, StatisticTestFactory, StatisticTestMethodEnum
 
 
 logger = ProvisionedLogger().provision("TableComparisonEngine")
@@ -124,16 +124,16 @@ class TableComparisonEngine:
       warnings=validity.warnings
     )
   
-  def compare_group(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: GroupStatisticTestMethodEnum):
+  def compare_omnibus(self, df: pd.DataFrame, *, column_name: str, statistic_test_preference: OmnibusStatisticTestMethodEnum):
     preprocess_result = self.extract_groups(df, column_name)
 
-    statistic_test_method_factory = GroupStatisticTestFactory(
+    statistic_test_method_factory = OmnibusStatisticTestFactory(
       column=preprocess_result.column,
       groups=preprocess_result.groups,
       preference=statistic_test_preference
     )
     statistic_test_method = statistic_test_method_factory.build()
-    effect_size_method = GroupEffectSizeFactory.from_statistic_test(statistic_test_method_factory)
+    effect_size_method = OmnibusEffectSizeFactory.from_statistic_test(statistic_test_method_factory)
 
     validity = statistic_test_method.check_is_valid()
     significance = statistic_test_method.significance()

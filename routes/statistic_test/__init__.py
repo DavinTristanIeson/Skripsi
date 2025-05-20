@@ -4,7 +4,7 @@ from modules.api.wrapper import ApiResult
 
 from modules.comparison.engine import StatisticTestResult
 from routes.dependencies.project import ProjectCacheDependency
-from routes.statistic_test.controller.basic import group_statistic_test
+from routes.statistic_test.controller.basic import omnibus_statistic_test
 from routes.statistic_test.controller.pairwise import pairwise_statistic_test
 from .controller import (
   statistic_test, binary_statistic_test_on_contingency_table,
@@ -17,7 +17,7 @@ from .model import (
   BinaryStatisticTestSchema,
   ContingencyTableResource,
   GetContingencyTableSchema,
-  GroupStatisticTestSchema,
+  OmnibusStatisticTestSchema,
   PairwiseStatisticTestResultResource,
   PairwiseStatisticTestSchema,
   StatisticTestSchema,
@@ -35,9 +35,9 @@ async def post__statistic_test(body: StatisticTestSchema, cache: ProjectCacheDep
 async def post__pairwise_statistic_test(body: PairwiseStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[PairwiseStatisticTestResultResource]:
   return ApiResult(data=pairwise_statistic_test(cache, body), message=None)
 
-@router.post("/group")
-async def post__group_statistic_test(body: GroupStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[StatisticTestResult]:
-  return ApiResult(data=group_statistic_test(cache, body), message=None)
+@router.post("/omnibus")
+async def post__omnibus_statistic_test(body: OmnibusStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[StatisticTestResult]:
+  return ApiResult(data=omnibus_statistic_test(cache, body), message=None)
 
 @router.post("/contingency-table")
 def post__contingency_table(body: GetContingencyTableSchema, cache: ProjectCacheDependency)->ApiResult[ContingencyTableResource]:

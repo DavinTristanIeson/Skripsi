@@ -95,7 +95,7 @@ def cramer_v(contingency_table: pd.DataFrame):
   psi2_tilde = max(0, psi2 - ((k-1) * (r-1) / (n-1)))
 
   V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
-  return 
+  return V
 
 def assert_mutually_exclusive(groups: list[pd.Series]):
   if len(groups) == 0:

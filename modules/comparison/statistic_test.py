@@ -21,13 +21,13 @@ class StatisticTestMethodEnum(str, Enum):
   MannWhitneyU = "mann-whitney-u"
   ChiSquared = "chi-squared"
 
-class GroupStatisticTestMethodEnum(str, Enum):
+class OmnibusStatisticTestMethodEnum(str, Enum):
   ANOVA = "anova"
   KruskalWallis = "kruskal-wallis"
   ChiSquared = "chi-squared"
 
 ExposedEnum().register(StatisticTestMethodEnum)
-ExposedEnum().register(GroupStatisticTestMethodEnum)
+ExposedEnum().register(OmnibusStatisticTestMethodEnum)
 
 class TStatisticTest(_BaseStatisticTest):
   @classmethod
@@ -144,7 +144,7 @@ class ANOVAStatisticTest(_BaseStatisticTest):
   def significance(self):
     statistic, p_value = scipy.stats.f_oneway(*self.groups)
     return SignificanceResult(
-      type=GroupStatisticTestMethodEnum.ANOVA,
+      type=OmnibusStatisticTestMethodEnum.ANOVA,
       statistic=statistic, # type: ignore
       p_value=p_value # type: ignore
     )
@@ -168,22 +168,22 @@ class KruskalWallisStatisticTest(_BaseStatisticTest):
     groups = _mann_whitney_u_prepare(self.groups)
     statistic, p_value = scipy.stats.kruskal(*groups)
     return SignificanceResult(
-      type=GroupStatisticTestMethodEnum.KruskalWallis,
+      type=OmnibusStatisticTestMethodEnum.KruskalWallis,
       statistic=statistic, # type: ignore
       p_value=p_value # type: ignore
     )
 
 @dataclass
-class GroupStatisticTestFactory:
+class OmnibusStatisticTestFactory:
   column: SchemaColumn
   groups: list[pd.Series]
-  preference: GroupStatisticTestMethodEnum
+  preference: OmnibusStatisticTestMethodEnum
   def build(self)->_BaseStatisticTest:
-    if self.preference == GroupStatisticTestMethodEnum.ANOVA:
+    if self.preference == OmnibusStatisticTestMethodEnum.ANOVA:
       return ANOVAStatisticTest(column=self.column, groups=self.groups)
-    elif self.preference == GroupStatisticTestMethodEnum.KruskalWallis:
+    elif self.preference == OmnibusStatisticTestMethodEnum.KruskalWallis:
       return KruskalWallisStatisticTest(column=self.column, groups=self.groups)
-    elif self.preference == GroupStatisticTestMethodEnum.ChiSquared:
+    elif self.preference == OmnibusStatisticTestMethodEnum.ChiSquared:
       return ChiSquaredStatisticTest(column=self.column, groups=self.groups)
     else:
       raise InvalidValueTypeException(type="statistic test", value=self.preference)

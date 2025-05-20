@@ -3,7 +3,7 @@ import pydantic
 from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.effect_size import EffectSizeMethodEnum
 from modules.comparison.engine import StatisticTestResult
-from modules.comparison.statistic_test import GroupStatisticTestMethodEnum, StatisticTestMethodEnum
+from modules.comparison.statistic_test import OmnibusStatisticTestMethodEnum, StatisticTestMethodEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.table.filter_variants import NamedTableFilter
 
@@ -29,10 +29,10 @@ class BinaryStatisticTestSchema(pydantic.BaseModel):
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
 
-class GroupStatisticTestSchema(pydantic.BaseModel):
+class OmnibusStatisticTestSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
-  statistic_test_preference: GroupStatisticTestMethodEnum
+  statistic_test_preference: OmnibusStatisticTestMethodEnum
 
 class GetContingencyTableSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
