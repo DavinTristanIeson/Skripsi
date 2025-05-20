@@ -1,5 +1,3 @@
-
-from modules.api.wrapper import ApiResult
 from modules.comparison import TableComparisonEngine
 from modules.config import SchemaColumnTypeEnum
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES
@@ -25,10 +23,7 @@ def statistic_test(params: StatisticTestSchema, cache: ProjectCache):
     effect_size_preference=params.effect_size_preference,
   )
   
-  return ApiResult(
-    data=result,
-    message=None
-  )
+  return result
 
 def pairwise_statistic_tests(cache: ProjectCache):
   pass
@@ -52,10 +47,7 @@ def group_statistic_test(cache: ProjectCache, input: GroupStatisticTestSchema):
     column_name=input.column,
     statistic_test_preference=input.statistic_test_preference,
   )
-  return ApiResult(
-    data=result,
-    message=None
-  )
+  return result
 
 __all__ = [
   "statistic_test",

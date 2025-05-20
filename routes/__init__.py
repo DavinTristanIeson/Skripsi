@@ -4,4 +4,4 @@ from . import table
 from . import topic
 from . import userdata
 from . import comparison
-from . import correlation
+from . import statistic_test

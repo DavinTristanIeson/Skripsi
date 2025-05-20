@@ -29,7 +29,7 @@ class BinaryStatisticTestSchema(pydantic.BaseModel):
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
 
-class GroupStatisticTestSchema:
+class GroupStatisticTestSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
   statistic_test_preference: GroupStatisticTestMethodEnum
@@ -51,12 +51,18 @@ class ContingencyTableResource(pydantic.BaseModel):
   # Standardized residuals.
   standardized_residuals: list[list[float]]
 
-class BatchedStatisticTestResultResource(pydantic.BaseModel):
+class PairwiseStatisticTestResultResource(pydantic.BaseModel):
   column: SchemaColumn
-  groups: str
-  results: list[list[StatisticTestResult]]
+  groups: list[str]
+  results: list[StatisticTestResult]
+  adjusted_p_values: list[float]
 
-class BinaryStatisticTestOnContingencyTableResource(pydantic.BaseModel):
+class BinaryStatisticTestOnDistributionResultResource(pydantic.BaseModel):
+  column: SchemaColumn
+  groups: list[str]
+  results: list[StatisticTestResult]
+
+class BinaryStatisticTestOnContingencyTableResultResource(pydantic.BaseModel):
   discriminator1: str
   discriminator2: str
   frequency: int
@@ -69,5 +75,5 @@ class BinaryStatisticTestOnContingencyTableMainResource(pydantic.BaseModel):
   column: SchemaColumn
   rows: list[str] 
   columns: list[str]
-  results: list[list[BinaryStatisticTestOnContingencyTableResource]]
+  results: list[list[BinaryStatisticTestOnContingencyTableResultResource]]
   
