@@ -8,7 +8,7 @@ from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.project.cache import ProjectCache
 from modules.table.filter_variants import NamedTableFilter
-from routes.statistic_test.model import BinaryStatisticTestOnContingencyTableMainResource, BinaryStatisticTestOnContingencyTableResultResource, ContingencyTableResource, GetContingencyTableSchema
+from routes.statistic_test.model import BinaryStatisticTestOnContingencyTableResultMainResource, BinaryStatisticTestOnContingencyTableResultResource, ContingencyTableResource, GetContingencyTableSchema
 from routes.table.controller.preprocess import TablePreprocessModule
 
 def __get_data_group_mapping(df: pd.DataFrame, column: SchemaColumn, groups: list[NamedTableFilter], preprocess: TablePreprocessModule):
@@ -119,7 +119,7 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: GetCo
       ))
     results.append(results_row)
 
-  return BinaryStatisticTestOnContingencyTableMainResource(
+  return BinaryStatisticTestOnContingencyTableResultMainResource(
     results=results,
     rows=list(map(str, global_contingency_table.index)),
     columns=list(map(str, global_contingency_table.columns)),

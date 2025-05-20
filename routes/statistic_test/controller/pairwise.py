@@ -28,10 +28,11 @@ def pairwise_statistic_test(cache: ProjectCache, input: PairwiseStatisticTestSch
       results.append(comparison_result)
 
   adjusted_p_values = scipy.stats.false_discovery_control(p_values)
+  for result, pvalue in zip(results, adjusted_p_values):
+    result.significance.p_value = pvalue
   return PairwiseStatisticTestResultResource(
     column=column,
     results=results,
-    adjusted_p_values=adjusted_p_values.tolist(),
     groups=list(map(lambda group: group.name, input.groups)),
   )
 

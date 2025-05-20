@@ -55,7 +55,6 @@ class PairwiseStatisticTestResultResource(pydantic.BaseModel):
   column: SchemaColumn
   groups: list[str]
   results: list[StatisticTestResult]
-  adjusted_p_values: list[float]
 
 class BinaryStatisticTestOnDistributionResultResource(pydantic.BaseModel):
   column: SchemaColumn
@@ -71,7 +70,7 @@ class BinaryStatisticTestOnContingencyTableResultResource(pydantic.BaseModel):
   significance: SignificanceResult
   effect_size: EffectSizeResult
 
-class BinaryStatisticTestOnContingencyTableMainResource(pydantic.BaseModel):
+class BinaryStatisticTestOnContingencyTableResultMainResource(pydantic.BaseModel):
   column: SchemaColumn
   rows: list[str] 
   columns: list[str]

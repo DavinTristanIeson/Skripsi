@@ -12,7 +12,7 @@ from .controller import (
 )
 
 from .model import (
-  BinaryStatisticTestOnContingencyTableMainResource,
+  BinaryStatisticTestOnContingencyTableResultMainResource,
   BinaryStatisticTestOnDistributionResultResource,
   BinaryStatisticTestSchema,
   ContingencyTableResource,
@@ -43,10 +43,10 @@ async def post__omnibus_statistic_test(body: OmnibusStatisticTestSchema, cache: 
 def post__contingency_table(body: GetContingencyTableSchema, cache: ProjectCacheDependency)->ApiResult[ContingencyTableResource]:
   return ApiResult(data=contingency_table(cache, body), message=None)
   
-@router.post("/binary/test-distribution")
+@router.post("/binary-test-distribution")
 def post__test_distribution(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnDistributionResultResource]:
   return ApiResult(data=binary_statistic_test_on_distribution(cache, body), message=None)
 
-@router.post("/binary/test-contingency-table")
-def post__test_contingency_table(body: GetContingencyTableSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableMainResource]:
+@router.post("/binary-test-contingency-table")
+def post__test_contingency_table(body: GetContingencyTableSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableResultMainResource]:
   return ApiResult(data=binary_statistic_test_on_contingency_table(cache, body), message=None)

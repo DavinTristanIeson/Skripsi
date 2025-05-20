@@ -1,23 +1,24 @@
 from dataclasses import dataclass
 import functools
+from typing import Optional
 import pandas as pd
 import pydantic
 
-from modules.comparison.exceptions import EmptyComparisonGroupException, NotMutuallyExclusiveException
+from modules.comparison.exceptions import EmptyComparisonGroupException
 from modules.comparison.utils import assert_mutually_exclusive
 from modules.config import Config, SchemaColumn
 from modules.project.cache_manager import ProjectCacheManager
 from modules.table import TableEngine, NamedTableFilter
 from modules.logger import ProvisionedLogger
 
-from .base import _StatisticTestValidityModel, SignificanceResult, EffectSizeResult
+from .base import SignificanceResult, EffectSizeResult
 from .effect_size import EffectSizeFactory, EffectSizeMethodEnum, OmnibusEffectSizeFactory
 from .statistic_test import OmnibusStatisticTestFactory, OmnibusStatisticTestMethodEnum, StatisticTestFactory, StatisticTestMethodEnum
 
 
 logger = ProvisionedLogger().provision("TableComparisonEngine")
 
-class TableComparisonGroupInfo(pydantic.BaseModel):
+class ComparisonGroupInfo(pydantic.BaseModel):
   name: str
   empty_count: int
   valid_count: int
@@ -25,7 +26,7 @@ class TableComparisonGroupInfo(pydantic.BaseModel):
 
 class StatisticTestResult(pydantic.BaseModel):
   warnings: list[str]
-  groups: list[TableComparisonGroupInfo]
+  groups: list[ComparisonGroupInfo]
   significance: SignificanceResult
   effect_size: EffectSizeResult
 
@@ -33,7 +34,7 @@ class StatisticTestResult(pydantic.BaseModel):
 class TableComparisonPreprocessResult:
   column: SchemaColumn
   groups: list[pd.Series]
-  group_info: list[TableComparisonGroupInfo]
+  group_info: list[ComparisonGroupInfo]
   
 
 @dataclass
@@ -51,19 +52,21 @@ class TableComparisonEngine:
       config=self.config,
     )
 
-  def _exclude_na_rows(self, groups: list[pd.Series], group_info: list[TableComparisonGroupInfo]):
+  def _exclude_na_rows(self, groups: list[pd.Series], group_info: list[ComparisonGroupInfo]):
     for i in range(len(groups)):
       data = groups[i]
       notna_mask = data.notna()
       groups[i] = data[notna_mask]
       group_info[i].empty_count = int(len(data) - notna_mask.count())
 
-  def preprocess(self, groups: list[pd.Series], column: SchemaColumn)->list[TableComparisonGroupInfo]:
-    group_info = list(map(lambda group: TableComparisonGroupInfo(
+  def preprocess(self, groups: list[pd.Series], *, total_count: Optional[int] = None)->list[ComparisonGroupInfo]:
+    if total_count is None:
+      total_count = max(map(len, groups))
+    group_info = list(map(lambda group: ComparisonGroupInfo(
       name=str(group.name),
       empty_count=0,
       valid_count=len(group),
-      total_count=len(group),
+      total_count=total_count,
     ), groups))
     assert_mutually_exclusive(groups)
     self._exclude_na_rows(groups, group_info)
@@ -88,7 +91,7 @@ class TableComparisonEngine:
   def extract_groups(self, df: pd.DataFrame, column_name: str):
     column = self.config.data_schema.assert_exists(column_name)
     groups = self.load(df, column)
-    group_info = self.preprocess(groups, column)
+    group_info = self.preprocess(groups, total_count=len(df))
     return TableComparisonPreprocessResult(
       group_info=group_info,
       groups=groups,
@@ -152,5 +155,5 @@ class TableComparisonEngine:
 __all__ = [
   "TableComparisonEngine",
   "StatisticTestResult",
-  "TableComparisonGroupInfo",
+  "ComparisonGroupInfo",
 ]
