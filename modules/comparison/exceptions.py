@@ -30,3 +30,14 @@ class InvalidColumnTypeForComparisonMethodException(ApiErrorAdaptableException):
       message=f"{self.method} can only be used to compare columns of type {', '.join(self.supported_types)}, but received \"{self.column_type}\" instead.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
+
+@dataclass
+class NotMutuallyExclusiveException(ApiErrorAdaptableException):
+  group1: str
+  group2: str
+  overlap_count: int
+  def to_api(self):
+    return ApiError(
+      message=f"All subdatasets should be mutually exclusive, but \"{self.group1}\" and \"{self.group2}\" shares {self.overlap_count} overlapping rows.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )

@@ -6,7 +6,7 @@ import pandas as pd
 import scipy.stats
 
 from modules.api import ExposedEnum
-from modules.comparison.statistic_test import GroupStatisticTestMethodEnum
+from modules.comparison.statistic_test import GroupStatisticTestFactory, GroupStatisticTestMethodEnum
 from modules.comparison.utils import _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare, cramer_v
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 from modules.exceptions.dependencies import InvalidValueTypeException
@@ -251,15 +251,16 @@ class GroupEffectSizeFactory:
     else:
       raise InvalidValueTypeException(type="effect size", value=self.preference)
     
-  def from_statistic_test(self, method: GroupStatisticTestMethodEnum):
-    if method == GroupStatisticTestMethodEnum.ANOVA:
-      return EtaSquaredEffectSize(column=self.column, groups=self.groups)
-    elif method == GroupStatisticTestMethodEnum.KruskalWallis:
-      return EpsilonSquaredEffectSize(column=self.column, groups=self.groups)
-    elif method == GroupStatisticTestMethodEnum.ChiSquared:
-      return CramerVEffectSize(column=self.column, groups=self.groups)
+  @staticmethod
+  def from_statistic_test(factory: GroupStatisticTestFactory):
+    if factory.preference == GroupStatisticTestMethodEnum.ANOVA:
+      return EtaSquaredEffectSize(column=factory.column, groups=factory.groups)
+    elif factory.preference == GroupStatisticTestMethodEnum.KruskalWallis:
+      return EpsilonSquaredEffectSize(column=factory.column, groups=factory.groups)
+    elif factory.preference == GroupStatisticTestMethodEnum.ChiSquared:
+      return CramerVEffectSize(column=factory.column, groups=factory.groups)
     else:
-      raise InvalidValueTypeException(type="effect size", value=self.preference)
+      raise InvalidValueTypeException(type="statistic method", value=factory.preference)
     
     
 __all__ = [

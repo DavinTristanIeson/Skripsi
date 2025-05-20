@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
+from modules.comparison.exceptions import NotMutuallyExclusiveException
+
 def _chisq_prepare_contingency_table(contingency_table: pd.DataFrame, *, with_correction: bool = False):
   contingency_table = contingency_table.fillna(0)
   if not with_correction:
@@ -93,4 +95,19 @@ def cramer_v(contingency_table: pd.DataFrame):
   psi2_tilde = max(0, psi2 - ((k-1) * (r-1) / (n-1)))
 
   V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
-  return V
+  return 
+
+def assert_mutually_exclusive(groups: list[pd.Series]):
+  if len(groups) == 0:
+    return
+  for i in range(len(groups)):
+    for j in range(i + 1, len(groups)):
+      data_A = groups[i].index
+      data_B = groups[j].index
+      overlap = data_A.intersection(data_B) # type: ignore
+      if not overlap.empty:
+        raise NotMutuallyExclusiveException(
+          group1=str(groups[i].name),
+          group2=str(groups[j].name),
+          overlap_count=len(overlap)
+        )

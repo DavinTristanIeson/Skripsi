@@ -1,18 +1,14 @@
 
 import pydantic
+from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.effect_size import EffectSizeMethodEnum
-from modules.comparison.statistic_test import StatisticTestMethodEnum
+from modules.comparison.engine import StatisticTestResult
+from modules.comparison.statistic_test import GroupStatisticTestMethodEnum, StatisticTestMethodEnum
+from modules.config.schema.schema_variants import SchemaColumn
 from modules.table import NamedTableFilter
+from modules.table.filter_variants import TableFilter
 
-class ComparisonStatisticTestSchema(pydantic.BaseModel):
-  group1: NamedTableFilter
-  group2: NamedTableFilter
-  column: str
-
-  statistic_test_preference: StatisticTestMethodEnum
-  effect_size_preference: EffectSizeMethodEnum
-  exclude_overlapping_rows: bool
-
+# Schema
 class CompareSubdatasetsSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
@@ -21,3 +17,4 @@ class SubdatasetCooccurrenceResource(pydantic.BaseModel):
   labels: list[str]
   cooccurrences: list[list[int]]
   frequencies: list[int]
+

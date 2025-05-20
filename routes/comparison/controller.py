@@ -1,48 +1,16 @@
-from typing import Sequence, cast
 
+from typing import Sequence, cast
 import numpy as np
 from modules.api.wrapper import ApiResult
-from modules.comparison import TableComparisonEngine
-from modules.config import SchemaColumnTypeEnum, TextualSchemaColumn
+from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.project.cache import ProjectCache
-from modules.table import TableEngine, AndTableFilter, NotEmptyTableFilter
-from modules.topic.bertopic_ext import BERTopicInterpreter
-
-from .model import (
-  ComparisonStatisticTestSchema,
-  CompareSubdatasetsSchema,
-  SubdatasetCooccurrenceResource,
-)
+from modules.table.engine import TableEngine
+from modules.table.filter_variants import AndTableFilter, NotEmptyTableFilter
+from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
+from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
+from routes.comparison.model import CompareSubdatasetsSchema, SubdatasetCooccurrenceResource
 from routes.table.model import TableTopicsResource
-from modules.topic.bertopic_ext.builder import BERTopicModelBuilder, EmptyBERTopicModelBuilder
-
-def statistic_test(params: ComparisonStatisticTestSchema, cache: ProjectCache):
-  config = cache.config
-  config.data_schema.assert_of_type(params.column, [
-    SchemaColumnTypeEnum.Categorical,
-    SchemaColumnTypeEnum.Continuous,
-    SchemaColumnTypeEnum.OrderedCategorical,
-    SchemaColumnTypeEnum.Temporal,
-    SchemaColumnTypeEnum.Topic,
-  ])
-  df = cache.workspaces.load()
-  engine = TableComparisonEngine(
-    config=config,
-    engine=TableEngine(config),
-    groups=[params.group1, params.group2],
-    exclude_overlapping_rows=params.exclude_overlapping_rows
-  )
-  result = engine.compare(
-    df,
-    column_name=params.column,
-    statistic_test_preference=params.statistic_test_preference,
-    effect_size_preference=params.effect_size_preference,
-  )
-  
-  return ApiResult(
-    data=result,
-    message=None
-  )
 
 
 def compare_group_words(params: CompareSubdatasetsSchema, cache: ProjectCache):
@@ -110,6 +78,6 @@ def subdataset_cooccurrence(params: CompareSubdatasetsSchema, cache: ProjectCach
   )
 
 __all__ = [
-  "statistic_test",
+  "subdataset_cooccurrence",
   "compare_group_words"
 ]
