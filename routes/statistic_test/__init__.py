@@ -2,8 +2,10 @@ from fastapi import APIRouter
 
 from modules.api.wrapper import ApiResult
 
+from modules.comparison import statistic_test
+from modules.comparison.engine import StatisticTestResult
 from routes.dependencies.project import ProjectCacheDependency
-from routes.correlation.controller import binary_statistic_test_on_contingency_table, binary_statistic_test_on_distribution, contingency_table
+from .controller import binary_statistic_test_on_contingency_table, binary_statistic_test_on_distribution, contingency_table
 
 from .model import (
   BinaryStatisticTestOnContingencyTableMainResource,
@@ -11,11 +13,16 @@ from .model import (
   BinaryStatisticTestSchema,
   ContingencyTableResource,
   GetContingencyTableSchema,
+  StatisticTestSchema,
 )
 
 router = APIRouter(
-  tags=['Correlation']
+  tags=['Statistic Test']
 )
+
+@router.post("/test")
+async def post__statistic_test(body: StatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[StatisticTestResult]:
+  return statistic_test(body, cache)
 
 @router.post("/binary/test-distribution")
 def post__test_distribution(body: BinaryStatisticTestSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnDistributionResource]:
