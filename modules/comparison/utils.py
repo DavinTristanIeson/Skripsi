@@ -76,7 +76,7 @@ def _check_non_normal_distribution(groups: list[pd.Series], name: str)->list[str
       normaltest_result = scipy.stats.normaltest(data).pvalue
       is_normal = normaltest_result < 0.05
       if is_normal:
-        warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using parametric statistic tests instead.")
+        warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {normaltest_result}). Consider using parametric statistic tests instead.")
 
   return warnings
 

@@ -55,10 +55,52 @@ def paginate_documents_per_topic(cache: ProjectCache, column: TextualSchemaColum
     message=None,
   )
 
-def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn):
+def refine_topics_topics_only(cache: ProjectCache, df: pd.DataFrame, topics: list[Topic], body: RefineTopicsSchema, column: TextualSchemaColumn):
+  topic_map = {topic.id: topic for topic in body.topics}
+  new_topics = []
+  for topic in topics:
+    topic = topic.model_copy()
+    if topic.id in topic_map:
+      topic.label = topic_map[topic.id].label
+      topic.description = topic_map[topic.id].description
+      topic.tags = topic_map[topic.id].tags
+    new_topics.append(topic)
+
+  new_tm_result = TopicModelingResult.infer_from(
+    project_id=cache.config.project_id,
+    document_topics=df[column.topic_column.name],
+    topics=new_topics,
+  )
+
+  # Save model
+  cache.topics.save(new_tm_result, column.name)
+  # Invalidate tasks
+  TaskManager().invalidate(prefix=f"{cache.config.project_id}__{column.name}", clear=True)
+  # Clean up experiments
+  cache.config.paths._cleanup(
+    directories=[],
+    files=[
+      ProjectPaths.TopicModelExperiments(column.name),
+      ProjectPaths.TopicEvaluation(column.name),
+    ],
+    soft=True
+  )
+
+def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn, topic_modeling_result: TopicModelingResult):
   df = cache.workspaces.load().copy()
   config = cache.config
   column.assert_internal_columns(df, with_preprocess=True, with_topics=True)
+
+  if len(body.document_topics) == 0:
+    # Just update topic metadata
+    refine_topics_topics_only(
+      cache=cache,
+      df=df,
+      body=body,
+      column=column,
+      topics=topic_modeling_result.topics,
+    )
+    return
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
 
@@ -89,40 +131,17 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   interpreter = BERTopicInterpreter(bertopic_model)
   new_topics = interpreter.extract_topics(map_topics = True)
 
-  # Assign new labels
-  topic_map = {topic.id: topic for topic in body.topics}
-  for topic in new_topics:
-    if topic.id in topic_map:
-      topic.label = topic_map[topic.id].label
-      topic.description = topic_map[topic.id].description
-      topic.tags = topic_map[topic.id].tags
-
-  new_tm_result = TopicModelingResult.infer_from(
-    project_id=config.project_id,
-    document_topics=document_topics,
+  refine_topics_topics_only(
+    cache=cache,
+    df=df,
     topics=new_topics,
+    body=body,
+    column=column
   )
 
   # Save model
   cache.bertopic_models.save(bertopic_model, column.name)
-  cache.topics.save(new_tm_result, column.name)
-  cache.workspaces.save(df)
-  # Invalidate tasks
-  TaskManager().invalidate(prefix=config.project_id, clear=True)
-  # Clean up experiments
-  config.paths._cleanup(
-    directories=[],
-    files=[
-      ProjectPaths.TopicModelExperiments(column.name),
-      ProjectPaths.TopicEvaluation(column.name),
-    ],
-    soft=True
-  )
-
-  return ApiResult(
-    data=None,
-    message="The topics have been successfully updated to your specifications.",
-  )
+  cache.workspaces.save(df)  
 
 
 def get_filtered_topics_of_column(cache: ProjectCache, body: TopicsOfColumnSchema, column: TextualSchemaColumn, tm_result: TopicModelingResult):

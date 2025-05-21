@@ -22,7 +22,10 @@ def __get_data_group_mapping(df: pd.DataFrame, column: SchemaColumn, groups: lis
   for group in comparison_data.groups:
     raw_group_mappings.append(pd.Series(str(group.name), index=group.index))
   group_mappings = pd.concat(raw_group_mappings, axis=0)
-  group_data = full_data[group_mappings.index]
+  group_indices = group_mappings.index.intersection(full_data.index) # type: ignore
+
+  group_data = full_data[group_indices]
+  group_mappings = group_mappings[group_indices]
   return group_mappings, group_data
 
 def contingency_table(cache: ProjectCache, input: GetContingencyTableSchema):
@@ -114,8 +117,8 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: GetCo
           p_value=chisq_result.pvalue # type: ignore
         ),
         frequency=TT,
-        discriminator1=variable1,
-        discriminator2=variable2,
+        discriminator1=str(variable1),
+        discriminator2=str(variable2),
       ))
     results.append(results_row)
 

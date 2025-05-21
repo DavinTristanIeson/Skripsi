@@ -81,11 +81,16 @@ def put__refine_topics(
     column=column.name,
     wait=False,
   ):
-    return refine_topics(
+    refine_topics(
       cache=cache,
       body=body,
       column=column,
+      topic_modeling_result=topic_modeling_result
     )
+  return ApiResult(
+    data=None,
+    message="The topics have been successfully updated to your specifications.",
+  )
 
 @router.post("/documents")
 def post__documents_per_topic(
