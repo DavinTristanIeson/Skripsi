@@ -5,9 +5,9 @@ from modules.api import ApiResult
 from modules.exceptions.dependencies import InvalidValueTypeException
 from routes.table.controller.preprocess import TablePreprocessModule, TablePreprocessModule
 from routes.table.model import (
-  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
+  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, GetTablePairedColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
-  TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
+  TableColumnGeographicalPointsResource, TableColumnPairedValuesResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
   TableTopicsResource, TableWordFrequenciesResource
 )
 from modules.api.wrapper import ApiError
@@ -35,6 +35,38 @@ def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
     ),
     message=None
   )
+
+def get_column_paired_values(params: GetTablePairedColumnSchema, cache: ProjectCache):
+  preprocess = TablePreprocessModule(cache=cache)
+  column1 = preprocess.assert_column(params.column1)
+  column2 = preprocess.assert_column(params.column2)
+  df = preprocess.load_dataframe(params.filter)
+  data1, df = preprocess.get_data(df, column1, exclude_invalid=True, transform_data=True)
+  data2, df = preprocess.get_data(df, column2, exclude_invalid=True, transform_data=True)
+
+  combined_data = pd.concat([data1, data2], axis=1)
+  combined_data.dropna(inplace=True)
+
+  # Count duplicates
+  # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
+  grouped_data = (combined_data
+    .groupby([data1.name, data2.name], as_index=False)
+    .size()) # type: ignore
+      
+  y = grouped_data.loc[:, str(data1.name)].to_list()
+  x = grouped_data.loc[:, str(data2.name)].to_list()
+  frequencies = grouped_data.loc[:, "size"].to_list()
+  return ApiResult(
+    data=TableColumnPairedValuesResource(
+      y=y,
+      x=x,
+      frequencies=frequencies,
+      column1=column1,
+      column2=column2,
+    ),
+    message=None
+  )
+
 
 def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
   result = TablePreprocessModule(
