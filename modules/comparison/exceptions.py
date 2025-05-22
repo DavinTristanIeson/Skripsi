@@ -14,9 +14,11 @@ class NotEnoughComparisonGroupsException(ApiErrorAdaptableException):
 @dataclass
 class EmptyComparisonGroupException(ApiErrorAdaptableException):
   group: str
+  exclude_overlapping_rows: bool
   def to_api(self) -> ApiError:
+    exclude_overlapping_rows_explanation = f" If you have \"Exclude Overlapping Rows\" turned on; this may be because {self.group} is a subset of the other groups." if self.exclude_overlapping_rows else ''
     return ApiError(
-      message=f"{self.group} does not have any values that can be compared. If you have \"Exclude Overlapping Rows\" turned on; this may be because {self.group} is a subset of the other groups.",
+      message=f"{self.group} does not have any values that can be compared." + exclude_overlapping_rows_explanation,
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
 

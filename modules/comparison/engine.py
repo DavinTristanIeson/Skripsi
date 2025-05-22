@@ -71,11 +71,12 @@ class TableComparisonEngine:
         valid_mask[i][overlap] = False
         valid_mask[j][overlap] = False
         if not overlap.empty:
-          validity.warnings.append(f"There are overlapping rows in \"{groups[i].name}\" and \"{groups[j].name}\". This may cause the statistic test to be unreliable. Considering adjusting the filter so that both groups are mutually exclusive.")
+          validity.warnings.append(f"There are {len(overlap)} overlapping rows in \"{groups[i].name}\" and \"{groups[j].name}\". This may cause the statistic test to be unreliable. Considering adjusting the filter so that both groups are mutually exclusive.")
     
     for i, mask in enumerate(valid_mask):
       overlap_count = int(len(mask) - mask.sum())
       group_info[i].overlap_count = overlap_count
+      group_info[i].valid_count -= overlap_count
       if self.exclude_overlapping_rows:
         groups[i] = groups[i][mask]
         logger.info(f"Dropped {overlap_count} overlapping rows from {groups[i].name}.")
@@ -85,8 +86,10 @@ class TableComparisonEngine:
     for i in range(len(groups)):
       data = groups[i]
       notna_mask = data.notna()
+      not_empty_count = notna_mask.sum()
       groups[i] = data[notna_mask]
-      group_info[i].empty_count = int(len(data) - notna_mask.count())
+      group_info[i].empty_count = int(len(data) - not_empty_count)
+      group_info[i].valid_count = not_empty_count
 
   def preprocess(self, groups: list[pd.Series], *, total_count: Optional[int] = None, validity: _StatisticTestValidityModel)->list[ComparisonGroupInfo]:
     if total_count is None:
@@ -103,7 +106,10 @@ class TableComparisonEngine:
     self._are_samples_large_enough(groups, validity)
     for group in groups:
       if len(group) == 0:
-        raise EmptyComparisonGroupException(group=str(group.name))
+        raise EmptyComparisonGroupException(
+          group=str(group.name),
+          exclude_overlapping_rows=self.exclude_overlapping_rows
+        )
 
     for group, ginfo in zip(groups, group_info):
       ginfo.valid_count = len(group)

@@ -29,9 +29,8 @@ def contingency_table(cache: ProjectCache, input: GetContingencyTableSchema):
     comparison_data.groups
   ))
 
-  frequency_distributions = [group.value_counts() for group in comparison_data.groups]
+  frequency_distributions = [pd.Series(group.value_counts(), name=group.name) for group in comparison_data.groups]
   observed = pd.concat(frequency_distributions, axis=1).T
-  observed.rename_axis(index=list(map(lambda group: group.name, input.groups)), inplace=True)
   observed.fillna(0, inplace=True)
 
   observed_npy = observed.to_numpy()

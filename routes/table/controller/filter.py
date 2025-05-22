@@ -1,5 +1,6 @@
 import http
 from typing import Optional, Sequence, cast
+import numpy as np
 import pandas as pd
 from modules.api import ApiResult
 from modules.exceptions.dependencies import InvalidValueTypeException
@@ -76,7 +77,7 @@ def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
     column_name=params.column,
   )
 
-  unique_values = result.data.unique().tolist()
+  unique_values = result.data.sort_values().unique().tolist()
 
   return ApiResult(
     data=TableColumnValuesResource(
