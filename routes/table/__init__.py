@@ -2,12 +2,12 @@ from typing import Any
 from fastapi import APIRouter
 
 from routes.dependencies.topic import OptionalTopicModelingResultDependency
-from routes.table.controller.filter import get_column_geographical_aggregate_values
+from routes.table.controller.filter import get_column_geographical_aggregate_values, get_column_paired_values
 from routes.table.model import (
   DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema, GetTableGeographicalAggregateValuesSchema,
-  GetTableGeographicalColumnSchema, TableColumnAggregateValuesResource,
+  GetTableGeographicalColumnSchema, GetTablePairedColumnSchema, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
-  TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
+  TableColumnGeographicalPointsResource, TableColumnPairedValuesResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
   TableWordFrequenciesResource
 )
 from modules.api.wrapper import ApiResult
@@ -58,6 +58,10 @@ async def post__get_table_column__counts(body: GetTableColumnSchema, cache: Proj
 @router.post("/column/values")
 async def post__get_table_column(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnValuesResource]:
   return get_column_values(body, cache)
+
+@router.post("/column/paired-values")
+async def post__get_table_paired_column(body: GetTablePairedColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnPairedValuesResource]:
+  return get_column_paired_values(body, cache)
 
 @router.post("/column/geographical")
 async def post__get_table_column__geographical(body: GetTableGeographicalColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableColumnGeographicalPointsResource]:

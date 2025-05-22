@@ -13,6 +13,11 @@ class GetTableColumnSchema(pydantic.BaseModel):
   column: str
   filter: Optional[TableFilter]
 
+class GetTablePairedColumnSchema(pydantic.BaseModel):
+  column1: str
+  column2: str
+  filter: Optional[TableFilter]
+
 class TableColumnAggregateMethodEnum(str, Enum):
   Sum = "sum"
   Mean = "mean"
@@ -52,6 +57,13 @@ class GetTableGeographicalAggregateValuesSchema(pydantic.BaseModel):
 class TableColumnValuesResource(pydantic.BaseModel):
   column: SchemaColumn
   values: list[Any]
+
+class TableColumnPairedValuesResource(pydantic.BaseModel):
+  column1: SchemaColumn
+  column2: SchemaColumn
+  x: list[Any]
+  y: list[Any]
+  frequencies: list[int]
 
 class TableColumnFrequencyDistributionResource(pydantic.BaseModel):
   column: SchemaColumn

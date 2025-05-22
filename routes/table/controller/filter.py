@@ -1,161 +1,32 @@
-from dataclasses import dataclass
 import http
 from typing import Optional, Sequence, cast
 import numpy as np
 import pandas as pd
 from modules.api import ApiResult
 from modules.exceptions.dependencies import InvalidValueTypeException
-from modules.table.filter_variants import TableFilter
+from routes.table.controller.preprocess import TablePreprocessModule, TablePreprocessModule
 from routes.table.model import (
-  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
+  DescriptiveStatisticsResource, GetTableColumnAggregateValuesSchema, GetTableGeographicalAggregateValuesSchema, GetTableGeographicalColumnSchema, GetTableColumnSchema, GetTablePairedColumnSchema, TableColumnAggregateMethodEnum, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
-  TableColumnGeographicalPointsResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
+  TableColumnGeographicalPointsResource, TableColumnPairedValuesResource, TableColumnValuesResource, TableDescriptiveStatisticsResource,
   TableTopicsResource, TableWordFrequenciesResource
 )
 from modules.api.wrapper import ApiError
 from modules.config import (
-  SchemaColumnTypeEnum,
-  GeospatialSchemaColumn
+  SchemaColumnTypeEnum
 )
 from modules.project.cache import ProjectCache
-from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, GeospatialRoleEnum
-from modules.config.schema.schema_variants import SchemaColumn, TextualSchemaColumn
-from modules.table import TableEngine
-from modules.table.filter import TableSort
+from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES
+from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.topic.model import Topic
 
 
-@dataclass
-class _TableFilterPreprocessResult:
-  data: pd.Series
-  df: pd.DataFrame
-  column: SchemaColumn
-
-
-@dataclass
-class _TableFilterGeographicalPreprocessResult:
-  df: pd.DataFrame
-  latitude_column: SchemaColumn
-  longitude_column: SchemaColumn
-  latitudes: list[float]
-  longitudes: list[float]
-
-@dataclass
-class _TableFilterPreprocessModule:
-  cache: ProjectCache
-  filter: Optional[TableFilter]
-  def apply(self, *, column_name: str, supported_types: Optional[list[SchemaColumnTypeEnum]] = None,
-  exclude_invalid: bool = True, transform_topics: bool = True)->_TableFilterPreprocessResult:
-    config = self.cache.config
-    if supported_types is not None:
-      column = config.data_schema.assert_of_type(column_name, supported_types)
-    else:
-      column = config.data_schema.assert_exists(column_name)
-    engine = TableEngine(config=config)
-
-    # Sort the results first for ordered categorical and temporal
-    sort: Optional[TableSort] = None
-    if sort is None:
-      if column.is_ordered:
-        sort = TableSort(name=column.name, asc=True)
-      elif column.type == SchemaColumnTypeEnum.Boolean:
-        # True before False
-        sort = TableSort(name=column.name, asc=False)
-
-    df = engine.process_workspace(self.filter, sort)
-
-    if column.name not in df.columns:
-      raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
-    data = df[column.name]
-
-    if exclude_invalid:
-      mask = data.notna()
-      if column.type == SchemaColumnTypeEnum.Topic:
-        mask = mask & (data != -1)
-      data = data[mask]
-      df = df[mask]
-    
-    if len(df) == 0:
-      raise ApiError("There are no rows that can be visualized. Perhaps the filter is too strict; try adjusting the filter to be more lax.", http.HTTPStatus.BAD_REQUEST)
-
-    # Use categorical dtype for topic
-    if column.type == SchemaColumnTypeEnum.Topic and transform_topics:
-      tm_result = self.cache.topics.load(cast(str, column.source_name))
-      categorical_data = pd.Categorical(data)
-      categorical_data = categorical_data.rename_categories(tm_result.renamer)
-      data = pd.Series(categorical_data, name=column.name)
-    if column.type == SchemaColumnTypeEnum.Boolean:
-      categorical_data = pd.Categorical(data)
-      categorical_data = categorical_data.rename_categories({
-        True: "True",
-        False: "False"
-      })
-      data = pd.Series(categorical_data, name=column.name)
-
-    return _TableFilterPreprocessResult(
-      column=column,
-      data=data,
-      df=df,
-    )
-
-  def apply_geographical(self, *, latitude_column_name: str, longitude_column_name: str, additional_column_constraints: dict[str, list[SchemaColumnTypeEnum]], aggregator: dict[str, pd.NamedAgg]):
-    df = self.cache.workspaces.load()
-    config = self.cache.config
-
-    latitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(latitude_column_name, [SchemaColumnTypeEnum.Geospatial]))
-    longitude_column = cast(GeospatialSchemaColumn, config.data_schema.assert_of_type(longitude_column_name, [SchemaColumnTypeEnum.Geospatial]))
-
-    additional_columns = []
-    for (column_name, column_type_constraints) in additional_column_constraints.items():
-      additional_column = config.data_schema.assert_of_type(column_name, column_type_constraints)
-      additional_columns.append(additional_column)
-
-    if latitude_column.role != GeospatialRoleEnum.Latitude:
-      raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain latitude values. Perhaps you meant to use this column as a longitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-    if longitude_column.role != GeospatialRoleEnum.Longitude:
-      raise ApiError(f"\"{latitude_column}\" is a column of type \"Geospatial\", but it does not contain longitude values. Perhaps you meant to use this column as a latitude column?", http.HTTPStatus.UNPROCESSABLE_ENTITY)
-
-    engine = TableEngine(config=config)
-    filtered_df = engine.filter(df, self.filter)
-
-    check_these_columns = [latitude_column.name, longitude_column.name]
-    check_these_columns.extend(additional_column_constraints.keys())
-    for column in check_these_columns:
-      if column not in filtered_df.columns:
-        raise ApiError(f"The column \"{column}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", http.HTTPStatus.NOT_FOUND)
-
-    # Remove NA and invalid values
-    latitude_raw = filtered_df[latitude_column.name]
-    latitude_mask = latitude_raw.notna()
-    longitude_raw = filtered_df[longitude_column.name]
-    longitude_mask = longitude_raw.notna()
-
-    coordinate_mask = latitude_mask & longitude_mask
-    coordinates = filtered_df[coordinate_mask]
-
-    # Count duplicates
-    # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
-    unique_coordinates = (coordinates
-      .groupby([latitude_column.name, longitude_column.name], as_index=False)
-      .agg(**aggregator)) # type: ignore
-        
-    latitudes = unique_coordinates.loc[:, latitude_column.name].to_list()
-    longitudes = unique_coordinates.loc[:, longitude_column.name].to_list()
-    
-    return _TableFilterGeographicalPreprocessResult(
-      latitude_column=latitude_column,
-      longitude_column=longitude_column,
-      latitudes=latitudes,
-      longitudes=longitudes,
-      df=unique_coordinates
-    )
-
 def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
-  result = _TableFilterPreprocessModule(
+  result = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply(
-    column_name=params.column
+    column_name=params.column,
+    filter=params.filter
   )
 
   return ApiResult(
@@ -166,15 +37,47 @@ def get_column_values(params: GetTableColumnSchema, cache: ProjectCache):
     message=None
   )
 
-def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
-  result = _TableFilterPreprocessModule(
-    cache=cache,
-    filter=params.filter
-  ).apply(
-    column_name=params.column
+def get_column_paired_values(params: GetTablePairedColumnSchema, cache: ProjectCache):
+  preprocess = TablePreprocessModule(cache=cache)
+  column1 = preprocess.assert_column(params.column1)
+  column2 = preprocess.assert_column(params.column2)
+  df = preprocess.load_dataframe(params.filter)
+  data1, df = preprocess.get_data(df, column1, exclude_invalid=True, transform_data=True)
+  data2, df = preprocess.get_data(df, column2, exclude_invalid=True, transform_data=True)
+
+  combined_data = pd.concat([data1, data2], axis=1)
+  combined_data.dropna(inplace=True)
+
+  # Count duplicates
+  # https://stackoverflow.com/questions/35584085/how-to-count-duplicate-rows-in-pandas-dataframe
+  grouped_data = (combined_data
+    .groupby([data1.name, data2.name], as_index=False)
+    .size()) # type: ignore
+      
+  y = grouped_data.loc[:, str(data1.name)].to_list()
+  x = grouped_data.loc[:, str(data2.name)].to_list()
+  frequencies = grouped_data.loc[:, "size"].to_list()
+  return ApiResult(
+    data=TableColumnPairedValuesResource(
+      y=y,
+      x=x,
+      frequencies=frequencies,
+      column1=column1,
+      column2=column2,
+    ),
+    message=None
   )
 
-  unique_values = result.data.unique().tolist()
+
+def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
+  result = TablePreprocessModule(
+    cache=cache,
+  ).apply(
+    filter=params.filter,
+    column_name=params.column,
+  )
+
+  unique_values = result.data.sort_values().unique().tolist()
 
   return ApiResult(
     data=TableColumnValuesResource(
@@ -185,10 +88,10 @@ def get_column_unique_values(params: GetTableColumnSchema, cache: ProjectCache):
   )
 
 def get_column_frequency_distribution(params: GetTableColumnSchema, cache: ProjectCache):
-  result = _TableFilterPreprocessModule(
+  result = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply(
+    filter=params.filter,
     column_name=params.column,
     supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES
   )
@@ -216,10 +119,10 @@ def get_column_aggregate_values(params: GetTableColumnAggregateValuesSchema, cac
   ])
 
   # We get the grouper instead since there are multiple behaviors for ordered categorical, topic, etc.
-  preprocess = _TableFilterPreprocessModule(
+  preprocess = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply(
+    filter=params.filter,
     column_name=params.grouped_by,
     supported_types=CATEGORICAL_SCHEMA_COLUMN_TYPES
   )
@@ -272,10 +175,10 @@ def get_column_geographical_points(params: GetTableGeographicalColumnSchema, cac
     aggregator[params.label_column] = pd.NamedAgg(column=params.label_column, aggfunc="first")
     column_constraints[params.label_column] = [SchemaColumnTypeEnum.Unique, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical]
 
-  preprocess = _TableFilterPreprocessModule(
+  preprocess = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply_geographical(
+    filter=params.filter,
     additional_column_constraints=column_constraints,
     aggregator=aggregator,
     latitude_column_name=params.latitude_column,
@@ -313,10 +216,10 @@ def get_column_geographical_aggregate_values(params: GetTableGeographicalAggrega
     aggregator[params.label_column] = pd.NamedAgg(column=params.label_column, aggfunc="first")
     column_constraints[params.label_column] = [SchemaColumnTypeEnum.Unique, SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical]
 
-  preprocess = _TableFilterPreprocessModule(
+  preprocess = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply_geographical(
+    filter=params.filter,
     additional_column_constraints=column_constraints,
     aggregator=aggregator,
     latitude_column_name=params.latitude_column,
@@ -344,10 +247,10 @@ def get_column_geographical_aggregate_values(params: GetTableGeographicalAggrega
   )
 
 def get_column_counts(params: GetTableColumnSchema, cache: ProjectCache):
-  result = _TableFilterPreprocessModule(
+  result = TablePreprocessModule(
     cache=cache,
-    filter=params.filter
   ).apply(
+    filter=params.filter,
     column_name=params.column,
     exclude_invalid=False,
   )
@@ -397,10 +300,10 @@ def get_column_word_frequencies(params: GetTableColumnSchema, cache: ProjectCach
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  result = _TableFilterPreprocessModule(
-    filter=params.filter,
+  result = TablePreprocessModule(
     cache=cache,
   ).apply(
+    filter=params.filter,
     column_name=column.preprocess_column.name,
     supported_types=[SchemaColumnTypeEnum.Unique]
   )
@@ -425,13 +328,13 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   column = cast(TextualSchemaColumn, config.data_schema.assert_of_type(params.column, [SchemaColumnTypeEnum.Textual]))
 
   from modules.topic.bertopic_ext import BERTopicInterpreter
-  result = _TableFilterPreprocessModule(
-    filter=params.filter,
+  result = TablePreprocessModule(
     cache=cache,
   ).apply(
+    filter=params.filter,
     column_name=column.topic_column.name,
     supported_types=[SchemaColumnTypeEnum.Topic],
-    transform_topics=False
+    transform_data=False
   )
   topics = result.data
   column.assert_internal_columns(result.df, with_preprocess=True, with_topics=False)
@@ -463,10 +366,10 @@ def get_column_topic_words(params: GetTableColumnSchema, cache: ProjectCache):
   ), message=None)
 
 def get_column_descriptive_statistics(params: GetTableColumnSchema, cache: ProjectCache):
-  result = _TableFilterPreprocessModule(
-    filter=params.filter,
+  result = TablePreprocessModule(
     cache=cache,
   ).apply(
+    filter=params.filter,
     column_name=params.column,
     supported_types=[SchemaColumnTypeEnum.Continuous]
   )

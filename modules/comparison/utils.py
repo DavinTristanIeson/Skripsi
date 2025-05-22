@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
+from modules.comparison.exceptions import NotMutuallyExclusiveException
+
 def _chisq_prepare_contingency_table(contingency_table: pd.DataFrame, *, with_correction: bool = False):
   contingency_table = contingency_table.fillna(0)
   if not with_correction:
@@ -74,7 +76,7 @@ def _check_non_normal_distribution(groups: list[pd.Series], name: str)->list[str
       normaltest_result = scipy.stats.normaltest(data).pvalue
       is_normal = normaltest_result < 0.05
       if is_normal:
-        warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {is_normal}). Consider using parametric statistic tests instead.")
+        warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {normaltest_result}). Consider using parametric statistic tests instead.")
 
   return warnings
 
@@ -94,3 +96,18 @@ def cramer_v(contingency_table: pd.DataFrame):
 
   V = np.sqrt(psi2_tilde / min(k_tilde - 1, r_tilde - 1))
   return V
+
+def assert_mutually_exclusive(groups: list[pd.Series]):
+  if len(groups) == 0:
+    return
+  for i in range(len(groups)):
+    for j in range(i + 1, len(groups)):
+      data_A = groups[i].index
+      data_B = groups[j].index
+      overlap = data_A.intersection(data_B) # type: ignore
+      if not overlap.empty:
+        raise NotMutuallyExclusiveException(
+          group1=str(groups[i].name),
+          group2=str(groups[j].name),
+          overlap_count=len(overlap)
+        )

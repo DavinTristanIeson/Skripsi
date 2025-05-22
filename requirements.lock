@@ -199,9 +199,11 @@ numpy==1.26.4
     #   numba
     #   optuna
     #   pandas
+    #   patsy
     #   scikit-learn
     #   scipy
     #   spacy
+    #   statsmodels
     #   thinc
     #   transformers
     #   umap-learn
@@ -219,6 +221,7 @@ packaging==24.2
     #   optuna
     #   plotly
     #   spacy
+    #   statsmodels
     #   thinc
     #   transformers
     #   weasel
@@ -227,8 +230,11 @@ pandas==2.2.3
     #   -r requirements.in
     #   bertopic
     #   fastparquet
+    #   statsmodels
 parso==0.8.4
     # via jedi
+patsy==1.0.1
+    # via statsmodels
 pillow==11.1.0
     # via sentence-transformers
 platformdirs==4.3.7
@@ -313,6 +319,7 @@ scipy==1.13.1
     #   pynndescent
     #   scikit-learn
     #   sentence-transformers
+    #   statsmodels
     #   umap-learn
 sentence-transformers==3.4.1
     # via bertopic
@@ -346,6 +353,8 @@ stack-data==0.6.3
     # via ipython
 starlette==0.40.0
     # via fastapi
+statsmodels==0.14.4
+    # via -r requirements.in
 sympy==1.13.3
     # via torch
 thinc==8.2.5

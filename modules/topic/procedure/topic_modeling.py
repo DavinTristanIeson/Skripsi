@@ -74,8 +74,6 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
 
 class BERTopicExperimentalTopicModelingProcedureComponent(BERTopicProcedureComponent):
   def run(self):
-    from bertopic import BERTopic
-
     # Dependencies
     column = self.state.column
     documents = list(self.state.documents) # pd.Series has issues with BERTopic code

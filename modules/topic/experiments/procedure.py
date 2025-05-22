@@ -14,7 +14,8 @@ from modules.task.manager import TaskManagerProxy
 from modules.topic.evaluation.evaluate import evaluate_topics
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicExperimentTrialResult, BERTopicHyperparameterConstraint
 from modules.topic.procedure.base import BERTopicIntermediateState, BERTopicProcedureComponent
-from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent
+from modules.topic.procedure.embedding import BERTopicCacheOnlyEmbeddingProcedureComponent
+from modules.topic.procedure.model_builder import BERTopicModelBuilderProcedureComponent, BERTopicWithoutEmbeddingsModelBuilderProcedureComponent
 from modules.topic.procedure.postprocess import BERTopicPostprocessProcedureComponent
 from modules.topic.procedure.preprocess import BERTopicCacheOnlyPreprocessProcedureComponent, BERTopicDataLoaderProcedureComponent
 from modules.topic.procedure.topic_modeling import BERTopicCacheOnlyTopicModelingProcedureComponent, BERTopicExperimentalTopicModelingProcedureComponent
@@ -103,7 +104,7 @@ class BERTopicExperimentLab:
     placeholder_task = self.get_placeholder_task(0)
     state = copy(shared_state)
     more_procedures: list[BERTopicProcedureComponent] = [
-      BERTopicModelBuilderProcedureComponent(state=state, task=placeholder_task),
+      BERTopicWithoutEmbeddingsModelBuilderProcedureComponent(state=state, task=placeholder_task),
       BERTopicCacheOnlyTopicModelingProcedureComponent(state=state, task=placeholder_task),
       BERTopicPostprocessProcedureComponent(state=state, task=placeholder_task, can_save=False),
     ]
@@ -132,6 +133,8 @@ class BERTopicExperimentLab:
     shared_procedures: list[BERTopicProcedureComponent] = [
       BERTopicDataLoaderProcedureComponent(state=shared_state, task=placeholder_task, project_id=self.project_id, column=self.column),
       BERTopicCacheOnlyPreprocessProcedureComponent(state=shared_state, task=placeholder_task),
+      # load UMAP vectors
+      BERTopicCacheOnlyEmbeddingProcedureComponent(state=shared_state, task=placeholder_task),
     ]
     for procedure in shared_procedures:
       procedure.run()

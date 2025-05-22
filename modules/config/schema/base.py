@@ -24,7 +24,7 @@ class SchemaColumnTypeEnum(str, Enum):
 CATEGORICAL_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Topic, SchemaColumnTypeEnum.Boolean]
 ORDERED_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical]
 ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.OrderedCategorical]
-ANALYZABLE_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Topic]
+ANALYZABLE_SCHEMA_COLUMN_TYPES = [SchemaColumnTypeEnum.Categorical, SchemaColumnTypeEnum.Continuous, SchemaColumnTypeEnum.OrderedCategorical, SchemaColumnTypeEnum.Temporal, SchemaColumnTypeEnum.Topic, SchemaColumnTypeEnum.Boolean]
 
 ExposedEnum().register(SchemaColumnTypeEnum)
 

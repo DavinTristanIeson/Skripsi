@@ -6,7 +6,7 @@ import pandas as pd
 import scipy.stats
 
 from modules.api import ExposedEnum
-from modules.comparison.statistic_test import GroupStatisticTestMethodEnum
+from modules.comparison.statistic_test import OmnibusStatisticTestFactory, OmnibusStatisticTestMethodEnum
 from modules.comparison.utils import _chisq_prepare, _chisq_prepare_contingency_table, _mann_whitney_u_prepare, cramer_v
 from modules.config import SchemaColumn, SchemaColumnTypeEnum
 from modules.exceptions.dependencies import InvalidValueTypeException
@@ -20,7 +20,7 @@ class EffectSizeMethodEnum(str, Enum):
   RankBiserialCorrelation = "rank-biserial-correlation"
   CramerV = "cramer-v"
 
-class GroupEffectSizeMethodEnum(str, Enum):
+class OmnibusEffectSizeMethodEnum(str, Enum):
   # For ANOVA
   EtaSquared = "eta-squared"
   # For Kruskal-Wallis
@@ -28,7 +28,7 @@ class GroupEffectSizeMethodEnum(str, Enum):
   CramerV = "cramer-v"
 
 ExposedEnum().register(EffectSizeMethodEnum)
-ExposedEnum().register(GroupEffectSizeMethodEnum)
+ExposedEnum().register(OmnibusEffectSizeMethodEnum)
 
 class MeanDifferenceEffectSize(_BaseEffectSize):
   @classmethod
@@ -205,7 +205,7 @@ class EtaSquaredEffectSize(_BaseEffectSize):
     eta_squared = ssb / (ssb + ssw)
 
     return EffectSizeResult(
-      type=GroupEffectSizeMethodEnum.EtaSquared,
+      type=OmnibusEffectSizeMethodEnum.EtaSquared,
       value=eta_squared,
     )
     
@@ -232,39 +232,40 @@ class EpsilonSquaredEffectSize(_BaseEffectSize):
       (N + 1)
     )
     return EffectSizeResult(
-      type=GroupEffectSizeMethodEnum.EpsilonSquared,
+      type=OmnibusEffectSizeMethodEnum.EpsilonSquared,
       value=epsilon_squared,
     )
     
 @dataclass
-class GroupEffectSizeFactory:
+class OmnibusEffectSizeFactory:
   column: SchemaColumn
   groups: list[pd.Series]
-  preference: GroupEffectSizeMethodEnum
+  preference: OmnibusEffectSizeMethodEnum
   def build(self)->_BaseEffectSize:
-    if self.preference == GroupEffectSizeMethodEnum.EtaSquared:
+    if self.preference == OmnibusEffectSizeMethodEnum.EtaSquared:
       return EtaSquaredEffectSize(column=self.column, groups=self.groups)
-    elif self.preference == GroupEffectSizeMethodEnum.EpsilonSquared:
+    elif self.preference == OmnibusEffectSizeMethodEnum.EpsilonSquared:
       return EpsilonSquaredEffectSize(column=self.column, groups=self.groups)
-    elif self.preference == GroupEffectSizeMethodEnum.CramerV:
+    elif self.preference == OmnibusEffectSizeMethodEnum.CramerV:
       return CramerVEffectSize(column=self.column, groups=self.groups)
     else:
       raise InvalidValueTypeException(type="effect size", value=self.preference)
     
-  def from_statistic_test(self, method: GroupStatisticTestMethodEnum):
-    if method == GroupStatisticTestMethodEnum.ANOVA:
-      return EtaSquaredEffectSize(column=self.column, groups=self.groups)
-    elif method == GroupStatisticTestMethodEnum.KruskalWallis:
-      return EpsilonSquaredEffectSize(column=self.column, groups=self.groups)
-    elif method == GroupStatisticTestMethodEnum.ChiSquared:
-      return CramerVEffectSize(column=self.column, groups=self.groups)
+  @staticmethod
+  def from_statistic_test(factory: OmnibusStatisticTestFactory):
+    if factory.preference == OmnibusStatisticTestMethodEnum.ANOVA:
+      return EtaSquaredEffectSize(column=factory.column, groups=factory.groups)
+    elif factory.preference == OmnibusStatisticTestMethodEnum.KruskalWallis:
+      return EpsilonSquaredEffectSize(column=factory.column, groups=factory.groups)
+    elif factory.preference == OmnibusStatisticTestMethodEnum.ChiSquared:
+      return CramerVEffectSize(column=factory.column, groups=factory.groups)
     else:
-      raise InvalidValueTypeException(type="effect size", value=self.preference)
+      raise InvalidValueTypeException(type="statistic method", value=factory.preference)
     
     
 __all__ = [
   "EffectSizeFactory",
   "EffectSizeMethodEnum",
-  "GroupEffectSizeFactory",
-  "GroupEffectSizeMethodEnum",
+  "OmnibusEffectSizeFactory",
+  "OmnibusEffectSizeMethodEnum",
 ]
