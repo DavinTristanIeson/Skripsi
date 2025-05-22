@@ -15,6 +15,7 @@ class StatisticTestSchema(pydantic.BaseModel):
 
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
+  exclude_overlapping_rows: bool
 
 class PairwiseStatisticTestSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
@@ -22,8 +23,9 @@ class PairwiseStatisticTestSchema(pydantic.BaseModel):
 
   statistic_test_preference: StatisticTestMethodEnum
   effect_size_preference: EffectSizeMethodEnum
+  exclude_overlapping_rows: bool
 
-class BinaryStatisticTestSchema(pydantic.BaseModel):
+class BinaryStatisticTestOnDistributionSchema(pydantic.BaseModel):
   column: str
   groups: list[NamedTableFilter]
   statistic_test_preference: StatisticTestMethodEnum
@@ -33,11 +35,18 @@ class OmnibusStatisticTestSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
   statistic_test_preference: OmnibusStatisticTestMethodEnum
+  exclude_overlapping_rows: bool
 
 class GetContingencyTableSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
+  exclude_overlapping_rows: bool
   
+class BinaryStatisticTestOnContingencyTableSchema(pydantic.BaseModel):
+  groups: list[NamedTableFilter]
+  column: str
+  
+
 
 # Resource
 
@@ -64,7 +73,10 @@ class BinaryStatisticTestOnDistributionResultResource(pydantic.BaseModel):
 class BinaryStatisticTestOnContingencyTableResultResource(pydantic.BaseModel):
   discriminator1: str
   discriminator2: str
-  frequency: int
+  TT: int
+  TF: int
+  FT: int
+  FF: int
   
   warnings: list[str]
   significance: SignificanceResult

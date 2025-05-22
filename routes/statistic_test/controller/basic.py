@@ -15,6 +15,7 @@ def statistic_test(params: StatisticTestSchema, cache: ProjectCache):
   engine = TableComparisonEngine(
     config=config,
     groups=[params.group1, params.group2],
+    exclude_overlapping_rows=params.exclude_overlapping_rows
   )
   result = engine.compare(
     df,
@@ -38,6 +39,7 @@ def omnibus_statistic_test(cache: ProjectCache, input: OmnibusStatisticTestSchem
   engine = TableComparisonEngine(
     config=config,
     groups=input.groups,
+    exclude_overlapping_rows=input.exclude_overlapping_rows
   )
   result = engine.compare_omnibus(
     df,

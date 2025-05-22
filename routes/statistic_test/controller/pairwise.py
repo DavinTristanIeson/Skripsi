@@ -4,7 +4,7 @@ from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.table.filter_variants import NamedTableFilter, NotTableFilter
-from ..model import BinaryStatisticTestOnDistributionResultResource, BinaryStatisticTestSchema, PairwiseStatisticTestResultResource, PairwiseStatisticTestSchema
+from ..model import BinaryStatisticTestOnDistributionResultResource, BinaryStatisticTestOnDistributionSchema, PairwiseStatisticTestResultResource, PairwiseStatisticTestSchema
 from routes.table.controller.preprocess import TablePreprocessModule
 
 def pairwise_statistic_test(cache: ProjectCache, input: PairwiseStatisticTestSchema):
@@ -17,7 +17,11 @@ def pairwise_statistic_test(cache: ProjectCache, input: PairwiseStatisticTestSch
   p_values: list[float] = []
   with ProvisionedLogger().disable(["TableEngine", "TableComparisonEngine"]):
     for group1, group2 in itertools.combinations(input.groups, 2):
-      engine = TableComparisonEngine(config=cache.config, groups=[group1, group2])
+      engine = TableComparisonEngine(
+        config=cache.config,
+        groups=[group1, group2],
+        exclude_overlapping_rows=input.exclude_overlapping_rows,
+      )
       comparison_result = engine.compare(
         df=workspace,
         column_name=input.column,
@@ -37,7 +41,7 @@ def pairwise_statistic_test(cache: ProjectCache, input: PairwiseStatisticTestSch
   )
 
 
-def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStatisticTestSchema):
+def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStatisticTestOnDistributionSchema):
   preprocess = TablePreprocessModule(cache)
   column = preprocess.assert_column(input.column, supported_types=ANALYZABLE_SCHEMA_COLUMN_TYPES)
   workspace = cache.workspaces.load()
@@ -49,7 +53,11 @@ def binary_statistic_test_on_distribution(cache: ProjectCache, input: BinaryStat
         name=f"NOT {group.name}",
         filter=NotTableFilter(operand=group.filter)
       )
-      engine = TableComparisonEngine(config=cache.config, groups=[group, anti_group])
+      engine = TableComparisonEngine(
+        config=cache.config,
+        groups=[group, anti_group],
+        exclude_overlapping_rows=False,
+      )
       result = engine.compare(
         workspace,
         column_name=input.column,

@@ -31,6 +31,22 @@ class TableFilterGeographicalPreprocessResult:
 class TablePreprocessModule:
   cache: ProjectCache
 
+  def transform_data(self, data: pd.Series, column: SchemaColumn):
+    if column.type == SchemaColumnTypeEnum.Topic:
+      tm_result = self.cache.topics.load(cast(str, column.source_name))
+      categorical_data = pd.Categorical(data)
+      categorical_data = categorical_data.rename_categories(tm_result.renamer)
+      return pd.Series(categorical_data, name=column.name)
+    if column.type == SchemaColumnTypeEnum.Boolean:
+      categorical_data = pd.Categorical(data)
+      categorical_data = categorical_data.rename_categories({
+        True: "True",
+        False: "False"
+      })
+      return pd.Series(categorical_data, name=column.name)
+    return data
+
+
   def get_data(self, df: pd.DataFrame, column: SchemaColumn, *, exclude_invalid=True, transform_data: bool = True):
     if column.name not in df.columns:
       raise ApiError(f"The column \"{column.name}\" does not exist in the dataset. There may have been some sort of data corruption in the application.", HTTPStatus.NOT_FOUND)
@@ -48,19 +64,8 @@ class TablePreprocessModule:
 
     # Use categorical dtype for topic
     if transform_data:
-      if column.type == SchemaColumnTypeEnum.Topic:
-        tm_result = self.cache.topics.load(cast(str, column.source_name))
-        categorical_data = pd.Categorical(data)
-        categorical_data = categorical_data.rename_categories(tm_result.renamer)
-        data = pd.Series(categorical_data, name=column.name)
-      if column.type == SchemaColumnTypeEnum.Boolean:
-        categorical_data = pd.Categorical(data)
-        categorical_data = categorical_data.rename_categories({
-          True: "True",
-          False: "False"
-        })
-        data = pd.Series(categorical_data, name=column.name)
-    return data
+      data = self.transform_data(data, column)
+    return data, df
   
   def assert_column(self, column_name: str, supported_types: Optional[list[SchemaColumnTypeEnum]] = None):
     config = self.cache.config
@@ -70,19 +75,9 @@ class TablePreprocessModule:
       column = config.data_schema.assert_exists(column_name)
     return column
     
-  def load_dataframe(self, column: SchemaColumn, filter: Optional[TableFilter])->pd.DataFrame:
+  def load_dataframe(self, filter: Optional[TableFilter])->pd.DataFrame:
     engine = TableEngine(config=self.cache.config)
-
-    # Sort the results first for ordered categorical and temporal
-    sort: Optional[TableSort] = None
-    if sort is None:
-      if column.is_ordered:
-        sort = TableSort(name=column.name, asc=True)
-      elif column.type == SchemaColumnTypeEnum.Boolean:
-        # True before False
-        sort = TableSort(name=column.name, asc=False)
-
-    df = engine.process_workspace(filter, sort)
+    df = engine.process_workspace(filter, None)
     if len(df) == 0:
       raise ApiError(
         message=f"There are no valid rows in the dataset after the filter has been applied. Perhaps your filters are too strict?",
@@ -93,8 +88,8 @@ class TablePreprocessModule:
   
   def apply(self, column_name: str, filter: Optional[TableFilter], *, supported_types: Optional[list[SchemaColumnTypeEnum]] = None, exclude_invalid=True, transform_data: bool = True):
     column = self.assert_column(column_name, supported_types)
-    df = self.load_dataframe(column, filter)
-    data = self.get_data(df, column, exclude_invalid=exclude_invalid, transform_data=transform_data)
+    df = self.load_dataframe(filter)
+    data, df = self.get_data(df, column, exclude_invalid=exclude_invalid, transform_data=transform_data)
     return TableFilterPreprocessResult(
       column=column,
       df=df,

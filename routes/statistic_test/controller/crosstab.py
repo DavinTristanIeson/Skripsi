@@ -5,44 +5,35 @@ from modules.comparison.base import EffectSizeResult, SignificanceResult
 from modules.comparison.engine import TableComparisonEngine
 from modules.comparison.statistic_test import StatisticTestMethodEnum
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES
-from modules.config.schema.schema_variants import SchemaColumn
 from modules.project.cache import ProjectCache
-from modules.table.filter_variants import NamedTableFilter
-from routes.statistic_test.model import BinaryStatisticTestOnContingencyTableResultMainResource, BinaryStatisticTestOnContingencyTableResultResource, ContingencyTableResource, GetContingencyTableSchema
+from modules.table.engine import TableEngine
+from routes.statistic_test.model import BinaryStatisticTestOnContingencyTableResultMainResource, BinaryStatisticTestOnContingencyTableResultResource, BinaryStatisticTestOnContingencyTableSchema, ContingencyTableResource, GetContingencyTableSchema
 from routes.table.controller.preprocess import TablePreprocessModule
-
-def __get_data_group_mapping(df: pd.DataFrame, column: SchemaColumn, groups: list[NamedTableFilter], preprocess: TablePreprocessModule):
-  comparison_data = TableComparisonEngine(
-    config=preprocess.cache.config,
-    groups=groups
-  ).extract_groups(df, column.name)
-
-  full_data = preprocess.get_data(df, column)
-  raw_group_mappings: list[pd.Series] = []
-  for group in comparison_data.groups:
-    raw_group_mappings.append(pd.Series(str(group.name), index=group.index))
-  group_mappings = pd.concat(raw_group_mappings, axis=0)
-  group_indices = group_mappings.index.intersection(full_data.index) # type: ignore
-
-  group_data = full_data[group_indices]
-  group_mappings = group_mappings[group_indices]
-  return group_mappings, group_data
 
 def contingency_table(cache: ProjectCache, input: GetContingencyTableSchema):
   preprocess = TablePreprocessModule(
     cache=cache
   )
   column = preprocess.assert_column(input.column, CATEGORICAL_SCHEMA_COLUMN_TYPES)
-  df = cache.workspaces.load()
-  grouping, data = __get_data_group_mapping(
-    df=df,
-    column=column,
-    groups=input.groups,
-    preprocess=preprocess,
-  )
+  df = preprocess.load_dataframe(filter=None)
+  __data, df = preprocess.get_data(df, column, exclude_invalid=True, transform_data=True)
 
-  observed = pd.crosstab(grouping, data)
+  comparison_data = TableComparisonEngine(
+    config=preprocess.cache.config,
+    groups=input.groups,
+    exclude_overlapping_rows=input.exclude_overlapping_rows,
+  ).extract_groups(df, column.name)
+
+  comparison_data.groups = list(map(
+    lambda group: preprocess.transform_data(group, column),
+    comparison_data.groups
+  ))
+
+  frequency_distributions = [group.value_counts() for group in comparison_data.groups]
+  observed = pd.concat(frequency_distributions, axis=1).T
+  observed.rename_axis(index=list(map(lambda group: group.name, input.groups)), inplace=True)
   observed.fillna(0, inplace=True)
+
   observed_npy = observed.to_numpy()
   # Calculate expected and residuals
   marginal_rows = observed_npy.sum(axis=1)
@@ -62,31 +53,31 @@ def contingency_table(cache: ProjectCache, input: GetContingencyTableSchema):
     standardized_residuals=standardized_residuals.tolist(),
   )
 
-def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: GetContingencyTableSchema):
+def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: BinaryStatisticTestOnContingencyTableSchema):
   import scipy.stats
 
   preprocess = TablePreprocessModule(
     cache=cache
   )
   column = preprocess.assert_column(input.column, CATEGORICAL_SCHEMA_COLUMN_TYPES)
-  df = cache.workspaces.load()
-  grouping, data = __get_data_group_mapping(
-    df=df,
-    column=column,
-    preprocess=preprocess,
-    groups=input.groups
-  )
-  global_contingency_table = pd.crosstab(grouping, data)
-  global_contingency_table.fillna(0, inplace=True)
+  engine = TableEngine(config=cache.config)
+  df = preprocess.load_dataframe(filter=None)
+  data, df = preprocess.get_data(df, column=column, exclude_invalid=True, transform_data=True)
+  subdataset_names = list(map(lambda group: group.name, input.groups))
+  subdataset_masks = list(map(lambda group: engine.filter_mask(df, group.filter), input.groups))
+  category_names = list(map(str, data.unique()))
+  category_masks = list(map(lambda unique: data == unique, df[column.name].unique()))
 
   results: list[list[BinaryStatisticTestOnContingencyTableResultResource]] = []
-  for variable1 in global_contingency_table.index:
+  for variable1, mask1 in zip(subdataset_names, subdataset_masks):
     results_row: list[BinaryStatisticTestOnContingencyTableResultResource] = []
-    for variable2 in global_contingency_table.columns:
-      TT = global_contingency_table.at[variable1, variable2]
-      TF = global_contingency_table.loc[variable1, :].sum()
-      FT = global_contingency_table.loc[:, variable2].sum()
-      FF = global_contingency_table.sum().sum() - TT
+    for variable2, mask2 in zip(category_names, category_masks):
+      anti_mask1 = ~mask1
+      anti_mask2 = ~mask2
+      TT = (mask1 & mask2).sum()
+      TF = (mask1 & anti_mask2).sum()
+      FT = (anti_mask1 & mask2).sum()
+      FF = (anti_mask1 & anti_mask2).sum()
       contingency_table = pd.DataFrame([
         [TT, TF],
         [FT, FF],
@@ -116,7 +107,10 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: GetCo
           statistic=chisq_result.statistic, # type: ignore
           p_value=chisq_result.pvalue # type: ignore
         ),
-        frequency=TT,
+        TT=TT,
+        TF=TF,
+        FT=FT,
+        FF=FF,
         discriminator1=str(variable1),
         discriminator2=str(variable2),
       ))
@@ -124,8 +118,8 @@ def binary_statistic_test_on_contingency_table(cache: ProjectCache, input: GetCo
 
   return BinaryStatisticTestOnContingencyTableResultMainResource(
     results=results,
-    rows=list(map(str, global_contingency_table.index)),
-    columns=list(map(str, global_contingency_table.columns)),
+    rows=subdataset_names,
+    columns=category_names,
     column=column,
   )
   
