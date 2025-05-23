@@ -1,4 +1,3 @@
-
 from typing import Sequence, cast
 import numpy as np
 from modules.api.wrapper import ApiResult
@@ -9,9 +8,8 @@ from modules.table.engine import TableEngine
 from modules.table.filter_variants import AndTableFilter, NotEmptyTableFilter
 from modules.topic.bertopic_ext.builder import EmptyBERTopicModelBuilder
 from modules.topic.bertopic_ext.interpret import BERTopicInterpreter
-from routes.comparison.model import CompareSubdatasetsSchema, SubdatasetCooccurrenceResource
+from routes.table.model import CompareSubdatasetsSchema
 from routes.table.model import TableTopicsResource
-
 
 def compare_group_words(params: CompareSubdatasetsSchema, cache: ProjectCache):
   config = cache.config
@@ -52,32 +50,7 @@ def compare_group_words(params: CompareSubdatasetsSchema, cache: ProjectCache):
     column=column,
     topics=topics,
   ), message=None)
-  
-
-def subdataset_cooccurrence(params: CompareSubdatasetsSchema, cache: ProjectCache):
-  config = cache.config
-  df = cache.workspaces.load()
-  engine = TableEngine(config=config)
-
-  masks = list(map(lambda group: engine.filter_mask(df, group.filter), params.groups))
-  frequencies = list(map(lambda mask: mask.sum(), masks))
-  group_names = list(map(lambda group: group.name, params.groups))
-  cooccurrences = np.full((len(params.groups), len(params.groups)), 0)
-  for gid1, group1 in enumerate(params.groups):
-    mask1 = masks[gid1]
-    for gid2, group2 in enumerate(params.groups):
-      mask2 = masks[gid2]
-      cooccur_mask = mask1 & mask2
-      cooccurrence = cooccur_mask.sum()
-      cooccurrences[gid1, gid2] += cooccurrence
-      
-  return SubdatasetCooccurrenceResource(
-    labels=group_names,
-    cooccurrences=cooccurrences.tolist(),
-    frequencies=frequencies
-  )
 
 __all__ = [
-  "subdataset_cooccurrence",
   "compare_group_words"
 ]

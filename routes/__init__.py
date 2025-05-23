@@ -3,5 +3,4 @@ from . import general
 from . import table
 from . import topic
 from . import userdata
-from . import comparison
 from . import statistic_test

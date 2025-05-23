@@ -5,6 +5,7 @@ from modules.api.wrapper import ApiResult
 from modules.comparison.engine import StatisticTestResult
 from routes.dependencies.project import ProjectCacheDependency
 from routes.statistic_test.controller.basic import omnibus_statistic_test
+from routes.statistic_test.controller.crosstab import subdataset_cooccurrence
 from routes.statistic_test.controller.pairwise import pairwise_statistic_test
 from .controller import (
   statistic_test, binary_statistic_test_on_contingency_table,
@@ -18,10 +19,12 @@ from .model import (
   BinaryStatisticTestOnDistributionSchema,
   ContingencyTableResource,
   GetContingencyTableSchema,
+  GetSubdatasetCooccurrenceSchema,
   OmnibusStatisticTestSchema,
   PairwiseStatisticTestResultResource,
   PairwiseStatisticTestSchema,
   StatisticTestSchema,
+  SubdatasetCooccurrenceResource,
 )
 
 router = APIRouter(
@@ -51,3 +54,10 @@ def post__test_distribution(body: BinaryStatisticTestOnDistributionSchema, cache
 @router.post("/binary-test-contingency-table")
 def post__test_contingency_table(body: BinaryStatisticTestOnContingencyTableSchema, cache: ProjectCacheDependency)->ApiResult[BinaryStatisticTestOnContingencyTableResultMainResource]:
   return ApiResult(data=binary_statistic_test_on_contingency_table(cache, body), message=None)
+
+@router.post("/co-occurrence")
+async def post__cooccurrence(body: GetSubdatasetCooccurrenceSchema, cache: ProjectCacheDependency)->ApiResult[SubdatasetCooccurrenceResource]:
+  return ApiResult(
+    data=subdataset_cooccurrence(body, cache),
+    message=None,
+  )

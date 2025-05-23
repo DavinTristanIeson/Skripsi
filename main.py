@@ -56,7 +56,6 @@ api_app.include_router(routes.general.router, prefix="")
 api_app.include_router(routes.table.router, prefix="/table/{project_id}")
 api_app.include_router(routes.topic.router, prefix="/topic/{project_id}")
 api_app.include_router(routes.userdata.router, prefix="/userdata/{project_id}")
-api_app.include_router(routes.comparison.router, prefix="/table/{project_id}/comparison")
 api_app.include_router(routes.statistic_test.router, prefix="/statistic-test/{project_id}")
 register_error_handlers(api_app)
 

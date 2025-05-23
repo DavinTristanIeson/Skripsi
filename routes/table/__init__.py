@@ -1,10 +1,10 @@
 from typing import Any
 from fastapi import APIRouter
 
-from routes.dependencies.topic import OptionalTopicModelingResultDependency
+from routes.table.controller.comparison import compare_group_words
 from routes.table.controller.filter import get_column_geographical_aggregate_values, get_column_paired_values
 from routes.table.model import (
-  DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema, GetTableGeographicalAggregateValuesSchema,
+  CompareSubdatasetsSchema, DatasetFilterSchema, GetTableColumnAggregateValuesSchema, GetTableColumnSchema, GetTableGeographicalAggregateValuesSchema,
   GetTableGeographicalColumnSchema, GetTablePairedColumnSchema, TableColumnAggregateValuesResource,
   TableColumnCountsResource, TableColumnFrequencyDistributionResource,
   TableColumnGeographicalPointsResource, TableColumnPairedValuesResource, TableColumnValuesResource, TableDescriptiveStatisticsResource, TableTopicsResource,
@@ -87,3 +87,6 @@ async def post__get_table_column__word_frequencies(body: GetTableColumnSchema, c
 async def post__get_table_column__topic_words(body: GetTableColumnSchema, cache: ProjectCacheDependency)->ApiResult[TableTopicsResource]:
   return get_column_topic_words(body, cache)
 
+@router.post("/compare/words")
+async def post__compare_group_words(body: CompareSubdatasetsSchema, cache: ProjectCacheDependency)->ApiResult[TableTopicsResource]:
+  return compare_group_words(body, cache)

@@ -6,6 +6,7 @@ import pydantic
 from modules.api.enum import ExposedEnum
 from modules.config import SchemaColumn
 from modules.table import TableFilter
+from modules.table.filter_variants import NamedTableFilter
 from modules.topic.model import Topic
 
 # Schema
@@ -51,6 +52,9 @@ class GetTableGeographicalAggregateValuesSchema(pydantic.BaseModel):
 
   method: TableColumnAggregateMethodEnum
 
+class CompareSubdatasetsSchema(pydantic.BaseModel):
+  groups: list[NamedTableFilter]
+  column: str
 
 # Resources
 

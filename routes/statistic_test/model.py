@@ -46,6 +46,8 @@ class BinaryStatisticTestOnContingencyTableSchema(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   column: str
   
+class GetSubdatasetCooccurrenceSchema(pydantic.BaseModel):
+  groups: list[NamedTableFilter]
 
 
 # Resource
@@ -88,3 +90,7 @@ class BinaryStatisticTestOnContingencyTableResultMainResource(pydantic.BaseModel
   columns: list[str]
   results: list[list[BinaryStatisticTestOnContingencyTableResultResource]]
   
+class SubdatasetCooccurrenceResource(pydantic.BaseModel):
+  labels: list[str]
+  cooccurrences: list[list[int]]
+  frequencies: list[int]
