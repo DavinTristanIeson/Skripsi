@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Sequence
+from typing import Any, Sequence
+
+import pandas as pd
 from modules.api.wrapper import ApiError, ApiErrorAdaptableException
   
 @dataclass
@@ -43,3 +45,19 @@ class NotMutuallyExclusiveException(ApiErrorAdaptableException):
       message=f"All subdatasets should be mutually exclusive, but \"{self.group1}\" and \"{self.group2}\" shares {self.overlap_count} overlapping rows.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
+  
+@dataclass
+class NaNStatisticTestError(ApiErrorAdaptableException):
+  type: str
+  groups: list[str]
+  def to_api(self) -> ApiError:
+    return ApiError(
+      message=f"We weren't able to successfully calculate the {self.type} between the following groups: {self.groups} due to a math domain error. This may be caused by developer oversight or sample sizes that are too small.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+  @staticmethod
+  def assert_notna(type: str, groups: list[str], values: list[Any]):
+    for value in values:
+      if pd.isna(value):
+        raise NaNStatisticTestError(type=type, groups=groups)

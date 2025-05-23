@@ -4,7 +4,7 @@ from typing import Optional
 import pandas as pd
 import pydantic
 
-from modules.comparison.exceptions import EmptyComparisonGroupException
+from modules.comparison.exceptions import EmptyComparisonGroupException, NaNStatisticTestError
 from modules.comparison.utils import assert_mutually_exclusive
 from modules.config import Config, SchemaColumn
 from modules.project.cache_manager import ProjectCacheManager
@@ -159,6 +159,11 @@ class TableComparisonEngine:
     validity.merge(validity2)
     validity.merge(preprocess_result.validity)
     effect_size = effect_size_method.effect_size()
+    
+    group_names = list(map(lambda group: group.name, self.groups))
+
+    NaNStatisticTestError.assert_notna("statistic and p value", group_names, [significance.statistic, significance.p_value])
+    NaNStatisticTestError.assert_notna("effect size", group_names, [effect_size.value])
 
     return StatisticTestResult(
       effect_size=effect_size,

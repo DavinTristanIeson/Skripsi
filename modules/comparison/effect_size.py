@@ -18,6 +18,7 @@ class EffectSizeMethodEnum(str, Enum):
   MedianDifference = "median-difference"
   CohensD = "cohen-d"
   RankBiserialCorrelation = "rank-biserial-correlation"
+  PointBiserialCorrelation = "point-biserial-correlation"
   CramerV = "cramer-v"
 
 class OmnibusEffectSizeMethodEnum(str, Enum):
@@ -101,6 +102,40 @@ class CohenDEffectSize(_BaseEffectSize):
       value=cohen_d,
     )
 
+class PointBiserialEffectSize(_BaseEffectSize):
+  @classmethod
+  def get_name(cls):
+    return "Point Biserial Correlation"
+  
+  @classmethod
+  def get_supported_types(cls):
+    return [SchemaColumnTypeEnum.Continuous]
+  
+  def _check_is_valid(self):
+    return _StatisticTestValidityModel()
+
+  def effect_size(self):
+    X = self.groups[0]
+    Y = self.groups[1]
+    NX = len(X)
+    NY = len(Y)
+    N = NX + NY
+
+    group_mean_difference = np.mean(X) - np.mean(Y)
+    pooled_stdev = np.sqrt(
+      ((NX - 1) * np.var(X, ddof=1)) + ((NY - 1) * np.var(Y, ddof=1)) /
+      N
+    )
+    rbs_left = (group_mean_difference / pooled_stdev)
+    rbs_right = np.sqrt(
+      NX * NY / (N * (N - 1))
+    )
+    rbs = rbs_left * rbs_right
+    return EffectSizeResult(
+      type=EffectSizeMethodEnum.PointBiserialCorrelation,
+      value=rbs,
+    )
+  
 class RankBiserialEffectSize(_BaseEffectSize):
   @classmethod
   def get_name(cls):
@@ -176,6 +211,8 @@ class EffectSizeFactory:
       return RankBiserialEffectSize(column=self.column, groups=self.groups)
     elif self.preference == EffectSizeMethodEnum.CramerV:
       return CramerVEffectSize(column=self.column, groups=self.groups)
+    elif self.preference == EffectSizeMethodEnum.PointBiserialCorrelation:
+      return PointBiserialEffectSize(column=self.column, groups=self.groups)
     else:
       raise InvalidValueTypeException(type="effect size", value=self.preference)
     

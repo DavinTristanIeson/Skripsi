@@ -60,7 +60,7 @@ def _check_normal_distribution(groups: list[pd.Series], name: str)->list[str]:
       warnings.append(f"There are too few samples in {data.name} ({len(data)} rows) to expect that the data follows a normal distribution.")
     else:
       normaltest_result = scipy.stats.normaltest(data).pvalue
-      is_normal = normaltest_result < 0.05
+      is_normal = normaltest_result > 0.05
       if not is_normal:
         warnings.append(f"{name} expects the samples to be normally distributed, but \"{data.name}\" does not follow a normal distribution (confidence: {(1 - normaltest_result)*100:.2f}%).")
   return warnings
@@ -74,9 +74,9 @@ def _check_non_normal_distribution(groups: list[pd.Series], name: str)->list[str
     
     if len(data) >= 30:
       normaltest_result = scipy.stats.normaltest(data).pvalue
-      is_normal = normaltest_result < 0.05
+      is_normal = normaltest_result > 0.05
       if is_normal:
-        warnings.append(f"{name} is generally used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (p-value: {normaltest_result}). Consider using parametric statistic tests instead.")
+        warnings.append(f"{name} can be used when the samples do not follow a normal distribution, but \"{data.name}\" does follow a normal distribution (confidence: {(normaltest_result)*100:.2f}%). Consider using parametric statistic tests instead.")
 
   return warnings
 
