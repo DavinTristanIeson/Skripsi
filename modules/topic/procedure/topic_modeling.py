@@ -60,8 +60,6 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
 
     if column.topic_modeling.no_outliers:
       topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=document_vectors)
-      if column.topic_modeling.represent_outliers:
-        model.update_topics(documents, topics=topics)
 
     # Effect
     self.state.model = model
@@ -89,8 +87,6 @@ class BERTopicExperimentalTopicModelingProcedureComponent(BERTopicProcedureCompo
 
     if column.topic_modeling.no_outliers:
       topics = model.reduce_outliers(documents, topics, strategy="embeddings", embeddings=document_vectors)
-      if column.topic_modeling.represent_outliers:
-        model.update_topics(documents, topics=topics)
 
     # Effect
     self.state.model = model

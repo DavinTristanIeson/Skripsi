@@ -121,7 +121,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
     project_id=cache.config.project_id,
     column=column,
   )
-  bertopic_model = model_builder.build()
+  # BERTopic has a bug wherein it ignores y=. So build a specific version that doesn't have any dimensionality reducer and clustering.
+  bertopic_model = model_builder.build_slim()
 
   bertopic_model.fit(
     cast(list[str], documents),

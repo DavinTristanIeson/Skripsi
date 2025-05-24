@@ -154,6 +154,31 @@ class BERTopicModelBuilder:
       **kwargs,
     )
     return model
+  
+  def build_slim(self)->"BERTopic":
+    from bertopic import BERTopic
+    from bertopic.dimensionality import BaseDimensionalityReduction
+    from bertopic.cluster import BaseCluster
+
+    column = self.column
+
+    kwargs = dict()
+    if column.topic_modeling.max_topics is not None:
+      kwargs["nr_topics"] = column.topic_modeling.max_topics
+
+    model = BERTopic(
+      embedding_model=self.build_embedding_model(),
+      umap_model=BaseDimensionalityReduction(),
+      hdbscan_model=BaseCluster(),
+      ctfidf_model=self.build_ctfidf_model(),
+      vectorizer_model=self.build_vectorizer_model(),
+      representation_model=self.build_representation_model(),
+      top_n_words=int(column.topic_modeling.top_n_words),
+      calculate_probabilities=False,
+      verbose=True,
+      **kwargs,
+    )
+    return model
     
   def load(self):
     paths = ProjectPathManager(project_id=self.project_id)

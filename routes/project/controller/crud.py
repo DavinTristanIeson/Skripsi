@@ -146,7 +146,8 @@ def delete_project(config: Config):
 
 def reload_project(cache: ProjectCache):
   config = cache.config
-  df = get_cached_data_source(config.source)
+  # Always reload data source
+  df = get_cached_data_source(config.source, with_cache=False)
   df = config.data_schema.fit(df)
 
   config.paths.cleanup()

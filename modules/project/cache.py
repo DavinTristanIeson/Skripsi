@@ -117,13 +117,13 @@ class DataSourceCacheManager(metaclass=Singleton):
   def __init__(self):
     self.cache = CacheClient(name="Data Source", maxsize=2, ttl=2 * 60 * 1000)
 
-def get_cached_data_source(source: "DataSource"):
+def get_cached_data_source(source: "DataSource", with_cache: bool = True):
   import hashlib
   cache_key = hashlib.md5(str(source).encode(encoding='utf-8')).hexdigest()
   cache = DataSourceCacheManager().cache
 
   cached_dataframe = cache.get(cache_key)
-  if cached_dataframe is not None:
+  if cached_dataframe is not None and with_cache:
     logger.info(f"Loaded data source {source.path} from Cache {cache.name}")
     return cached_dataframe
   

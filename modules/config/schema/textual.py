@@ -173,8 +173,7 @@ class TopicModelingConfig(pydantic.BaseModel):
   top_n_words: int = pydantic.Field(default=50, ge=3)
 
   no_outliers: bool = False
-  represent_outliers: bool = False
-
+  
 __all__ = [
   "TextPreprocessingConfig",
   "TopicModelingConfig",
