@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 import statsmodels.api as sm
 from statsmodels.miscmodels.ordinal_model import OrderedModel
@@ -8,7 +9,7 @@ from modules.regression.models.base import BaseRegressionModel
 from modules.regression.results.base import BaseRegressionInput, RegressionCoefficient
 from modules.regression.results.ordinal import OrdinalRegressionCutpoint, OrdinalRegressionResult
 
-
+@dataclass
 class OrdinalRegressionModel(BaseRegressionModel):
   input: BaseRegressionInput
 
@@ -58,4 +59,5 @@ class OrdinalRegressionModel(BaseRegressionModel):
       log_likelihood_ratio=result.llr,
       converged=result.mle_retvals.get('converged', True),
       warnings=warnings,
+      sample_size=len(Y),
     )

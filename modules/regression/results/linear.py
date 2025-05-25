@@ -9,7 +9,6 @@ class LinearRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   standardized: bool
 
 class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
-  interpretation: RegressionInterpretation
   coefficients: list[RegressionCoefficient]
   intercept: Optional[RegressionCoefficient]
   f_statistic: float

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Sequence
+from typing import Any, Sequence
 
 import pandas as pd
 import pydantic
@@ -72,5 +72,16 @@ class MissingLogisticRegressionDependentVariableReference(pydantic.BaseModel):
   def to_api(self):
     return ApiError(
       message=f"A reference category should be provided for the dependent variable of the multinomial logistic regression.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+@dataclass
+class DependentVariableReferenceMustBeAValidValueException(ApiErrorAdaptableException):
+  reference: str
+  supported_values: list[Any]
+
+  def to_api(self):
+    return ApiError(
+      message=f"Reference \"{self.reference}\" is not a valid reference for the independent variable. Consider using one of the following instead: {list(map(str, self.supported_values))}. Otherwise, don't specify a reference so that we can pick a reference automatically.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )

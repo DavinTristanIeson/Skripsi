@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.results.base import RegressionCoefficient
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
 
+@dataclass
 class LinearRegressionModel(BaseRegressionModel):
   input: LinearRegressionInput
   def fit(self):

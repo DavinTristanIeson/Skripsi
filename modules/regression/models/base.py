@@ -5,7 +5,7 @@ from typing import Optional, cast
 import pandas as pd
 
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
-from modules.config.schema.schema_variants import SchemaColumn
+from modules.config.schema.schema_variants import SchemaColumn, TemporalPrecisionEnum
 from modules.project.cache import ProjectCache
 from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
@@ -30,6 +30,18 @@ class BaseRegressionModel(abc.ABC):
         False: "False"
       })
       return pd.Series(categorical_data, name=column.name)
+    # if column.type == SchemaColumnTypeEnum.Temporal and column.internal:
+    #   if column.temporal_precision == TemporalPrecisionEnum.Year:
+    #     strftime_format = "%Y"
+    #   elif column.temporal_precision == TemporalPrecisionEnum.Month:
+    #     strftime_format = "%m %Y"
+    #   elif column.temporal_precision == TemporalPrecisionEnum.Date:
+    #     strftime_format = "%d %m %Y"
+    #   else:
+    #     return data
+    #   categories = data.sort_values().dt.strftime(strftime_format).unique()
+    #   categorical_data = pd.Categorical(data, categories=categories, ordered=True)
+    #   return pd.Series(categorical_data, name=column.name)
     return data
   
   def _load(self, groups: list[NamedTableFilter], target: str, constrain_by_X: bool, supported_types: list[SchemaColumnTypeEnum], transform_data: bool = False):

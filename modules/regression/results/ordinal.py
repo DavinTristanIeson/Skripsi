@@ -1,16 +1,14 @@
 from typing import Optional
 import pydantic
 
-from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation
+from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
 
 class OrdinalRegressionCutpoint(pydantic.BaseModel):
   name: str
   value: float
   std_err: float
 
-class OrdinalRegressionResult(pydantic.BaseModel):
-  reference: Optional[str]
-  interpretation: RegressionInterpretation
+class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[RegressionCoefficient]
   cutpoints: list[OrdinalRegressionCutpoint]
   log_likelihood_ratio: float

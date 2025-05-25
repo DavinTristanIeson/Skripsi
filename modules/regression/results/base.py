@@ -43,6 +43,7 @@ class RegressionCoefficient(pydantic.BaseModel):
 
 class BaseRegressionResult(pydantic.BaseModel):
   reference: Optional[str]
+  interpretation: RegressionInterpretation
   converged: bool
   sample_size: int
   warnings: list[str]
