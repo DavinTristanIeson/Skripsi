@@ -3,32 +3,22 @@ from typing import Optional
 import pydantic
 
 from modules.api.enum import ExposedEnum
-from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient, RegressionIntercept
-from modules.table.filter_variants import NamedTableFilter
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
 
-class LinearRegressionInterpretation(str, Enum):
-  GrandMeanDeviation = "grand_mean_deviation"
-  RelativeToReference = "relative_to_reference"
-  RelativetoBaseline = "relative_to_baseline"
-
-ExposedEnum().register(LinearRegressionInterpretation)
-
-class LinearRegressionInput(pydantic.BaseModel):
-  groups: list[NamedTableFilter]
-  reference: Optional[str]
-  with_intercept: bool
+class LinearRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   standardized: bool
 
 class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
-  interpretation: LinearRegressionInterpretation
+  interpretation: RegressionInterpretation
   coefficients: list[RegressionCoefficient]
-  intercept: Optional[RegressionIntercept]
+  intercept: Optional[RegressionCoefficient]
   f_statistic: float
   p_value: float
   r_squared: float
+  standardized: bool
+  rmse: float
 
 __all__ = [
-  "LinearRegressionInterpretation",
   "LinearRegressionInput",
   "LinearRegressionResult"
 ]

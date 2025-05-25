@@ -2,40 +2,32 @@ from enum import Enum
 from typing import Optional
 import pydantic
 
-from modules.api.enum import ExposedEnum
-from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient, RegressionIntercept
-from modules.table.filter_variants import NamedTableFilter
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
 
-class LogisticRegressionInterpretation(str, Enum):
-  GrandMeanDeviation = "grand_mean_deviation"
-  RelativeToReference = "relative_to_reference"
-  RelativetoBaseline = "relative_to_baseline"
+class MultinomialLogisticRegressionType(str, Enum):
+  Individual = "individual"
+  Full = "full"
 
-ExposedEnum().register(LogisticRegressionInterpretation)
-
-class LogisticRegressionInput(pydantic.BaseModel):
-  groups: list[NamedTableFilter]
-  reference: Optional[str]
-
-class MultinomialLogisticRegressionInput(pydantic.BaseModel):
-  groups: list[NamedTableFilter]
-  reference_independent: Optional[str]
+class MultinomialLogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
+  type: MultinomialLogisticRegressionType
   reference_dependent: Optional[str]
 
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
-  interpretation: LogisticRegressionInterpretation
+  interpretation: RegressionInterpretation
   coefficients: list[RegressionCoefficient]
-  intercept: RegressionIntercept
-  statistic: float
+  intercept: RegressionCoefficient
   p_value: float
   pseudo_r_squared: float
   log_likelihood_ratio: float
 
+class IndividualLogisticRegressionMainResult(pydantic.BaseModel):
+  results: list[LogisticRegressionResult]
+
 class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
   reference: str
-  interpretation: LogisticRegressionInterpretation
+  interpretation: RegressionInterpretation
   coefficients: list[RegressionCoefficient]
-  intercept: RegressionIntercept
+  intercept: RegressionCoefficient
 
 class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   facets: list[MultinomialLogisticRegressionFacetResult]
@@ -46,9 +38,9 @@ class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseMod
 
   
 __all__ = [
-  "LogisticRegressionInput",
   "MultinomialLogisticRegressionInput",
   "LogisticRegressionResult",
   "MultinomialLogisticRegressionFacetResult",
   "MultinomialLogisticRegressionResult",
+  "IndividualLogisticRegressionMainResult",
 ]
