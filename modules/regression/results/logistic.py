@@ -3,6 +3,7 @@ from typing import Optional
 import pydantic
 
 from modules.api.enum import ExposedEnum
+from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient, RegressionIntercept
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInterpretation(str, Enum):
@@ -21,20 +22,33 @@ class MultinomialLogisticRegressionInput(pydantic.BaseModel):
   reference_independent: Optional[str]
   reference_dependent: Optional[str]
 
-class LinearRegressionCoefficient(pydantic.BaseModel):
-  name: str
-  coefficient: float
+class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
+  interpretation: LogisticRegressionInterpretation
+  coefficients: list[RegressionCoefficient]
+  intercept: RegressionIntercept
+  statistic: float
   p_value: float
-  sample_size: int
-  z_statistic: float
-  confidence_interval: tuple[float, float]
-  variance_inflation_factor: float
+  pseudo_r_squared: float
+  log_likelihood_ratio: float
 
-class LinearRegressionResult(pydantic.BaseModel):
-  interpretation: LinearRegressionInterpretation
-  coefficients: list[LinearRegressionCoefficient]
+class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
+  reference: str
+  interpretation: LogisticRegressionInterpretation
+  coefficients: list[RegressionCoefficient]
+  intercept: RegressionIntercept
+
+class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
+  facets: list[MultinomialLogisticRegressionFacetResult]
   chisq_statistic: float
   p_value: float
   pseudo_r_squared: float
   log_likelihood_ratio: float
-  warnings: list[str]
+
+  
+__all__ = [
+  "LogisticRegressionInput",
+  "MultinomialLogisticRegressionInput",
+  "LogisticRegressionResult",
+  "MultinomialLogisticRegressionFacetResult",
+  "MultinomialLogisticRegressionResult",
+]

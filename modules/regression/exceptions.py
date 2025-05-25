@@ -4,7 +4,7 @@ from modules.api.wrapper import ApiError, ApiErrorAdaptableException
 from modules.table.filter_variants import NamedTableFilter
 
 @dataclass
-class ReferenceMustBeAValidSubdataset(ApiErrorAdaptableException):
+class ReferenceMustBeAValidSubdatasetException(ApiErrorAdaptableException):
   reference: str
   groups: list[str]
 
@@ -20,7 +20,16 @@ class ReferenceMustBeAValidSubdataset(ApiErrorAdaptableException):
     for group in group_names:
       if reference == group:
         return
-    raise ReferenceMustBeAValidSubdataset(
+    raise ReferenceMustBeAValidSubdatasetException(
       reference=reference,
       groups=group_names,
+    )
+  
+@dataclass
+class NoIndependentVariableDataException(ApiErrorAdaptableException):
+  column: str
+  def to_api(self):
+    return ApiError(
+      message=f"Column \"{self.column}\" as the independent variable for the regression model does not contain any data that can be fitted to.",
+      status_code=HTTPStatus.NOT_FOUND
     )

@@ -3,7 +3,7 @@ from typing import Optional
 import pydantic
 
 from modules.api.enum import ExposedEnum
-from modules.regression.results.base import BaseRegressionCoefficient
+from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient, RegressionIntercept
 from modules.table.filter_variants import NamedTableFilter
 
 class LinearRegressionInterpretation(str, Enum):
@@ -19,17 +19,16 @@ class LinearRegressionInput(pydantic.BaseModel):
   with_intercept: bool
   standardized: bool
 
-class LinearRegressionCoefficient(BaseRegressionCoefficient, pydantic.BaseModel):
-  t_statistic: float
-
-class LinearRegressionIntercept:
-  
-
-class LinearRegressionResult(pydantic.BaseModel):
+class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   interpretation: LinearRegressionInterpretation
-  coefficients: list[LinearRegressionCoefficient]
-  intercept: Optional[float]
+  coefficients: list[RegressionCoefficient]
+  intercept: Optional[RegressionIntercept]
   f_statistic: float
   p_value: float
   r_squared: float
-  warnings: list[str]
+
+__all__ = [
+  "LinearRegressionInterpretation",
+  "LinearRegressionInput",
+  "LinearRegressionResult"
+]
