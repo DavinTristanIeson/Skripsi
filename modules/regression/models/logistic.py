@@ -1,150 +1,102 @@
 from dataclasses import dataclass
-from typing import Optional
-import numpy as np
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel
-from modules.regression.results.base import BaseRegressionInput, RegressionCoefficient, RegressionInterpretation
-from modules.regression.results.logistic import MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionResult, OneVsRestLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
-
-import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-
-def logistic_regression(X: pd.DataFrame, Y: pd.Series, *, interpretation: RegressionInterpretation, reference: Optional[str]):
-  model = sm.Logit(Y, X).fit()
-  confidence_intervals = model.conf_int()
-
-  results: list[RegressionCoefficient] = []
-  for col_idx, col in enumerate(X.columns):
-    results.append(RegressionCoefficient(
-      name=str(col),
-      value=model.params[col],
-      std_err=model.bse[col],
-      sample_size=X[col].sum(),
-
-      statistic=model.zvalues[col],
-      p_value=model.pvalues[col],
-      confidence_interval=confidence_intervals.loc[col].to_list(),
-      variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
-    ))
-  
-  return LogisticRegressionResult(
-    converged=model.mle_retvals.get('converged', True),
-    reference=reference,
-    intercept = results[0],
-    coefficients = results[1:],
-    p_value=model.llr_pvalue,
-    pseudo_r_squared=model.prsquared,
-    log_likelihood_ratio=model.llr,
-    interpretation=interpretation,
-    sample_size=len(Y),
-    warnings=[],
-  )
+from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionInput, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
 
 @dataclass
 class LogisticRegressionModel(BaseRegressionModel):
-  input: BaseRegressionInput
+  input: LogisticRegressionInput
 
   def fit(self):
     input = self.input
-    X, Y = self._load(
+    load_result = self._load(
       groups=input.groups,
       target=input.target,
       constrain_by_X=input.constrain_by_groups,
       supported_types=[SchemaColumnTypeEnum.Boolean],
       transform_data=False,
     )
-    X = self._process_X(
-      X,
+    preprocess_result = self._process_X(
+      load_result.X,
       with_intercept=True,
       interpretation=input.interpretation,
       reference=input.reference
     )
-    return logistic_regression(
-      X, Y,
-      interpretation=input.interpretation, 
-      reference=input.reference
-    )
+    X = preprocess_result.X
+    Y = load_result.Y
 
+    import statsmodels.api as sm
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
 
-LOGISTIC_REGRESSION_SUPPORTED_TYPES = list(filter(lambda type: type != SchemaColumnTypeEnum.Boolean, CATEGORICAL_SCHEMA_COLUMN_TYPES))
+    model = sm.Logit(Y, X).fit()
+    confidence_intervals = model.conf_int()
 
-@dataclass
-class OneVsRestLogisticRegressionModel(BaseRegressionModel):
-  input: BaseRegressionInput
+    results: list[LogisticRegressionCoefficient] = []
+    for col_idx, col in enumerate(X.columns):
+      results.append(LogisticRegressionCoefficient(
+        name=str(col),
+        value=model.params[col],
+        std_err=model.bse[col],
+        sample_size=X[col].sum(),
 
-  def fit(self):
-    input = self.input
-    X, Y = self._load(
-      groups=input.groups,
-      target=input.target,
-      constrain_by_X=input.constrain_by_groups,
-      supported_types=LOGISTIC_REGRESSION_SUPPORTED_TYPES,
-    )
-    X = self._process_X(
-      X,
-      with_intercept=True,
-      interpretation=input.interpretation,
-      reference=input.reference
-    )
-    warnings = []
-
-    categories = Y.unique()
-    main_results: list[LogisticRegressionResult] = []
-    for category in categories:
-      model = sm.Logit(Y, X).fit()
-      confidence_intervals = model.conf_int()
-
-      results: list[RegressionCoefficient] = []
-      for col_idx, col in enumerate(X.columns):
-        results.append(RegressionCoefficient(
-          name=str(col),
-          value=model.params[col],
-          std_err=model.bse[col],
-          sample_size=X[col].sum(),
-
-          statistic=model.zvalues[col],
-          p_value=model.pvalues[col],
-          confidence_interval=confidence_intervals.loc[col].to_list(),
-          variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
-        ))
-
-      
-      main_results.append(LogisticRegressionResult(
-        converged=model.mle_retvals.get('converged', True),
-        reference=input.reference,
-        intercept = results[0],
-        coefficients = results[1:],
-        p_value=model.llr_pvalue,
-        pseudo_r_squared=model.prsquared,
-        log_likelihood_ratio=model.llr,
-        interpretation=input.interpretation,
-        sample_size=len(Y),
-        warnings=warnings,
+        statistic=model.zvalues[col],
+        p_value=model.pvalues[col],
+        confidence_interval=confidence_intervals.loc[col].to_list(),
+        variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
       ))
-    return OneVsRestLogisticRegressionResult(
-      results=main_results
-    )
     
+    remaining_coefficient = self._calculate_remaining_coefficient(
+      model=model,
+      coefficients=model.params,
+      interpretation=input.interpretation,
+      preprocess=preprocess_result,
+    )
+    if remaining_coefficient is not None:
+      results.append(LogisticRegressionCoefficient.model_validate(
+        remaining_coefficient,
+        from_attributes=True,
+      ))
+
+    return LogisticRegressionResult(
+      converged=model.mle_retvals.get('converged', True),
+      reference=preprocess_result.reference_name,
+      intercept = results[0],
+      coefficients = results[1:],
+      p_value=model.llr_pvalue,
+      pseudo_r_squared=model.prsquared,
+      log_likelihood_ratio=model.llr,
+      interpretation=input.interpretation,
+      sample_size=len(Y),
+      warnings=[],
+    )
+
+
 @dataclass
 class MultinomialLogisticRegressionModel(BaseRegressionModel):
   input: MultinomialLogisticRegressionInput
 
   def fit(self):
     input = self.input
-    X, Y = self._load(
+    load_result = self._load(
       groups=input.groups,
       target=input.target,
       constrain_by_X=input.constrain_by_groups,
-      supported_types=LOGISTIC_REGRESSION_SUPPORTED_TYPES,
+      supported_types=list(filter(
+        lambda type: type != SchemaColumnTypeEnum.Boolean,
+        CATEGORICAL_SCHEMA_COLUMN_TYPES
+      ))
     )
-    X = self._process_X(
-      X,
+    preprocess_result = self._process_X(
+      load_result.X,
       with_intercept=True,
       interpretation=input.interpretation,
       reference=input.reference
     )
+    X = preprocess_result.X
+    Y = load_result.Y
+
     warnings = []
 
     Y = pd.Categorical(Y)
@@ -160,15 +112,20 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       # make the reference first so that the model automatically uses it as the baseline.
       Y.reorder_categories(Y_categories)
 
+    
+    import statsmodels.api as sm
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
     model = sm.MNLogit(Y, X).fit()
     confidence_intervals = model.conf_int()
 
     facets: list[MultinomialLogisticRegressionFacetResult] = []
     for row_idx, row in enumerate(Y.categories):
-      results: list[RegressionCoefficient] = []
+      results: list[LogisticRegressionCoefficient] = []
       for col_idx, col in enumerate(X.columns):
-        results.append(RegressionCoefficient(
+        results.append(LogisticRegressionCoefficient(
           name=str(col),
+
           value=model.params[col],
           std_err=model.bse[col],
           sample_size=X[col].sum(),
@@ -176,7 +133,20 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
           statistic=model.zvalues[col],
           p_value=model.pvalues[col],
           confidence_interval=confidence_intervals.loc[col].to_list(),
+          
           variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
+        ))
+      # This will definitely have issues due to how MNLogit works. But that's for future me to debug.
+      remaining_coefficient = self._calculate_remaining_coefficient(
+        model=model,
+        coefficients=model.params,
+        interpretation=input.interpretation,
+        preprocess=preprocess_result,
+      )
+      if remaining_coefficient is not None:
+        results.append(LogisticRegressionCoefficient.model_validate(
+          remaining_coefficient,
+          from_attributes=True,
         ))
       facets.append(MultinomialLogisticRegressionFacetResult(
         coefficients=results[1:],

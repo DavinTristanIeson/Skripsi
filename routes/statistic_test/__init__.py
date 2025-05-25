@@ -6,14 +6,14 @@ from modules.api.wrapper import ApiResult
 from modules.comparison.engine import StatisticTestResult
 from modules.regression.results.base import BaseRegressionInput
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
-from modules.regression.results.logistic import LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionResult, OneVsRestLogisticRegressionResult
+from modules.regression.results.logistic import LogisticRegressionInput, LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionResult
 from modules.regression.results.ordinal import OrdinalRegressionResult
 from routes.dependencies.project import ProjectCacheDependency
 from .controller import (
   statistic_test, binary_statistic_test_on_contingency_table,
   binary_statistic_test_on_distribution, contingency_table,
   omnibus_statistic_test, subdataset_cooccurrence, pairwise_statistic_test,
-  linear_regression, logistic_regression, one_vs_rest_logistic_regression,
+  linear_regression, logistic_regression,
   ordinal_regression, multinomial_logistic_regression
 )
 
@@ -76,16 +76,9 @@ async def post__regression_linear(cache: ProjectCacheDependency, input: LinearRe
   )
 
 @router.post("/regression/logistic")
-async def post__logistic_regression(cache: ProjectCacheDependency, input: BaseRegressionInput)->ApiResult[LogisticRegressionResult]:
+async def post__logistic_regression(cache: ProjectCacheDependency, input: LogisticRegressionInput)->ApiResult[LogisticRegressionResult]:
   return ApiResult(
     data=logistic_regression(cache, input),
-    message=None,
-  )
-
-@router.post("/regression/logistic/one-vs-rest")
-async def post__one_vs_rest_logistic_regression(cache: ProjectCacheDependency, input: BaseRegressionInput)->ApiResult[OneVsRestLogisticRegressionResult]:
-  return ApiResult(
-    data=one_vs_rest_logistic_regression(cache, input),
     message=None,
   )
 

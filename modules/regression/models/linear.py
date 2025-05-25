@@ -10,18 +10,20 @@ class LinearRegressionModel(BaseRegressionModel):
   input: LinearRegressionInput
   def fit(self):
     input = self.input
-    X, Y = self._load(
+    load_result = self._load(
       groups=input.groups,
       target=input.target,
       constrain_by_X=input.constrain_by_groups,
       supported_types=[SchemaColumnTypeEnum.Continuous]
     )
-    X = self._process_X(
-      X,
+    preprocess_result = self._process_X(
+      load_result.X,
       with_intercept=True,
       interpretation=input.interpretation,
       reference=input.reference
     )
+    X = preprocess_result.X
+    Y = load_result.Y
 
     from sklearn.discriminant_analysis import StandardScaler
     if input.standardized:
@@ -48,9 +50,18 @@ class LinearRegressionModel(BaseRegressionModel):
 
         variance_inflation_factor=variance_inflation_factor(X, col_idx),
       ))
+
+    remaining_coefficient = self._calculate_remaining_coefficient(
+      model=model,
+      coefficients=model.params,
+      interpretation=input.interpretation,
+      preprocess=preprocess_result,
+    )
+    if remaining_coefficient is not None:
+      results.append(remaining_coefficient)
     
     return LinearRegressionResult(
-      reference=input.reference,
+      reference=preprocess_result.reference_name,
       converged=True, # OLS has no convergence concept
       coefficients=results[1:],
       intercept=results[0],
