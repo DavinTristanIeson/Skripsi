@@ -5,7 +5,7 @@ import pydantic
 from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
 from modules.table.filter_variants import NamedTableFilter
 
-class LogisticRegressionInput:
+class LogisticRegressionInput(pydantic.BaseModel):
   groups: list[NamedTableFilter]
   target: NamedTableFilter
   reference: Optional[str]
@@ -18,7 +18,7 @@ class MultinomialLogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel
 
 class LogisticRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
   @pydantic.computed_field
-  def odds(self)->float:
+  def odds_ratio(self)->float:
     return np.exp(self.value)
 
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
