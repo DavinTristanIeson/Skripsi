@@ -2,6 +2,7 @@ import abc
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
+import numpy as np
 import pandas as pd
 
 from modules.config.schema.base import SchemaColumnTypeEnum
@@ -68,19 +69,20 @@ class BaseRegressionModel(abc.ABC):
     df = cache.workspaces.load()
     engine = TableEngine(config=cache.config)
     X = pd.DataFrame(
-      list(map(
-        lambda group: engine
-          .filter_mask(df, group.filter)
-          .astype(pd.Float32Dtype()),
+      dict(map(
+        lambda group: (group.name, engine
+          .filter_mask(df, group.filter)),
         groups
       )),
-      columns=list(map(lambda group: group.name, groups))
+      dtype=pd.BooleanDtype(),
     )
 
     if isinstance(target, str):
       Y = df[target]
       column = config.data_schema.assert_of_type(target, supported_types)
       mask = Y.notna()
+      X = X.loc[mask, :]
+      Y = Y[mask]
       if column.type == SchemaColumnTypeEnum.Topic:
         mask = mask & (Y != -1)
     else:
@@ -134,12 +136,12 @@ class BaseRegressionModel(abc.ABC):
     else:
       raise ValueError(f"\"{interpretation}\" is not a valid regression interpretation type.")
 
-    X = X.astype(pd.Float32Dtype)
     if "const" in X.columns:
       raise ValueError(f"const is a reserved name. Please rename your subdataset.")
     if with_intercept:
       # Ignore coincidences where X has 1s already
       sm.add_constant(X, prepend=True, has_constant="add")
+    X = X.astype(np.float32)
     return RegressionProcessXResult(
       reference=reference_column,
       X=X

@@ -148,9 +148,13 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
           remaining_coefficient,
           from_attributes=True,
         ))
+      intercept = results[0]
+      intercept.name = row
+      intercept.sample_size = (Y == row).sum()
       facets.append(MultinomialLogisticRegressionFacetResult(
+        level=row,
         coefficients=results[1:],
-        intercept=results[0],
+        intercept=intercept,
       ))
 
     return MultinomialLogisticRegressionResult(

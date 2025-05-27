@@ -10,7 +10,7 @@ class OrdinalRegressionCutpoint(pydantic.BaseModel):
 
 class OrdinalRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
   @pydantic.computed_field
-  def odds(self)->float:
+  def odds_ratio(self)->float:
     return np.exp(self.value)
 
 class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):

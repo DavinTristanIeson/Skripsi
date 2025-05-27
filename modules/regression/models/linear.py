@@ -67,7 +67,7 @@ class LinearRegressionModel(BaseRegressionModel):
       intercept=results[0],
       f_statistic=model.fvalue,
       p_value=model.f_pvalue,
-      r_squared=model.rsquared,
+      r_squared=model.adj_rsquared,
       standardized=input.standardized,
       interpretation=input.interpretation,
       sample_size=len(Y),

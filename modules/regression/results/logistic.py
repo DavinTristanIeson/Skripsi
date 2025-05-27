@@ -29,6 +29,7 @@ class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   log_likelihood_ratio: float
 
 class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
+  level: str
   coefficients: list[LogisticRegressionCoefficient]
   intercept: LogisticRegressionCoefficient
 
