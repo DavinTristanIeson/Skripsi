@@ -93,4 +93,5 @@ class BinaryStatisticTestOnContingencyTableResultMainResource(pydantic.BaseModel
 class SubdatasetCooccurrenceResource(pydantic.BaseModel):
   labels: list[str]
   cooccurrences: list[list[int]]
+  correlations: list[list[float]]
   frequencies: list[int]

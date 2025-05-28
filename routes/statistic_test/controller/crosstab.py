@@ -132,6 +132,7 @@ def subdataset_cooccurrence(params: GetSubdatasetCooccurrenceSchema, cache: Proj
   frequencies = list(map(lambda mask: mask.sum(), masks))
   group_names = list(map(lambda group: group.name, params.groups))
   cooccurrences = np.full((len(params.groups), len(params.groups)), 0)
+  correlations = np.full((len(params.groups), len(params.groups)), 0.0, dtype=np.float32)
   for gid1, group1 in enumerate(params.groups):
     mask1 = masks[gid1]
     for gid2, group2 in enumerate(params.groups):
@@ -139,10 +140,17 @@ def subdataset_cooccurrence(params: GetSubdatasetCooccurrenceSchema, cache: Proj
       cooccur_mask = mask1 & mask2
       cooccurrence = cooccur_mask.sum()
       cooccurrences[gid1, gid2] += cooccurrence
+      # Pearson correlation reduces to point biserial correlation for 0 and 1.
+      correlation_matrix = np.corrcoef(
+        mask1.to_numpy(dtype=np.float32),
+        mask2.to_numpy(dtype=np.float32)
+      )
+      correlations[gid1, gid2] = correlation_matrix[0, 1]
       
   return SubdatasetCooccurrenceResource(
     labels=group_names,
     cooccurrences=cooccurrences.tolist(),
+    correlations=correlations.tolist(),
     frequencies=frequencies
   )
 
