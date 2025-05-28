@@ -7,6 +7,7 @@ import pandas as pd
 
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
+from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
@@ -17,6 +18,7 @@ from modules.table.filter_variants import NamedTableFilter, TableFilter
 @dataclass
 class RegressionProcessXResult:
   X: pd.DataFrame
+  sample_sizes: pd.Series
   reference: Optional[pd.Series]
   @property
   def reference_name(self)->Optional[str]:
@@ -106,11 +108,10 @@ class BaseRegressionModel(abc.ABC):
       X=X,
       Y=Y
     )
-  
-  def _get_sample_sizes(self, X: pd.DataFrame, Y: pd.DataFrame):
-    return X.sum(axis=0), len(Y)
-  
+
   def _process_X(self, X: pd.DataFrame, *, with_intercept: bool, interpretation: RegressionInterpretation, reference: Optional[str]):
+    sample_sizes = X.sum(axis=0)
+
     import statsmodels.api as sm
     reference_column: Optional[pd.Series] = None
     if interpretation == RegressionInterpretation.RelativeToReference:
@@ -130,6 +131,7 @@ class BaseRegressionModel(abc.ABC):
       # X must be mutually exclusive
       if not is_boolean_dataframe_mutually_exclusive(X):
         raise RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException()
+      reference = reference or X.columns[-1]
       new_X = one_hot_to_effect_coding(X, reference=reference)
       reference_column = X[reference] # mind the order
       X = new_X
@@ -138,13 +140,18 @@ class BaseRegressionModel(abc.ABC):
 
     if "const" in X.columns:
       raise ValueError(f"const is a reserved name. Please rename your subdataset.")
+    if "Intercept" in X.columns:
+      raise ValueError(f"Intercept is a reserved name. Please rename your subdataset.")
     if with_intercept:
       # Ignore coincidences where X has 1s already
-      sm.add_constant(X, prepend=True, has_constant="add")
+      X = sm.add_constant(X, prepend=True, has_constant="add") # type: ignore
     X = X.astype(np.float32)
+
+    sample_sizes["const"] = len(X)
     return RegressionProcessXResult(
       reference=reference_column,
-      X=X
+      X=X,
+      sample_sizes=sample_sizes,
     )
   
   def _calculate_remaining_coefficient(
@@ -164,12 +171,16 @@ class BaseRegressionModel(abc.ABC):
 
     return RegressionCoefficient(
       name=str(preprocess.reference.name),
-      value=test_result.effect[0], # TODO: Sanity check coefficient weights with test_result.effect
+      value=test_result.effect, # TODO: Sanity check coefficient weights with test_result.effect
       sample_size=preprocess.reference.sum(),
-      p_value=test_result.pvalue[0],
-      std_err=test_result.sd[0],
-      confidence_interval=test_result.conf_int(),
-      statistic=test_result.statistic[0],
+      p_value=test_result.pvalue,
+      std_err=test_result.sd,
+      confidence_interval=test_result.conf_int()[0],
+      statistic=test_result.statistic,
       # VIF doesn't make sense here.
       variance_inflation_factor=0.0
     )
+  
+  @property
+  def logger(self):
+    return ProvisionedLogger().provision("Regression")

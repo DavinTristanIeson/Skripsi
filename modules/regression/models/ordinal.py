@@ -3,6 +3,7 @@ from statsmodels.miscmodels.ordinal_model import OrderedModel
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
+from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.results.base import BaseRegressionInput
 from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionCutpoint, OrdinalRegressionResult
@@ -30,7 +31,8 @@ class OrdinalRegressionModel(BaseRegressionModel):
     Y = load_result.Y
     warnings = []
 
-    model = OrderedModel(Y, X, distr='logit').fit(method='bfgs')
+    model = OrderedModel(Y.cat.codes, X, distr='logit').fit(method='bfgs')
+    self.logger.info(model.summary())
 
     confidence_intervals = model.conf_int()
     results: list[OrdinalRegressionCoefficient] = []
@@ -41,21 +43,24 @@ class OrdinalRegressionModel(BaseRegressionModel):
 
         value=model.params[col],
         std_err=model.bse[col],
-        sample_size=X[col].sum(),
+        sample_size=preprocess_result.sample_sizes[col],
 
-        statistic=model.zvalues[col],
+        statistic=model.tvalues[col],
         p_value=model.pvalues[col],
-        confidence_interval=confidence_intervals.loc[col].tolist(),
+        confidence_interval=confidence_intervals.loc[col, :],
         
         variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
       ))
-    cutpoint_names = set(model.params.index) - set(X.columns)
     cutpoints: list[OrdinalRegressionCutpoint] = []
-    for col in cutpoint_names:
+    for idx in range(len(X.columns), len(model.params)):
+      category_idx = idx - len(X.columns)
+      category = Y.cat.categories[category_idx]
       cutpoints.append(OrdinalRegressionCutpoint(
-        name=str(col),
-        value=model.params[col],
-        std_err=model.bse[col],
+        name=str(category),
+        value=model.params.iloc[idx],
+        std_err=model.bse.iloc[idx],
+        sample_size=(Y == category).sum(),
+        confidence_interval=confidence_intervals.iloc[idx],
       ))
 
     remaining_coefficient = self._calculate_remaining_coefficient(
@@ -76,6 +81,8 @@ class OrdinalRegressionModel(BaseRegressionModel):
       coefficients=results,
       cutpoints=cutpoints,
       log_likelihood_ratio=model.llr,
+      p_value=model.llr_pvalue,
+      pseudo_r_squared=model.prsquared,
       converged=model.mle_retvals.get('converged', True),
       warnings=warnings,
       sample_size=len(Y),

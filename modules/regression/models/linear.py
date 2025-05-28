@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.results.base import RegressionCoefficient
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
+
 
 @dataclass
 class LinearRegressionModel(BaseRegressionModel):
@@ -27,13 +29,15 @@ class LinearRegressionModel(BaseRegressionModel):
 
     from sklearn.discriminant_analysis import StandardScaler
     if input.standardized:
-      Y = StandardScaler().fit_transform(Y.to_numpy().reshape(-1, 1))[0, :]
+      Y = StandardScaler().fit_transform(Y.to_numpy().reshape(-1, 1))[:, 0]
 
     warnings = []
     import statsmodels.api as sm
     from statsmodels.stats.outliers_influence import variance_inflation_factor
 
     model = sm.OLS(Y, X).fit()
+    self.logger.info(model.summary())
+
     results: list[RegressionCoefficient] = []
     confidence_intervals = model.conf_int()
     for col_idx, col in enumerate(X.columns):
@@ -42,11 +46,11 @@ class LinearRegressionModel(BaseRegressionModel):
 
         value = model.params[col],
         std_err = model.bse[col],
-        sample_size=X[col].sum(),
+        sample_size=preprocess_result.sample_sizes[col],
 
         statistic = model.tvalues[col],
         p_value = model.pvalues[col],
-        confidence_interval=confidence_intervals[col],
+        confidence_interval=confidence_intervals.loc[col, :],
 
         variance_inflation_factor=variance_inflation_factor(X, col_idx),
       ))
@@ -67,7 +71,7 @@ class LinearRegressionModel(BaseRegressionModel):
       intercept=results[0],
       f_statistic=model.fvalue,
       p_value=model.f_pvalue,
-      r_squared=model.adj_rsquared,
+      r_squared=model.rsquared_adj,
       standardized=input.standardized,
       interpretation=input.interpretation,
       sample_size=len(Y),

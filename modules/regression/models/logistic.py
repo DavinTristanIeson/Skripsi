@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from typing import cast
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
+from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionInput, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
@@ -39,11 +41,11 @@ class LogisticRegressionModel(BaseRegressionModel):
         name=str(col),
         value=model.params[col],
         std_err=model.bse[col],
-        sample_size=X[col].sum(),
+        sample_size=preprocess_result.sample_sizes[col],
 
-        statistic=model.zvalues[col],
+        statistic=model.tvalues[col],
         p_value=model.pvalues[col],
-        confidence_interval=confidence_intervals.loc[col].to_list(),
+        confidence_interval=confidence_intervals.loc[col, :],
         variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
       ))
     
@@ -58,6 +60,8 @@ class LogisticRegressionModel(BaseRegressionModel):
         remaining_coefficient,
         from_attributes=True,
       ))
+
+    self.logger.info(model.summary())
 
     return LogisticRegressionResult(
       converged=model.mle_retvals.get('converged', True),
@@ -94,6 +98,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       interpretation=input.interpretation,
       reference=input.reference
     )
+    original_X = load_result.X
     X = preprocess_result.X
     Y = load_result.Y
 
@@ -117,20 +122,25 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     from statsmodels.stats.outliers_influence import variance_inflation_factor
 
     model = sm.MNLogit(Y, X).fit()
+    self.logger.info(model.summary())
+    
     confidence_intervals = model.conf_int()
 
     facets: list[MultinomialLogisticRegressionFacetResult] = []
     for row_idx, row in enumerate(Y.categories):
       results: list[LogisticRegressionCoefficient] = []
       for col_idx, col in enumerate(X.columns):
+        sample_size = cast(pd.Series, original_X.loc[Y == row, col])\
+          .astype(pd.Int32Dtype())\
+          .sum()
         results.append(LogisticRegressionCoefficient(
           name=str(col),
 
           value=model.params[col],
           std_err=model.bse[col],
-          sample_size=X[col].sum(),
+          sample_size=sample_size,
 
-          statistic=model.zvalues[col],
+          statistic=model.tvalues[col],
           p_value=model.pvalues[col],
           confidence_interval=confidence_intervals.loc[col].to_list(),
           
