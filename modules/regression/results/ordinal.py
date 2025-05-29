@@ -1,24 +1,31 @@
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionResult, RegressionCoefficient
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient
 
-class OrdinalRegressionCutpoint(pydantic.BaseModel):
-  name: str
+class OrdinalRegressionInput(BaseRegressionInput, pydantic.BaseModel):
+  pass
+
+class OrdinalRegressionThreshold(pydantic.BaseModel):
+  from_level: str
+  to_level: str
   value: float
-  std_err: float
-  confidence_interval: tuple[float, float]
-  sample_size: int
-
-class OrdinalRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
   @pydantic.computed_field
   def odds_ratio(self)->float:
-    # Odds of being in higher ranks compared to lower ranks
-    return np.exp(-self.value)
+    return np.exp(self.value)
+
+class OrdinalRegressionLevelSampleSize(pydantic.BaseModel):
+  name: str
+  sample_size: int
+
+class OrdinalRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
+  pass
 
 class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[OrdinalRegressionCoefficient]
-  cutpoints: list[OrdinalRegressionCutpoint]
+  thresholds: list[OrdinalRegressionThreshold]
+  sample_sizes: list[OrdinalRegressionLevelSampleSize]
+  
   log_likelihood_ratio: float
   p_value: float
   pseudo_r_squared: float

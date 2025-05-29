@@ -2,10 +2,9 @@ from modules.project.cache import ProjectCache
 from modules.regression.models.linear import LinearRegressionModel
 from modules.regression.models.logistic import LogisticRegressionModel, MultinomialLogisticRegressionModel
 from modules.regression.models.ordinal import OrdinalRegressionModel
-from modules.regression.results.base import BaseRegressionInput
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
 from modules.regression.results.logistic import LogisticRegressionInput, LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionResult
-from modules.regression.results.ordinal import OrdinalRegressionResult
+from modules.regression.results.ordinal import OrdinalRegressionInput, OrdinalRegressionResult
 
 
 def linear_regression(cache: ProjectCache, input: LinearRegressionInput)->LinearRegressionResult:
@@ -17,7 +16,7 @@ def logistic_regression(cache: ProjectCache, input: LogisticRegressionInput)->Lo
 def multinomial_logistic_regression(cache: ProjectCache, input: MultinomialLogisticRegressionInput)->MultinomialLogisticRegressionResult:
   return MultinomialLogisticRegressionModel(cache=cache, input=input).fit()
 
-def ordinal_regression(cache: ProjectCache, input: BaseRegressionInput)->OrdinalRegressionResult:
+def ordinal_regression(cache: ProjectCache, input: OrdinalRegressionInput)->OrdinalRegressionResult:
   return OrdinalRegressionModel(cache=cache, input=input).fit()
 
 __all__ = [

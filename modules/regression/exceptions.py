@@ -85,3 +85,40 @@ class DependentVariableReferenceMustBeAValidValueException(ApiErrorAdaptableExce
       message=f"Reference \"{self.reference}\" is not a valid reference for the independent variable. Consider using one of the following instead: {list(map(str, self.supported_values))}. Otherwise, don't specify a reference so that we can pick a reference automatically.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
+
+@dataclass
+class OrdinalRegressionNotEnoughLevelsException(ApiErrorAdaptableException):
+  levels: Sequence[Any]
+  dependent_variable: str
+  def to_api(self):
+    levels = list(map(str, self.levels))
+    return ApiError(
+      message=f"Ordinal regression typically involves dependent variables with more than two levels, but the levels of {self.dependent_variable} only consists of {'{' + ', '.join(levels) + '}'}]. If there are only two levels, consider using logistic regression instead.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+  @staticmethod
+  def assert_levels(levels: Sequence[Any], dependent_variable: str):
+    if len(levels) <= 2:
+      raise OrdinalRegressionNotEnoughLevelsException(
+        levels=levels,
+        dependent_variable=dependent_variable
+      )
+    
+RESERVED_SUBDATASET_NAMES = ["const", "Intercept"]
+@dataclass
+class ReservedSubdatasetNameException(ApiErrorAdaptableException):
+  name: str
+  def to_api(self):
+    return ApiError(
+      message=f"\"{self.name}\" is a reserved name. Please change the name of your subdataset.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+  @staticmethod
+  def assert_column_names(column_names: Sequence[str]):
+    for name in RESERVED_SUBDATASET_NAMES:
+      if name in column_names: 
+        raise ReservedSubdatasetNameException(
+          name=name,
+        )

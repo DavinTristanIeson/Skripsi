@@ -7,7 +7,7 @@ from modules.comparison.engine import StatisticTestResult
 from modules.regression.results.base import BaseRegressionInput
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
 from modules.regression.results.logistic import LogisticRegressionInput, LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionResult
-from modules.regression.results.ordinal import OrdinalRegressionResult
+from modules.regression.results.ordinal import OrdinalRegressionInput, OrdinalRegressionResult
 from routes.dependencies.project import ProjectCacheDependency
 from .controller import (
   statistic_test, binary_statistic_test_on_contingency_table,
@@ -90,7 +90,7 @@ async def post__multinomial_logistic_regression(cache: ProjectCacheDependency, i
   )
 
 @router.post("/regression/ordinal")
-async def post__ordinal_regression(cache: ProjectCacheDependency, input: BaseRegressionInput)->ApiResult[OrdinalRegressionResult]:
+async def post__ordinal_regression(cache: ProjectCacheDependency, input: OrdinalRegressionInput)->ApiResult[OrdinalRegressionResult]:
   return ApiResult(
     data=ordinal_regression(cache, input),
     message=None,

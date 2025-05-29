@@ -2,7 +2,7 @@ from typing import Optional
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInput(pydantic.BaseModel):
@@ -16,10 +16,8 @@ class LogisticRegressionInput(pydantic.BaseModel):
 class MultinomialLogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   reference_dependent: Optional[str]
 
-class LogisticRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
-  @pydantic.computed_field
-  def odds_ratio(self)->float:
-    return np.exp(self.value)
+class LogisticRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
+  pass
 
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
@@ -35,6 +33,7 @@ class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
 
 class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   reference: Optional[str]
+  reference_dependent: str
   facets: list[MultinomialLogisticRegressionFacetResult]
   p_value: float
   pseudo_r_squared: float

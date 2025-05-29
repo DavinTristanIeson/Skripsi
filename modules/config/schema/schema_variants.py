@@ -157,6 +157,8 @@ class OrderedCategoricalSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, froz
         resolved_category_order,
         ordered=True
       )
+
+    data = data.remove_unused_categories()
     df[self.name] = data
 
 # Topic column are special because they contain the topic IDs rather than the topic names.

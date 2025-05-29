@@ -9,7 +9,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
-from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException
+from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, ReservedSubdatasetNameException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
 from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation
 from modules.table.engine import TableEngine
@@ -138,10 +138,7 @@ class BaseRegressionModel(abc.ABC):
     else:
       raise ValueError(f"\"{interpretation}\" is not a valid regression interpretation type.")
 
-    if "const" in X.columns:
-      raise ValueError(f"const is a reserved name. Please rename your subdataset.")
-    if "Intercept" in X.columns:
-      raise ValueError(f"Intercept is a reserved name. Please rename your subdataset.")
+    ReservedSubdatasetNameException.assert_column_names(list(map(str, X.columns)))
     if with_intercept:
       # Ignore coincidences where X has 1s already
       X = sm.add_constant(X, prepend=True, has_constant="add") # type: ignore
@@ -163,11 +160,14 @@ class BaseRegressionModel(abc.ABC):
   )->Optional[RegressionCoefficient]:
     if interpretation != RegressionInterpretation.GrandMeanDeviation or preprocess.reference is None:
       return None
-    reference_coefficient = -coefficients.sum()
+    reference_coefficient = -coefficients.iloc[1:].sum()
     # 0 to not test the intercept; -1 to test the remaining columns
-    coefficient_weights = [0] + ([-1] * (len(coefficients) - 1))
+    coefficient_weights = np.zeros_like(coefficients)
+    coefficient_weights[0] = 0
     # It may be called a T-test, but the computation is based on the underlying model's distribution
     test_result = model.t_test(coefficient_weights)
+
+    print(reference_coefficient, test_result.effect)
 
     return RegressionCoefficient(
       name=str(preprocess.reference.name),

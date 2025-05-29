@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Optional
+import numpy as np
 import pydantic
 
 from modules.api.enum import ExposedEnum
@@ -40,6 +41,18 @@ class RegressionCoefficient(pydantic.BaseModel):
   confidence_interval: tuple[float, float]
   variance_inflation_factor: float
   statistic: float
+
+class OddsBasedRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
+  @pydantic.computed_field
+  def odds_ratio(self)->float:
+    return np.exp(self.value)
+  
+  @pydantic.computed_field
+  def odds_ratio_confidence_interval(self)->tuple[float, float]:
+    return (
+      np.exp(self.confidence_interval[0]),
+      np.exp(self.confidence_interval[1])
+    )
 
 class BaseRegressionResult(pydantic.BaseModel):
   reference: Optional[str]
