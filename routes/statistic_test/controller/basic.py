@@ -50,4 +50,5 @@ def omnibus_statistic_test(cache: ProjectCache, input: OmnibusStatisticTestSchem
 
 __all__ = [
   "statistic_test",
+  "omnibus_statistic_test"
 ]
