@@ -1,7 +1,7 @@
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient
+from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
 
 class OrdinalRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   pass
@@ -21,20 +21,22 @@ class OrdinalRegressionLevelSampleSize(pydantic.BaseModel):
 class OrdinalRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass
 
-class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
-  coefficients: list[OrdinalRegressionCoefficient]
-  thresholds: list[OrdinalRegressionThreshold]
-  sample_sizes: list[OrdinalRegressionLevelSampleSize]
-  
+class OrdinalRegressionFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.BaseModel):
   log_likelihood_ratio: float
-  p_value: float
   pseudo_r_squared: float
-  converged: bool
-  warnings: list[str]
 
 class OrdinalRegressionPredictionResult(pydantic.BaseModel):
   latent_score: float
   probabilities: list[float]
+  levels: list[str]
+
+class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
+  coefficients: list[OrdinalRegressionCoefficient]
+  thresholds: list[OrdinalRegressionThreshold]
+  sample_sizes: list[OrdinalRegressionLevelSampleSize]
+  fit_evaluation: OrdinalRegressionFitEvaluation
+  predictions: list[RegressionPredictionPerIndependentVariableResult[OrdinalRegressionPredictionResult]]
+  levels: list[str]
 
 __all__ = [
   "OrdinalRegressionResult"

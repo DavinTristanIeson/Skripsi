@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 import numpy as np
 import pydantic
 
@@ -56,17 +56,25 @@ class OddsBasedRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
 
 class BaseRegressionResult(pydantic.BaseModel):
   model_id: str
+  independent_variables: list[str]
   reference: Optional[str]
+
   interpretation: RegressionInterpretation
-  converged: bool
   sample_size: int
+
   warnings: list[str]
+
+class BaseRegressionFitEvaluationResult(pydantic.BaseModel):
+  converged: bool
+  p_value: float
+
+T = TypeVar("T")
+class RegressionPredictionPerIndependentVariableResult(Generic[T], pydantic.BaseModel):
+  variable: str
+  prediction: T
 
 class BaseRegressionPredictionInput(pydantic.BaseModel):
   model_id: str
   active: list[bool]
   def as_regression_input(self)->np.ndarray:
     return np.array([True, *self.active])
-
-class BaseRegressionPredictionResult(pydantic.BaseModel):
-  value: float

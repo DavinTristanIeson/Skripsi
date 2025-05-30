@@ -7,7 +7,8 @@ from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.regression.exceptions import OrdinalRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager
-from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionInput, OrdinalRegressionLevelSampleSize, OrdinalRegressionThreshold, OrdinalRegressionResult
+from modules.regression.results.base import RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionFitEvaluation, OrdinalRegressionInput, OrdinalRegressionLevelSampleSize, OrdinalRegressionPredictionResult, OrdinalRegressionThreshold, OrdinalRegressionResult
 
 @dataclass
 class OrdinalRegressionModel(BaseRegressionModel):
@@ -98,17 +99,47 @@ class OrdinalRegressionModel(BaseRegressionModel):
         from_attributes=True,
       ))
 
+    model_predictions_probabilities = model.predict(
+      self._regression_prediction_input(load_result.independent_variables),
+      which="prob"
+    )
+    model_predictions_latent_scores = model.predict(
+      self._regression_prediction_input(load_result.independent_variables),
+      which="linear"
+    )
+    prediction_results = list(map(
+      lambda variable, latent_score, probabilities: RegressionPredictionPerIndependentVariableResult(
+        variable=variable,
+        prediction=OrdinalRegressionPredictionResult(
+          probabilities=probabilities,
+          levels=probabilities.columns,
+          latent_score=latent_score
+        )
+      ),
+      load_result.independent_variables,
+      model_predictions_latent_scores,
+      model_predictions_probabilities.iterrows()
+    ))
+  
     return OrdinalRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
+      independent_variables=load_result.independent_variables,
+      levels=list(map(str, Y.cat.categories)),
       interpretation=input.interpretation,
-      sample_sizes=sample_sizes,
+
       coefficients=results,
       thresholds=thresholds,
-      log_likelihood_ratio=model.llr,
-      p_value=model.llr_pvalue,
-      pseudo_r_squared=model.prsquared,
-      converged=model.mle_retvals.get('converged', True),
-      warnings=warnings,
+      sample_sizes=sample_sizes,
+
       sample_size=len(Y),
+      warnings=warnings,
+
+      fit_evaluation=OrdinalRegressionFitEvaluation(
+        log_likelihood_ratio=model.llr,
+        p_value=model.llr_pvalue,
+        pseudo_r_squared=model.prsquared,
+        converged=model.mle_retvals.get('converged', True),
+      ),
+      predictions=prediction_results,
     )

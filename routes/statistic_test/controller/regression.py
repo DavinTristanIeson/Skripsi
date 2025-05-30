@@ -42,7 +42,8 @@ def multinomial_logistic_regression_predict(input: BaseRegressionPredictionInput
   X = input.as_regression_input()
   Y = model.predict(X)
   return MultinomialLogisticRegressionPredictionResult(
-    probabilities_per_class=Y[0]
+    probabilities=Y[0],
+    levels=Y.columns,
   )
 
 def ordinal_regression_predict(input: BaseRegressionPredictionInput):
@@ -53,6 +54,7 @@ def ordinal_regression_predict(input: BaseRegressionPredictionInput):
   return OrdinalRegressionPredictionResult(
     probabilities=probabilities, # type: ignore
     latent_variable=latent_variable, # type: ignore
+    levels=probabilities.columns,
   )
 
 __all__ = [

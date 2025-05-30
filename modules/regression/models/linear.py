@@ -5,8 +5,8 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager
-from modules.regression.results.base import RegressionCoefficient
-from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
+from modules.regression.results.base import RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.linear import LinearRegressionFitEvaluation, LinearRegressionInput, LinearRegressionPredictionResult, LinearRegressionResult
 
 
 @dataclass
@@ -66,20 +66,42 @@ class LinearRegressionModel(BaseRegressionModel):
     )
     if remaining_coefficient is not None:
       results.append(remaining_coefficient)
+
+    model_predictions = model.predict(
+      self._regression_prediction_input(load_result.independent_variables)
+    )
+
+    prediction_results = list(map(
+      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
+        variable=variable,
+        prediction=LinearRegressionPredictionResult(
+          mean=result,
+        )
+      ),
+      load_result.independent_variables,
+      model_predictions
+    ))
     
     return LinearRegressionResult(
       model_id=model_id,
+      independent_variables=load_result.independent_variables,
       reference=preprocess_result.reference_name,
-      converged=True, # OLS has no convergence concept
-      sample_size=len(Y),
-      warnings=warnings,
-      interpretation=input.interpretation,
 
       coefficients=results[1:],
       intercept=results[0],
-      f_statistic=model.fvalue,
-      p_value=model.f_pvalue,
-      r_squared=model.rsquared_adj,
+      sample_size=len(Y),
+
+      interpretation=input.interpretation,
       standardized=input.standardized,
-      rmse=np.sqrt(model.mse_resid)
+
+      fit_evaluation=LinearRegressionFitEvaluation(
+        converged=True, # OLS has no convergence concept
+        f_statistic=model.fvalue,
+        p_value=model.f_pvalue,
+        r_squared=model.rsquared_adj,
+        rmse=np.sqrt(model.mse_resid)
+      ),
+      predictions=prediction_results,
+
+      warnings=warnings,
     )

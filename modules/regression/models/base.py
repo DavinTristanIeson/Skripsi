@@ -30,6 +30,7 @@ class RegressionProcessXResult:
 class RegressionLoadResult:
   X: pd.DataFrame
   Y: pd.Series
+  independent_variables: list[str]
 
 @dataclass
 class BaseRegressionModel(abc.ABC):
@@ -106,7 +107,10 @@ class BaseRegressionModel(abc.ABC):
     Y = self._transform_data(Y, column)
     return RegressionLoadResult(
       X=X,
-      Y=Y
+      Y=Y,
+      independent_variables=list(map(
+        lambda group: group.name, groups
+      ))
     )
 
   def _process_X(self, X: pd.DataFrame, *, with_intercept: bool, interpretation: RegressionInterpretation, reference: Optional[str]):
@@ -180,6 +184,14 @@ class BaseRegressionModel(abc.ABC):
       # VIF doesn't make sense here.
       variance_inflation_factor=0.0
     )
+
+  def _regression_prediction_input(self, independent_variables: list[str]):
+    variable_count = len(independent_variables)
+    # Include intercept
+    constants = np.ones((variable_count, 1))
+    prediction_input = np.hstack([constants, np.eye(variable_count)])
+    return prediction_input
+
   
   @property
   def logger(self):

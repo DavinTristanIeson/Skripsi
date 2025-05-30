@@ -7,8 +7,8 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
 from modules.regression.models.cache import RegressionModelCacheManager
-from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation
-from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionInput, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
+from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionFitEvaluation, LogisticRegressionInput, LogisticRegressionPredictionResult, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionPredictionResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
 
 @dataclass
 class LogisticRegressionModel(BaseRegressionModel):
@@ -67,21 +67,41 @@ class LogisticRegressionModel(BaseRegressionModel):
         from_attributes=True,
       ))
 
+    model_predictions = model.predict(
+      self._regression_prediction_input(load_result.independent_variables)
+    )
+
+    prediction_results = list(map(
+      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
+        variable=variable,
+        prediction=LogisticRegressionPredictionResult(
+          probability=result
+        )
+      ),
+      load_result.independent_variables,
+      model_predictions
+    ))
+
     return LogisticRegressionResult(
       model_id=model_id,
-      converged=model.mle_retvals.get('converged', True),
       reference=preprocess_result.reference_name,
+      independent_variables=load_result.independent_variables,
       interpretation=input.interpretation,
-      sample_size=len(Y),
-      warnings=[],
 
       intercept = results[0],
       coefficients = results[1:],
-      p_value=model.llr_pvalue,
-      pseudo_r_squared=model.prsquared,
-      log_likelihood_ratio=model.llr,
-    )
 
+      sample_size=len(Y),
+      warnings=[],
+
+      fit_evaluation=LogisticRegressionFitEvaluation(
+        converged=model.mle_retvals.get('converged', True),
+        p_value=model.llr_pvalue,
+        pseudo_r_squared=model.prsquared,
+        log_likelihood_ratio=model.llr,
+      ),
+      predictions=prediction_results,
+    )
 
 @dataclass
 class MultinomialLogisticRegressionModel(BaseRegressionModel):
@@ -220,18 +240,39 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         intercept=intercept,
       ))
 
-    result = MultinomialLogisticRegressionResult(
+    model_predictions = model.predict(
+      self._regression_prediction_input(load_result.independent_variables)
+    )
+    prediction_results = list(map(
+      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
+        variable=variable,
+        prediction=MultinomialLogisticRegressionPredictionResult(
+          probabilities=result,
+          levels=result.columns,
+        )
+      ),
+      load_result.independent_variables,
+      model_predictions.iterrows()
+    ))
+  
+    return MultinomialLogisticRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
       reference_dependent=reference_dependent,
+      levels=list(map(lambda facet: facet.level, facets)),
+      independent_variables=load_result.independent_variables,
       interpretation=input.interpretation,
-      sample_size=len(Y),
-      warnings=warnings,
-      converged=model.mle_retvals.get('converged', True),
 
       facets=facets,
-      p_value=model.llr_pvalue,
-      pseudo_r_squared=model.prsquared,
-      log_likelihood_ratio=model.llr,
+
+      sample_size=len(Y),
+      warnings=[],
+
+      fit_evaluation=LogisticRegressionFitEvaluation(
+        converged=model.mle_retvals.get('converged', True),
+        p_value=model.llr_pvalue,
+        pseudo_r_squared=model.prsquared,
+        log_likelihood_ratio=model.llr,
+      ),
+      predictions=prediction_results,
     )
-    return result
