@@ -35,7 +35,8 @@ class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   thresholds: list[OrdinalRegressionThreshold]
   sample_sizes: list[OrdinalRegressionLevelSampleSize]
   fit_evaluation: OrdinalRegressionFitEvaluation
-  predictions: list[RegressionPredictionPerIndependentVariableResult[OrdinalRegressionPredictionResult]]
+  predictions: list[OrdinalRegressionPredictionResult]
+  baseline_prediction: OrdinalRegressionPredictionResult
   levels: list[str]
 
 __all__ = [

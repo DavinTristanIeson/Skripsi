@@ -72,13 +72,9 @@ class LinearRegressionModel(BaseRegressionModel):
     )
 
     prediction_results = list(map(
-      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
-        variable=variable,
-        prediction=LinearRegressionPredictionResult(
-          mean=result,
-        )
+      lambda result: LinearRegressionPredictionResult(
+        mean=result,
       ),
-      load_result.independent_variables,
       model_predictions
     ))
     
@@ -101,7 +97,8 @@ class LinearRegressionModel(BaseRegressionModel):
         r_squared=model.rsquared_adj,
         rmse=np.sqrt(model.mse_resid)
       ),
-      predictions=prediction_results,
+      predictions=prediction_results[1:],
+      baseline_prediction=prediction_results[0],
 
       warnings=warnings,
     )

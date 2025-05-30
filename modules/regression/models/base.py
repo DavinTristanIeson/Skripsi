@@ -189,7 +189,15 @@ class BaseRegressionModel(abc.ABC):
     variable_count = len(independent_variables)
     # Include intercept
     constants = np.ones((variable_count, 1))
+    intercept_prediction_input = np.hstack([
+      np.array([[1]]),
+      np.zeros((1, variable_count))
+    ])
     prediction_input = np.hstack([constants, np.eye(variable_count)])
+    prediction_input = np.vstack([
+      intercept_prediction_input,
+      prediction_input
+    ])
     return prediction_input
 
   

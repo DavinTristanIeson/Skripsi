@@ -29,7 +29,8 @@ class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
   intercept: LogisticRegressionCoefficient
   fit_evaluation: LogisticRegressionFitEvaluation
-  predictions: list[RegressionPredictionPerIndependentVariableResult[LogisticRegressionPredictionResult]]
+  predictions: list[LogisticRegressionPredictionResult]
+  baseline_prediction: LogisticRegressionPredictionResult
 
 class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
   level: str
@@ -47,7 +48,8 @@ class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseMod
 
   facets: list[MultinomialLogisticRegressionFacetResult]
   fit_evaluation: LogisticRegressionFitEvaluation
-  predictions: list[RegressionPredictionPerIndependentVariableResult[MultinomialLogisticRegressionPredictionResult]]
+  predictions: list[MultinomialLogisticRegressionPredictionResult]
+  baseline_prediction: MultinomialLogisticRegressionPredictionResult
 
 
 __all__ = [

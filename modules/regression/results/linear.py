@@ -16,10 +16,11 @@ class LinearRegressionPredictionResult(pydantic.BaseModel):
   
 class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[RegressionCoefficient]
-  intercept: Optional[RegressionCoefficient]
+  intercept: RegressionCoefficient
   # Model fit stats
   fit_evaluation: LinearRegressionFitEvaluation
-  predictions: list[RegressionPredictionPerIndependentVariableResult[LinearRegressionPredictionResult]]
+  predictions: list[LinearRegressionPredictionResult]
+  baseline_prediction: LinearRegressionPredictionResult
   standardized: bool
 
 

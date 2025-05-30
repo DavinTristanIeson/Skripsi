@@ -72,13 +72,9 @@ class LogisticRegressionModel(BaseRegressionModel):
     )
 
     prediction_results = list(map(
-      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
-        variable=variable,
-        prediction=LogisticRegressionPredictionResult(
-          probability=result
-        )
+      lambda result: LogisticRegressionPredictionResult(
+        probability=result
       ),
-      load_result.independent_variables,
       model_predictions
     ))
 
@@ -100,7 +96,8 @@ class LogisticRegressionModel(BaseRegressionModel):
         pseudo_r_squared=model.prsquared,
         log_likelihood_ratio=model.llr,
       ),
-      predictions=prediction_results,
+      predictions=prediction_results[1:],
+      baseline_prediction=prediction_results[0],
     )
 
 @dataclass
@@ -162,8 +159,6 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     original_X = load_result.X
     X = preprocess_result.X
     Y = load_result.Y
-
-    warnings = []
 
     Y = pd.Categorical(Y)
     
@@ -244,14 +239,10 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       self._regression_prediction_input(load_result.independent_variables)
     )
     prediction_results = list(map(
-      lambda variable, result: RegressionPredictionPerIndependentVariableResult(
-        variable=variable,
-        prediction=MultinomialLogisticRegressionPredictionResult(
-          probabilities=result,
-          levels=result.columns,
-        )
+      lambda result: MultinomialLogisticRegressionPredictionResult(
+        probabilities=result,
+        levels=result.columns,
       ),
-      load_result.independent_variables,
       model_predictions.iterrows()
     ))
   
@@ -274,5 +265,6 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         pseudo_r_squared=model.prsquared,
         log_likelihood_ratio=model.llr,
       ),
-      predictions=prediction_results,
+      predictions=prediction_results[1:],
+      baseline_prediction=prediction_results[0],
     )

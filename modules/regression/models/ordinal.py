@@ -108,15 +108,11 @@ class OrdinalRegressionModel(BaseRegressionModel):
       which="linear"
     )
     prediction_results = list(map(
-      lambda variable, latent_score, probabilities: RegressionPredictionPerIndependentVariableResult(
-        variable=variable,
-        prediction=OrdinalRegressionPredictionResult(
-          probabilities=probabilities,
-          levels=probabilities.columns,
-          latent_score=latent_score
-        )
+      lambda latent_score, probabilities: OrdinalRegressionPredictionResult(
+        probabilities=probabilities,
+        levels=probabilities.columns,
+        latent_score=latent_score
       ),
-      load_result.independent_variables,
       model_predictions_latent_scores,
       model_predictions_probabilities.iterrows()
     ))
@@ -141,5 +137,6 @@ class OrdinalRegressionModel(BaseRegressionModel):
         pseudo_r_squared=model.prsquared,
         converged=model.mle_retvals.get('converged', True),
       ),
-      predictions=prediction_results,
+      predictions=prediction_results[1:],
+      baseline_prediction=prediction_results[0],
     )
