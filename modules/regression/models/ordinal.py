@@ -6,6 +6,7 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.regression.exceptions import OrdinalRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel
+from modules.regression.models.cache import RegressionModelCacheManager
 from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionInput, OrdinalRegressionLevelSampleSize, OrdinalRegressionThreshold, OrdinalRegressionResult
 
 @dataclass
@@ -39,6 +40,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
     model = regression.fit(method='bfgs')
     self.logger.info(model.summary())
+    model_id = RegressionModelCacheManager().ordinal.save(model) # type: ignore
 
     confidence_intervals = model.conf_int()
     results: list[OrdinalRegressionCoefficient] = []
@@ -97,6 +99,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
       ))
 
     return OrdinalRegressionResult(
+      model_id=model_id,
       reference=preprocess_result.reference_name,
       interpretation=input.interpretation,
       sample_sizes=sample_sizes,

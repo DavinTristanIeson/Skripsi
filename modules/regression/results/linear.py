@@ -1,9 +1,7 @@
-from enum import Enum
 from typing import Optional
 import pydantic
 
-from modules.api.enum import ExposedEnum
-from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionInterpretation
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, RegressionCoefficient
 
 class LinearRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   standardized: bool
@@ -16,6 +14,10 @@ class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   r_squared: float
   standardized: bool
   rmse: float
+
+class LinearRegressionPredictionResult(pydantic.BaseModel):
+  mean: float
+  
 
 __all__ = [
   "LinearRegressionInput",

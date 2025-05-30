@@ -55,8 +55,18 @@ class OddsBasedRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
     )
 
 class BaseRegressionResult(pydantic.BaseModel):
+  model_id: str
   reference: Optional[str]
   interpretation: RegressionInterpretation
   converged: bool
   sample_size: int
   warnings: list[str]
+
+class BaseRegressionPredictionInput(pydantic.BaseModel):
+  model_id: str
+  active: list[bool]
+  def as_regression_input(self)->np.ndarray:
+    return np.array([True, *self.active])
+
+class BaseRegressionPredictionResult(pydantic.BaseModel):
+  value: float

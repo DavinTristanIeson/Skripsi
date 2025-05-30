@@ -39,6 +39,11 @@ class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseMod
   pseudo_r_squared: float
   log_likelihood_ratio: float
 
+class LogisticRegressionPredictionResult(pydantic.BaseModel):
+  probability: float
+
+class MultinomialLogisticRegressionPredictionResult(pydantic.BaseModel):
+  probabilities_per_class: list[float]
   
 __all__ = [
   "MultinomialLogisticRegressionInput",

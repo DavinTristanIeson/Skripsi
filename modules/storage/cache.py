@@ -44,6 +44,8 @@ class CacheClient(Generic[T]):
         return None
       # LRU
       logger.debug(f"[{self.name}] GET {key} (CACHE HIT)")
+      # Renew cached at so it stays for longer.
+      value.cached_at = datetime.datetime.now()
       self.records.move_to_end(key)
       return value.value
     

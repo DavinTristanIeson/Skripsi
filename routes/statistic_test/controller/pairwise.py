@@ -1,6 +1,5 @@
 import itertools
 
-import numpy as np
 from modules.comparison.engine import TableComparisonEngine, StatisticTestResult
 from modules.config.schema.base import ANALYZABLE_SCHEMA_COLUMN_TYPES
 from modules.logger.provisioner import ProvisionedLogger

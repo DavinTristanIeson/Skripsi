@@ -122,3 +122,12 @@ class ReservedSubdatasetNameException(ApiErrorAdaptableException):
         raise ReservedSubdatasetNameException(
           name=name,
         )
+      
+@dataclass
+class MissingStoredRegressionModelException(ApiErrorAdaptableException):
+  id: str
+  def to_api(self):
+    return ApiError(
+      message=f"There are no stored regression models with this ID \"{self.id}\". This may be because the regression model has been deleted due to inactivity; please fit the regression model again.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )

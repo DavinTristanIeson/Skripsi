@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from typing import cast
 import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.models.base import BaseRegressionModel
+from modules.regression.models.cache import RegressionModelCacheManager
 from modules.regression.results.base import RegressionCoefficient
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
 
@@ -37,6 +39,7 @@ class LinearRegressionModel(BaseRegressionModel):
 
     model = sm.OLS(Y, X).fit()
     self.logger.info(model.summary())
+    model_id = RegressionModelCacheManager().linear.save(model) # type: ignore
 
     results: list[RegressionCoefficient] = []
     confidence_intervals = model.conf_int()
@@ -65,16 +68,18 @@ class LinearRegressionModel(BaseRegressionModel):
       results.append(remaining_coefficient)
     
     return LinearRegressionResult(
+      model_id=model_id,
       reference=preprocess_result.reference_name,
       converged=True, # OLS has no convergence concept
+      sample_size=len(Y),
+      warnings=warnings,
+      interpretation=input.interpretation,
+
       coefficients=results[1:],
       intercept=results[0],
       f_statistic=model.fvalue,
       p_value=model.f_pvalue,
       r_squared=model.rsquared_adj,
       standardized=input.standardized,
-      interpretation=input.interpretation,
-      sample_size=len(Y),
-      warnings=warnings,
       rmse=np.sqrt(model.mse_resid)
     )

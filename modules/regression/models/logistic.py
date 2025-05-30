@@ -6,6 +6,7 @@ from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaCo
 from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
+from modules.regression.models.cache import RegressionModelCacheManager
 from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation
 from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionInput, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
 
@@ -35,6 +36,9 @@ class LogisticRegressionModel(BaseRegressionModel):
     from statsmodels.stats.outliers_influence import variance_inflation_factor
 
     model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+    self.logger.info(model.summary())
+    model_id = RegressionModelCacheManager().logistic.save(model) # type: ignore
+
     confidence_intervals = model.conf_int()
 
     results: list[LogisticRegressionCoefficient] = []
@@ -63,19 +67,19 @@ class LogisticRegressionModel(BaseRegressionModel):
         from_attributes=True,
       ))
 
-    self.logger.info(model.summary())
-
     return LogisticRegressionResult(
+      model_id=model_id,
       converged=model.mle_retvals.get('converged', True),
       reference=preprocess_result.reference_name,
+      interpretation=input.interpretation,
+      sample_size=len(Y),
+      warnings=[],
+
       intercept = results[0],
       coefficients = results[1:],
       p_value=model.llr_pvalue,
       pseudo_r_squared=model.prsquared,
       log_likelihood_ratio=model.llr,
-      interpretation=input.interpretation,
-      sample_size=len(Y),
-      warnings=[],
     )
 
 
@@ -166,6 +170,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     # Newton solver produces NaN too often.
     model = sm.MNLogit(Y, X).fit(maxiter=500, method="bfgs")
     self.logger.info(model.summary())
+    model_id = RegressionModelCacheManager().multinomial_logistic.save(model) # type: ignore
     
     confidence_intervals = model.conf_int()
 
@@ -216,15 +221,17 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       ))
 
     result = MultinomialLogisticRegressionResult(
-      facets=facets,
-      converged=model.mle_retvals.get('converged', True),
+      model_id=model_id,
       reference=preprocess_result.reference_name,
       reference_dependent=reference_dependent,
-      p_value=model.llr_pvalue,
-      pseudo_r_squared=model.prsquared,
-      log_likelihood_ratio=model.llr,
       interpretation=input.interpretation,
       sample_size=len(Y),
       warnings=warnings,
+      converged=model.mle_retvals.get('converged', True),
+
+      facets=facets,
+      p_value=model.llr_pvalue,
+      pseudo_r_squared=model.prsquared,
+      log_likelihood_ratio=model.llr,
     )
     return result

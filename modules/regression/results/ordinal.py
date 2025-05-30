@@ -32,6 +32,10 @@ class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   converged: bool
   warnings: list[str]
 
+class OrdinalRegressionPredictionResult(pydantic.BaseModel):
+  latent_score: float
+  probabilities: list[float]
+
 __all__ = [
   "OrdinalRegressionResult"
 ]

@@ -4,17 +4,19 @@ from fastapi import APIRouter
 from modules.api.wrapper import ApiResult
 
 from modules.comparison.engine import StatisticTestResult
-from modules.regression.results.base import BaseRegressionInput
-from modules.regression.results.linear import LinearRegressionInput, LinearRegressionResult
-from modules.regression.results.logistic import LogisticRegressionInput, LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionResult
-from modules.regression.results.ordinal import OrdinalRegressionInput, OrdinalRegressionResult
+from modules.regression.results.base import BaseRegressionPredictionInput
+from modules.regression.results.linear import LinearRegressionInput, LinearRegressionPredictionResult, LinearRegressionResult
+from modules.regression.results.logistic import LogisticRegressionInput, LogisticRegressionPredictionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput, MultinomialLogisticRegressionPredictionResult, MultinomialLogisticRegressionResult
+from modules.regression.results.ordinal import OrdinalRegressionInput, OrdinalRegressionPredictionResult, OrdinalRegressionResult
 from routes.dependencies.project import ProjectCacheDependency
 from .controller import (
   statistic_test, binary_statistic_test_on_contingency_table,
   binary_statistic_test_on_distribution, contingency_table,
   omnibus_statistic_test, subdataset_cooccurrence, pairwise_statistic_test,
   linear_regression, logistic_regression,
-  ordinal_regression, multinomial_logistic_regression
+  ordinal_regression, multinomial_logistic_regression,
+  linear_regression_predict, logistic_regression_predict,
+  multinomial_logistic_regression_predict, ordinal_regression_predict
 )
 
 from .model import (
@@ -69,7 +71,7 @@ async def post__cooccurrence(body: GetSubdatasetCooccurrenceSchema, cache: Proje
 
 
 @router.post("/regression/linear")
-async def post__regression_linear(cache: ProjectCacheDependency, input: LinearRegressionInput)->ApiResult[LinearRegressionResult]:
+async def post__linear_regression(cache: ProjectCacheDependency, input: LinearRegressionInput)->ApiResult[LinearRegressionResult]:
   return ApiResult(
     data=linear_regression(cache, input),
     message=None,
@@ -93,5 +95,33 @@ async def post__multinomial_logistic_regression(cache: ProjectCacheDependency, i
 async def post__ordinal_regression(cache: ProjectCacheDependency, input: OrdinalRegressionInput)->ApiResult[OrdinalRegressionResult]:
   return ApiResult(
     data=ordinal_regression(cache, input),
+    message=None,
+  )
+
+@router.post("/regression/prediction/linear")
+async def post__linear_regression_prediction(input: BaseRegressionPredictionInput)->ApiResult[LinearRegressionPredictionResult]:
+  return ApiResult(
+    data=linear_regression_predict(input),
+    message=None,
+  )
+
+@router.post("/regression/prediction/logistic")
+async def post__logistic_regression_prediction(input: BaseRegressionPredictionInput)->ApiResult[LogisticRegressionPredictionResult]:
+  return ApiResult(
+    data=logistic_regression_predict(input),
+    message=None,
+  )
+
+@router.post("/regression/prediction/logistic/multinomial")
+async def post__multinomial_logistic_regression_prediction(input: BaseRegressionPredictionInput)->ApiResult[MultinomialLogisticRegressionPredictionResult]:
+  return ApiResult(
+    data=multinomial_logistic_regression_predict(input),
+    message=None,
+  )
+
+@router.post("/regression/prediction/ordinal")
+async def post__ordinal_regression_prediction(input: BaseRegressionPredictionInput)->ApiResult[OrdinalRegressionPredictionResult]:
+  return ApiResult(
+    data=ordinal_regression_predict(input),
     message=None,
   )
