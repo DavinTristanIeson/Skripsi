@@ -37,9 +37,7 @@ class RegressionCoefficient(pydantic.BaseModel):
   value: float
   p_value: float
   std_err: float
-  sample_size: int
   confidence_interval: tuple[float, float]
-  variance_inflation_factor: float
   statistic: float
 
 class OddsBasedRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
@@ -54,9 +52,14 @@ class OddsBasedRegressionCoefficient(RegressionCoefficient, pydantic.BaseModel):
       np.exp(self.confidence_interval[1])
     )
 
+class RegressionIndependentVariableInfo(pydantic.BaseModel):
+  name: str
+  sample_size: int
+  variance_inflation_factor: float
+
 class BaseRegressionResult(pydantic.BaseModel):
   model_id: str
-  independent_variables: list[str]
+  independent_variables: list[RegressionIndependentVariableInfo]
   reference: Optional[str]
 
   interpretation: RegressionInterpretation
@@ -69,12 +72,16 @@ class BaseRegressionFitEvaluationResult(pydantic.BaseModel):
   p_value: float
 
 T = TypeVar("T")
-class RegressionPredictionPerIndependentVariableResult(Generic[T], pydantic.BaseModel):
+class RegressionPredictionPerIndependentVariableResult(pydantic.BaseModel, Generic[T]):
   variable: str
   prediction: T
 
 class BaseRegressionPredictionInput(pydantic.BaseModel):
   model_id: str
-  active: list[bool]
+  input: list[float]
   def as_regression_input(self)->np.ndarray:
-    return np.array([True, *self.active])
+    return np.array([1.0, *self.input])
+
+class RegressionDependentVariableLevelInfo(pydantic.BaseModel):
+  name: str
+  sample_size: int

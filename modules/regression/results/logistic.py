@@ -2,7 +2,7 @@ from typing import Optional
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInput(pydantic.BaseModel):
@@ -43,8 +43,8 @@ class MultinomialLogisticRegressionPredictionResult(pydantic.BaseModel):
   
 class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   reference: Optional[str]
-  levels: list[str]
   reference_dependent: str
+  levels: list[RegressionDependentVariableLevelInfo]
 
   facets: list[MultinomialLogisticRegressionFacetResult]
   fit_evaluation: LogisticRegressionFitEvaluation

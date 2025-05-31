@@ -37,14 +37,14 @@ class RegressionModelCacheManager(metaclass=Singleton):
 
   def __init__(self):
     self.linear = BaseRegressionModelCacheAdapter(
-      cache=CacheClient(name="Linear Regression Model", maxsize=20, ttl=5 * 60)
+      cache=CacheClient(name="Linear Regression Model", maxsize=20, ttl=None)
     )
     self.logistic = BaseRegressionModelCacheAdapter(
-      cache=CacheClient(name="Logistic Regression Model", maxsize=20, ttl=5 * 60)
+      cache=CacheClient(name="Logistic Regression Model", maxsize=20, ttl=None)
     )
     self.multinomial_logistic = BaseRegressionModelCacheAdapter(
-      cache=CacheClient(name="Multinomial Logistic Regression Model", maxsize=20, ttl=5 * 60)
+      cache=CacheClient(name="Multinomial Logistic Regression Model", maxsize=20, ttl=None)
     )
     self.ordinal = BaseRegressionModelCacheAdapter(
-      cache=CacheClient(name="Ordinal Regression Model", maxsize=20, ttl=5 * 60)
+      cache=CacheClient(name="Ordinal Regression Model", maxsize=20, ttl=None)
     )

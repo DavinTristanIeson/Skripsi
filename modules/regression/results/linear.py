@@ -17,6 +17,7 @@ class LinearRegressionPredictionResult(pydantic.BaseModel):
 class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[RegressionCoefficient]
   intercept: RegressionCoefficient
+  
   # Model fit stats
   fit_evaluation: LinearRegressionFitEvaluation
   predictions: list[LinearRegressionPredictionResult]

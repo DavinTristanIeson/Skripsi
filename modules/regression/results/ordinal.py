@@ -1,7 +1,7 @@
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 
 class OrdinalRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   pass
@@ -13,10 +13,6 @@ class OrdinalRegressionThreshold(pydantic.BaseModel):
   @pydantic.computed_field
   def odds_ratio(self)->float:
     return np.exp(self.value)
-
-class OrdinalRegressionLevelSampleSize(pydantic.BaseModel):
-  name: str
-  sample_size: int
 
 class OrdinalRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass
@@ -33,11 +29,10 @@ class OrdinalRegressionPredictionResult(pydantic.BaseModel):
 class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[OrdinalRegressionCoefficient]
   thresholds: list[OrdinalRegressionThreshold]
-  sample_sizes: list[OrdinalRegressionLevelSampleSize]
+  levels: list[RegressionDependentVariableLevelInfo]
   fit_evaluation: OrdinalRegressionFitEvaluation
   predictions: list[OrdinalRegressionPredictionResult]
   baseline_prediction: OrdinalRegressionPredictionResult
-  levels: list[str]
 
 __all__ = [
   "OrdinalRegressionResult"

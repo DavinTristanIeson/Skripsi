@@ -48,7 +48,7 @@ def multinomial_logistic_regression_predict(input: BaseRegressionPredictionInput
 
 def ordinal_regression_predict(input: BaseRegressionPredictionInput):
   model = RegressionModelCacheManager().ordinal.load(input.model_id)
-  X = np.array([[True, *input.active]])
+  X = np.array([[True, *input.input]])
   latent_variable = model.predict(X, which="linear")[0]
   probabilities = model.predict(X, which="prob")[0]
   return OrdinalRegressionPredictionResult(

@@ -7,7 +7,7 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
 from modules.regression.models.cache import RegressionModelCacheManager
-from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionFitEvaluation, LogisticRegressionInput, LogisticRegressionPredictionResult, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionPredictionResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
 
 @dataclass
@@ -47,12 +47,10 @@ class LogisticRegressionModel(BaseRegressionModel):
         name=str(col),
         value=model.params[col],
         std_err=model.bse[col],
-        sample_size=preprocess_result.sample_sizes[col],
 
         statistic=model.tvalues[col],
         p_value=model.pvalues[col],
         confidence_interval=confidence_intervals.loc[col, :],
-        variance_inflation_factor=variance_inflation_factor(X.values, col_idx),
       ))
     
     remaining_coefficient = self._calculate_remaining_coefficient(
@@ -68,7 +66,7 @@ class LogisticRegressionModel(BaseRegressionModel):
       ))
 
     model_predictions = model.predict(
-      self._regression_prediction_input(load_result.independent_variables)
+      self._regression_prediction_input(X)
     )
 
     prediction_results = list(map(
@@ -81,7 +79,7 @@ class LogisticRegressionModel(BaseRegressionModel):
     return LogisticRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
-      independent_variables=load_result.independent_variables,
+      independent_variables=preprocess_result.independent_variables,
       interpretation=input.interpretation,
 
       intercept = results[0],
@@ -129,13 +127,10 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     return RegressionCoefficient(
       name=str(preprocess.reference.name),
       value=test_result.effect[0],
-      sample_size=int(preprocess.reference.sum()),
       p_value=test_result.pvalue,
       std_err=test_result.sd[0, 0],
       confidence_interval=test_result.conf_int()[0].tolist(),
       statistic=test_result.statistic[0, 0],
-      # VIF doesn't make sense here.
-      variance_inflation_factor=0.0
     )
   
 
@@ -156,32 +151,32 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       interpretation=input.interpretation,
       reference=input.reference
     )
-    original_X = load_result.X
     X = preprocess_result.X
     Y = load_result.Y
 
-    Y = pd.Categorical(Y)
+    cat_Y = pd.Categorical(Y)
     
-    reference_dependent = input.reference_dependent or Y.categories[0]
-    if reference_dependent not in Y.categories:
-      raise DependentVariableReferenceMustBeAValidValueException(reference=reference_dependent, supported_values=Y.categories)
-    Y_categories = list(Y.categories)
+    reference_dependent = input.reference_dependent or cat_Y.categories[0]
+    if reference_dependent not in cat_Y.categories:
+      raise DependentVariableReferenceMustBeAValidValueException(reference=reference_dependent, supported_values=cat_Y.categories)
+    Y_categories = list(cat_Y.categories)
     idx = Y_categories.index(input.reference_dependent)
     if idx == -1:
       raise ValueError("Can't find the category that corresponds to reference dependent. This might be a developer oversight.")
     category = Y_categories.pop(idx)
     Y_categories.insert(0, category)
     # make the reference first so that the model automatically uses it as the baseline.
-    Y = Y.reorder_categories(Y_categories)
-    # Make sure that the category is first
-    Y = Y.rename_categories({
+    cat_Y = cat_Y.reorder_categories(Y_categories)
+    cat_Y = cat_Y.rename_categories({
       # Ensure that this is first alphabetically
       input.reference_dependent: "",
     })
-    
-    import statsmodels.api as sm
-    from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+    Y = pd.Series(cat_Y, index=Y.index)
+
+    print(X.index.symmetric_difference(Y.index))
+
+    import statsmodels.api as sm
     # Newton solver produces NaN too often.
     model = sm.MNLogit(Y, X).fit(maxiter=500, method="bfgs")
     self.logger.info(model.summary())
@@ -191,27 +186,18 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
 
     facets: list[MultinomialLogisticRegressionFacetResult] = []
     # First category is excluded
-    for row_idx, row in enumerate(Y.categories[1:]):
+    for row_idx, row in enumerate(Y.cat.categories[1:]):
       results: list[LogisticRegressionCoefficient] = []
       for col_idx, col in enumerate(X.columns):
-        if col == "const":
-          sample_size = (Y == row).sum()
-        else:
-          sample_size = cast(pd.Series, original_X.loc[Y == row, col]).sum()
-          
-        VIF = variance_inflation_factor(X.values, col_idx)
         results.append(LogisticRegressionCoefficient(
           name=str(col),
 
           value=model.params.at[col, row_idx],
           std_err=model.bse.at[col, row_idx],
-          sample_size=int(sample_size),
 
           statistic=model.tvalues.at[col, row_idx],
           p_value=model.pvalues.at[col, row_idx],
           confidence_interval=confidence_intervals.loc[(row, col)].to_list(),
-          
-          variance_inflation_factor=VIF,
         ))
       # This will definitely have issues due to how MNLogit works. But that's for future me to debug.
       remaining_coefficient = self._calculate_remaining_coefficient_logistic(
@@ -228,30 +214,32 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         ))
       intercept = results[0]
       intercept.name = row
-      intercept.sample_size = int((Y == row).sum())
       facets.append(MultinomialLogisticRegressionFacetResult(
         level=row,
         coefficients=results[1:],
         intercept=intercept,
       ))
 
+    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y)
+    raw_levels = list(map(lambda level: level.name, dependent_variable_levels))
     model_predictions = model.predict(
-      self._regression_prediction_input(load_result.independent_variables)
+      self._regression_prediction_input(X)
     )
     prediction_results = list(map(
       lambda result: MultinomialLogisticRegressionPredictionResult(
         probabilities=result,
-        levels=result.columns,
+        levels=raw_levels,
       ),
-      model_predictions.iterrows()
+      model_predictions,
     ))
+
   
     return MultinomialLogisticRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
       reference_dependent=reference_dependent,
-      levels=list(map(lambda facet: facet.level, facets)),
-      independent_variables=load_result.independent_variables,
+      levels=dependent_variable_levels,
+      independent_variables=preprocess_result.independent_variables,
       interpretation=input.interpretation,
 
       facets=facets,

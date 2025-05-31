@@ -11,14 +11,14 @@ from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, ReservedSubdatasetNameException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
-from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation
+from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionIndependentVariableInfo, RegressionInterpretation
 from modules.table.engine import TableEngine
 from modules.table.filter_variants import NamedTableFilter, TableFilter
 
 @dataclass
 class RegressionProcessXResult:
   X: pd.DataFrame
-  sample_sizes: pd.Series
+  independent_variables: list[RegressionIndependentVariableInfo]
   reference: Optional[pd.Series]
   @property
   def reference_name(self)->Optional[str]:
@@ -31,7 +31,6 @@ class RegressionLoadResult:
   X: pd.DataFrame
   Y: pd.Series
   independent_variables: list[str]
-
 @dataclass
 class BaseRegressionModel(abc.ABC):
   cache: ProjectCache
@@ -114,7 +113,8 @@ class BaseRegressionModel(abc.ABC):
     )
 
   def _process_X(self, X: pd.DataFrame, *, with_intercept: bool, interpretation: RegressionInterpretation, reference: Optional[str]):
-    sample_sizes = X.sum(axis=0)
+    sample_sizes = X.astype(np.int32).sum(axis=0)
+    independent_variable_names = list(map(str, X.columns))
 
     import statsmodels.api as sm
     reference_column: Optional[pd.Series] = None
@@ -141,18 +141,29 @@ class BaseRegressionModel(abc.ABC):
       X = new_X
     else:
       raise ValueError(f"\"{interpretation}\" is not a valid regression interpretation type.")
-
+    
     ReservedSubdatasetNameException.assert_column_names(list(map(str, X.columns)))
+    
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+    X = X.astype(np.float32)
+    VIF = pd.Series([variance_inflation_factor(X, col_idx) for col_idx, col in enumerate(X.columns)], index=X.columns)
     if with_intercept:
       # Ignore coincidences where X has 1s already
       X = sm.add_constant(X, prepend=True, has_constant="add") # type: ignore
     X = X.astype(np.float32)
 
-    sample_sizes["const"] = len(X)
+    independent_variables: list[RegressionIndependentVariableInfo] = []
+    for name in independent_variable_names:
+      independent_variables.append(RegressionIndependentVariableInfo(
+        name=name,
+        sample_size=sample_sizes[name] if name in sample_sizes.index else 0,
+        variance_inflation_factor=VIF[name] if name in VIF.index else 1.0
+      ))
+
     return RegressionProcessXResult(
       reference=reference_column,
       X=X,
-      sample_sizes=sample_sizes,
+      independent_variables=independent_variables,
     )
   
   def _calculate_remaining_coefficient(
@@ -176,17 +187,17 @@ class BaseRegressionModel(abc.ABC):
     return RegressionCoefficient(
       name=str(preprocess.reference.name),
       value=test_result.effect, # TODO: Sanity check coefficient weights with test_result.effect
-      sample_size=preprocess.reference.sum(),
       p_value=test_result.pvalue,
       std_err=test_result.sd,
       confidence_interval=test_result.conf_int()[0],
       statistic=test_result.statistic,
       # VIF doesn't make sense here.
-      variance_inflation_factor=0.0
     )
 
-  def _regression_prediction_input(self, independent_variables: list[str]):
-    variable_count = len(independent_variables)
+  def _regression_prediction_input(self, X: pd.DataFrame):
+    variable_count = len(X.columns)
+    if "const" in X.columns:
+      variable_count -= 1
     # Include intercept
     constants = np.ones((variable_count, 1))
     intercept_prediction_input = np.hstack([
@@ -198,7 +209,18 @@ class BaseRegressionModel(abc.ABC):
       intercept_prediction_input,
       prediction_input
     ])
+
     return prediction_input
+  
+  def _dependent_variable_levels(self, Y: pd.Series):
+    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = []
+    for level in Y.cat.categories:
+      sample_size = (Y == level).astype(np.int32).sum()
+      dependent_variable_levels.append(RegressionDependentVariableLevelInfo(
+        name=str(level),
+        sample_size=sample_size,
+      ))
+    return dependent_variable_levels
 
   
   @property
