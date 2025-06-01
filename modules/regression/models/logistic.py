@@ -70,15 +70,21 @@ class LogisticRegressionModel(BaseRegressionModel):
         from_attributes=True,
       ))
 
+    results[0].name = "Baseline"
+
     # region Predictions
     model_predictions = model.predict(
       self._regression_prediction_input(preprocess_result)
     )
 
     prediction_results = list(map(
-      lambda result: LogisticRegressionPredictionResult(
-        probability=result
+      lambda coefficient, probability: RegressionPredictionPerIndependentVariableResult(
+        variable=coefficient.name,
+        prediction=LogisticRegressionPredictionResult(
+          probability=probability,
+        )
       ),
+      results,
       model_predictions
     ))
 
@@ -101,7 +107,7 @@ class LogisticRegressionModel(BaseRegressionModel):
         log_likelihood_ratio=model.llr,
       ),
       predictions=prediction_results[1:],
-      baseline_prediction=prediction_results[0],
+      baseline_prediction=prediction_results[0].prediction,
     )
 
 @dataclass
@@ -234,7 +240,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
 
       # First coefficient is always intercept.
       intercept = results[0]
-      intercept.name = row
+      intercept.name = "Baseline"
       facets.append(MultinomialLogisticRegressionFacetResult(
         level=row,
         # Coefficients is everything after intercept
@@ -248,10 +254,14 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       self._regression_prediction_input(preprocess_result)
     )
     prediction_results = list(map(
-      lambda result: MultinomialLogisticRegressionPredictionResult(
-        probabilities=result,
-        levels=raw_levels,
+      lambda coefficient, result: RegressionPredictionPerIndependentVariableResult(
+        variable=coefficient.name,
+        prediction=MultinomialLogisticRegressionPredictionResult(
+          probabilities=result,
+          levels=raw_levels,
+        )
       ),
+      [facets[0].intercept, *facets[0].coefficients],
       model_predictions,
     ))
 
@@ -276,5 +286,5 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         log_likelihood_ratio=model.llr,
       ),
       predictions=prediction_results[1:],
-      baseline_prediction=prediction_results[0],
+      baseline_prediction=prediction_results[0].prediction,
     )

@@ -20,7 +20,7 @@ class LinearRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   
   # Model fit stats
   fit_evaluation: LinearRegressionFitEvaluation
-  predictions: list[LinearRegressionPredictionResult]
+  predictions: list[RegressionPredictionPerIndependentVariableResult[LinearRegressionPredictionResult]]
   baseline_prediction: LinearRegressionPredictionResult
   standardized: bool
 

@@ -1,5 +1,4 @@
 from typing import Optional
-import numpy as np
 import pydantic
 
 from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
@@ -29,7 +28,7 @@ class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
   intercept: LogisticRegressionCoefficient
   fit_evaluation: LogisticRegressionFitEvaluation
-  predictions: list[LogisticRegressionPredictionResult]
+  predictions: list[RegressionPredictionPerIndependentVariableResult[LogisticRegressionPredictionResult]]
   baseline_prediction: LogisticRegressionPredictionResult
 
 class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
@@ -48,7 +47,7 @@ class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseMod
 
   facets: list[MultinomialLogisticRegressionFacetResult]
   fit_evaluation: LogisticRegressionFitEvaluation
-  predictions: list[MultinomialLogisticRegressionPredictionResult]
+  predictions: list[RegressionPredictionPerIndependentVariableResult[MultinomialLogisticRegressionPredictionResult]]
   baseline_prediction: MultinomialLogisticRegressionPredictionResult
 
 

@@ -68,7 +68,7 @@ class LinearRegressionModel(BaseRegressionModel):
     )
     if remaining_coefficient is not None and preprocess_result.reference_idx is not None:
       results.insert(preprocess_result.reference_idx, remaining_coefficient)
-
+    results[0].name = "Baseline"
 
     # region Predictions
     model_predictions = model.predict(
@@ -76,9 +76,13 @@ class LinearRegressionModel(BaseRegressionModel):
     )
 
     prediction_results = list(map(
-      lambda result: LinearRegressionPredictionResult(
-        mean=result,
+      lambda coefficient, result: RegressionPredictionPerIndependentVariableResult(
+        variable=coefficient.name,
+        prediction=LinearRegressionPredictionResult(
+          mean=result,
+        )
       ),
+      results,
       model_predictions,
     ))
     
@@ -102,7 +106,7 @@ class LinearRegressionModel(BaseRegressionModel):
         rmse=np.sqrt(model.mse_resid)
       ),
       predictions=prediction_results[1:],
-      baseline_prediction=prediction_results[0],
+      baseline_prediction=prediction_results[0].prediction,
 
       warnings=[],
     )

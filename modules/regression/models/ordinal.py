@@ -7,7 +7,7 @@ from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.regression.exceptions import OrdinalRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
-from modules.regression.results.base import RegressionDependentVariableLevelInfo
+from modules.regression.results.base import RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionFitEvaluation, OrdinalRegressionInput, OrdinalRegressionPredictionResult, OrdinalRegressionThreshold, OrdinalRegressionResult
 
 @dataclass
@@ -97,35 +97,42 @@ class OrdinalRegressionModel(BaseRegressionModel):
         remaining_coefficient,
         from_attributes=True,
       ))
-
+    # Don't rename intercept to Baseline, ordinal regression doesn't have intercepts.
 
     # region Predictions
     # Order is same as coefficients (special case for GrandMeanDeviation!)
+    model_prediction_input = self._regression_prediction_input(preprocess_result)
     model_predictions_probabilities = model.predict(
-      self._regression_prediction_input(preprocess_result),
+      model_prediction_input,
       which="prob"
     )
     model_predictions_latent_scores = model.predict(
-      self._regression_prediction_input(preprocess_result),
+      model_prediction_input,
       which="linpred"
     )
     model_predictions_cumulative_probabilities = model.predict(
-      self._regression_prediction_input(preprocess_result),
+      model_prediction_input,
       which="cumprob"
     )
     prediction_results = list(map(
-      lambda latent_score, probabilities, cumulative_probabilities: OrdinalRegressionPredictionResult(
-        probabilities=probabilities,
-        cumulative_probabilities=cumulative_probabilities,
-        levels=dependent_variable_level_names,
-        latent_score=latent_score
+      lambda coefficient, latent_score, probabilities, cumulative_probabilities: RegressionPredictionPerIndependentVariableResult(
+        variable=coefficient.name if coefficient is not None else "Baseline",
+        prediction=OrdinalRegressionPredictionResult(
+          probabilities=probabilities,
+          cumulative_probabilities=cumulative_probabilities,
+          levels=dependent_variable_level_names,
+          latent_score=latent_score
+        )
       ),
+      # Add "None" to represent the missing intercept. (the intercept originally represented the baseline)
+      [None, *results],
       model_predictions_latent_scores,
       model_predictions_probabilities,
       model_predictions_cumulative_probabilities,
     ))
   
     return OrdinalRegressionResult(
+      # Ordinal doesn't have intercept
       model_id=model_id,
       reference=preprocess_result.reference_name,
       independent_variables=preprocess_result.independent_variables,
@@ -145,5 +152,5 @@ class OrdinalRegressionModel(BaseRegressionModel):
         converged=model.mle_retvals.get('converged', True),
       ),
       predictions=prediction_results[1:],
-      baseline_prediction=prediction_results[0],
+      baseline_prediction=prediction_results[0].prediction,
     )
