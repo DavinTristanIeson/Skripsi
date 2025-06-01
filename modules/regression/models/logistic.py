@@ -15,6 +15,7 @@ class LogisticRegressionModel(BaseRegressionModel):
   input: LogisticRegressionInput
 
   def fit(self):
+    # region Preprocess
     input = self.input
     load_result = self._load(
       groups=input.groups,
@@ -33,8 +34,8 @@ class LogisticRegressionModel(BaseRegressionModel):
     Y = load_result.Y
 
     import statsmodels.api as sm
-    from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+    # region Fit Model
     model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
     self.logger.info(model.summary())
     model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
@@ -56,20 +57,22 @@ class LogisticRegressionModel(BaseRegressionModel):
         confidence_interval=confidence_intervals.loc[col, :],
       ))
     
+    # Re-add reference coefficient for GrandMeanDeviation
     remaining_coefficient = self._calculate_remaining_coefficient(
       model=model,
       coefficients=model.params,
-      interpretation=input.interpretation,
       preprocess=preprocess_result,
     )
-    if remaining_coefficient is not None:
-      results.append(LogisticRegressionCoefficient.model_validate(
+    if remaining_coefficient is not None and preprocess_result.reference_idx is not None:
+      # Make sure to add the odds_ratio and odds_ratio_confidence_interval via LogisticRegressionCoefficient
+      results.insert(preprocess_result.reference_idx, LogisticRegressionCoefficient.model_validate(
         remaining_coefficient,
         from_attributes=True,
       ))
 
+    # region Predictions
     model_predictions = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation)
+      self._regression_prediction_input(preprocess_result)
     )
 
     prediction_results = list(map(
@@ -138,6 +141,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
   
 
   def fit(self):
+    # region Preprocess
     input = self.input
     load_result = self._load(
       groups=input.groups,
@@ -157,7 +161,9 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     X = preprocess_result.X
     Y = load_result.Y
 
+    # Make sure that the reference dependent variable is chosen by statsmodels (urgh, why can't we manually specify; maybe it's a Patsy option?)
     cat_Y = pd.Categorical(Y)
+    cat_Y = cat_Y.remove_unused_categories()
     
     reference_dependent = input.reference_dependent or cat_Y.categories[0]
     if reference_dependent not in cat_Y.categories:
@@ -166,12 +172,14 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     idx = Y_categories.index(input.reference_dependent)
     if idx == -1:
       raise ValueError("Can't find the category that corresponds to reference dependent. This might be a developer oversight.")
+    # Move the category to the front
     category = Y_categories.pop(idx)
     Y_categories.insert(0, category)
-    # make the reference first so that the model automatically uses it as the baseline.
+    # Make the reference category first so that the model automatically uses it as the baseline.
     cat_Y = cat_Y.reorder_categories(Y_categories)
     cat_Y = cat_Y.rename_categories({
-      # Ensure that this is first alphabetically
+      # Ensures that this is first alphabetically
+      # The category reorder is for our own purposes (Y.cat.categories is important, so make sure that reference is in front!), the renaming is for statsmodels.
       input.reference_dependent: "",
     })
 
@@ -182,18 +190,20 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     model = sm.MNLogit(Y, X).fit(maxiter=500, method="bfgs")
     self.logger.info(model.summary())
 
+    # Get dependent variable levels
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(
       Y, reference_dependent=reference_dependent
     )
     model_id = RegressionModelCacheManager().multinomial_logistic.save(RegressionModelCacheWrapper(
       model=model,
+      # Store the levels since statsmodels doesn't.
       levels=list(map(lambda level: level.name, dependent_variable_levels))
     ))
     
     confidence_intervals = model.conf_int()
 
     facets: list[MultinomialLogisticRegressionFacetResult] = []
-    # First category is excluded
+    # First category is excluded. First category is guaranteed to be the reference_dependent from the code above.
     for row_idx, row in enumerate(Y.cat.categories[1:]):
       results: list[LogisticRegressionCoefficient] = []
       for col_idx, col in enumerate(X.columns):
@@ -207,7 +217,8 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
           p_value=model.pvalues.at[col, row_idx],
           confidence_interval=confidence_intervals.loc[(row, col)].to_list(),
         ))
-      # This will definitely have issues due to how MNLogit works. But that's for future me to debug.
+
+      # Add the reference coefficient (this has to be done for every MNLogit level)
       remaining_coefficient = self._calculate_remaining_coefficient_logistic(
         model=model,
         coefficients=model.params,
@@ -215,22 +226,26 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         preprocess=preprocess_result,
         idx=row_idx,
       )
-      if remaining_coefficient is not None:
-        results.append(LogisticRegressionCoefficient.model_validate(
+      if remaining_coefficient is not None and preprocess_result.reference_idx is not None:
+        results.insert(preprocess_result.reference_idx, LogisticRegressionCoefficient.model_validate(
           remaining_coefficient,
           from_attributes=True,
         ))
+
+      # First coefficient is always intercept.
       intercept = results[0]
       intercept.name = row
       facets.append(MultinomialLogisticRegressionFacetResult(
         level=row,
+        # Coefficients is everything after intercept
         coefficients=results[1:],
         intercept=intercept,
       ))
 
+    # region Prediction
     raw_levels = list(map(lambda level: level.name, dependent_variable_levels))
     model_predictions = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation)
+      self._regression_prediction_input(preprocess_result)
     )
     prediction_results = list(map(
       lambda result: MultinomialLogisticRegressionPredictionResult(

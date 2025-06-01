@@ -13,13 +13,15 @@ from modules.regression.exceptions import NoIndependentVariableDataException, Re
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
 from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionIndependentVariableInfo, RegressionInterpretation
 from modules.table.engine import TableEngine
-from modules.table.filter_variants import NamedTableFilter, TableFilter
+from modules.table.filter_variants import NamedTableFilter
 
 @dataclass
 class RegressionProcessXResult:
   X: pd.DataFrame
   independent_variables: list[RegressionIndependentVariableInfo]
   reference: Optional[pd.Series]
+  reference_idx: Optional[int]
+  interpretation: RegressionInterpretation
   @property
   def reference_name(self)->Optional[str]:
     if self.reference is None:
@@ -31,6 +33,7 @@ class RegressionLoadResult:
   X: pd.DataFrame
   Y: pd.Series
   independent_variables: list[str]
+
 @dataclass
 class BaseRegressionModel(abc.ABC):
   cache: ProjectCache
@@ -113,11 +116,20 @@ class BaseRegressionModel(abc.ABC):
     )
 
   def _process_X(self, X: pd.DataFrame, *, with_intercept: bool, interpretation: RegressionInterpretation, reference: Optional[str]):
+    # X is guaranteed to be a boolean dataframe, so using .sum() is natural.
+    # This might be a headache if we want to support numbers in the future.
     sample_sizes = X.astype(np.int32).sum(axis=0)
+    # Get the names of the independent variables for easy enumeration
     independent_variable_names = list(map(str, X.columns))
 
     import statsmodels.api as sm
+
+    # Reference column will be excluded from the design matrix, but we still want to keep it to calculate things like the remaining
+    # coefficient for effect coding.
     reference_column: Optional[pd.Series] = None
+    # Reference IDX is necessary to insert the reference coefficient (effect coding) into the appropriate place.
+    # Technically we can just move it to the end, but I want to preserve the order (makes things so much more complicated though)
+    reference_idx: Optional[int] = None
     if interpretation == RegressionInterpretation.RelativeToReference:
       if reference is None:
         # Developer oversight
@@ -126,7 +138,9 @@ class BaseRegressionModel(abc.ABC):
       if not is_boolean_dataframe_mutually_exclusive(X):
         raise RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException()
       reference_column = X[reference]
-      X.drop(columns=[reference], inplace=True)
+      reference_idx = list(X.columns).index(reference)
+      # Remove ref
+      X = X.drop(columns=[reference])
     elif interpretation == RegressionInterpretation.RelativeToBaseline:
       # X must not be mutually exclusive
       if is_boolean_dataframe_mutually_exclusive(X):
@@ -138,20 +152,25 @@ class BaseRegressionModel(abc.ABC):
       reference = reference or X.columns[-1]
       new_X = one_hot_to_effect_coding(X, reference=reference)
       reference_column = X[reference] # mind the order
+      reference_idx = list(X.columns).index(reference)
       X = new_X
     else:
       raise ValueError(f"\"{interpretation}\" is not a valid regression interpretation type.")
     
+    # make sure there's no reserved names
     ReservedSubdatasetNameException.assert_column_names(list(map(str, X.columns)))
     
     from statsmodels.stats.outliers_influence import variance_inflation_factor
+    # Add constant so that we can calculate VIF
     X = X.astype(np.float32)
+    X = sm.add_constant(X, prepend=True, has_constant="add") # type: ignore
+    # VIF expects a constant column, so this is necessary.
     VIF = pd.Series([variance_inflation_factor(X, col_idx) for col_idx, col in enumerate(X.columns)], index=X.columns)
-    if with_intercept:
-      # Ignore coincidences where X has 1s already
-      X = sm.add_constant(X, prepend=True, has_constant="add") # type: ignore
-    X = X.astype(np.float32)
-
+    if not with_intercept:
+      # remove const if we don't need intercept (for ordinal regression)
+      X = X.drop(columns=["const"])
+    
+    # Get independent variable info (note that independent variable info order should not be conflated with the coefficients due to the reference column shuffling up there)
     independent_variables: list[RegressionIndependentVariableInfo] = []
     for name in independent_variable_names:
       independent_variables.append(RegressionIndependentVariableInfo(
@@ -162,7 +181,9 @@ class BaseRegressionModel(abc.ABC):
 
     return RegressionProcessXResult(
       reference=reference_column,
+      reference_idx=reference_idx,
       X=X,
+      interpretation=interpretation,
       independent_variables=independent_variables,
     )
   
@@ -171,50 +192,54 @@ class BaseRegressionModel(abc.ABC):
     model: Any,
     coefficients: pd.Series,
     preprocess: RegressionProcessXResult,
-    interpretation: RegressionInterpretation,
   )->Optional[RegressionCoefficient]:
-    if interpretation != RegressionInterpretation.GrandMeanDeviation or preprocess.reference is None:
+    if preprocess.interpretation != RegressionInterpretation.GrandMeanDeviation or preprocess.reference is None:
       return None
     reference_coefficient = -coefficients.iloc[1:].sum()
     # 0 to not test the intercept; -1 to test the remaining columns
     coefficient_weights = np.zeros_like(coefficients)
-    coefficient_weights[0] = 0
+    coefficient_weights[1:] = -1
     # It may be called a T-test, but the computation is based on the underlying model's distribution
     test_result = model.t_test(coefficient_weights)
 
-    print(reference_coefficient, test_result.effect)
-
     return RegressionCoefficient(
       name=str(preprocess.reference.name),
-      value=test_result.effect, # TODO: Sanity check coefficient weights with test_result.effect
+      value=test_result.effect, # Sanity check coefficient weights with test_result.effect
       p_value=test_result.pvalue,
       std_err=test_result.sd,
       confidence_interval=test_result.conf_int()[0],
       statistic=test_result.statistic,
-      # VIF doesn't make sense here.
     )
 
-  def _regression_prediction_input(self, X: pd.DataFrame, *, interpretation: RegressionInterpretation):
+  def _regression_prediction_input(self, preprocess: RegressionProcessXResult):
+    X = preprocess.X
     variable_count = len(X.columns)
     with_intercept = "const" in X.columns
     if with_intercept:
       variable_count -= 1
 
     prediction_input = np.eye(variable_count)
-    if interpretation == RegressionInterpretation.GrandMeanDeviation:
-      baseline_input = np.full((1, variable_count), -1)
-    else:
-      baseline_input = np.zeros((1, variable_count))
-
+    baseline_input = np.zeros((1, variable_count))
+    if preprocess.interpretation == RegressionInterpretation.GrandMeanDeviation and preprocess.reference_idx is not None:
+      prediction_input = np.vstack([
+        prediction_input[:preprocess.reference_idx],
+        # Insert a row for the reference variable
+        np.full((1, variable_count), -1),
+        prediction_input[preprocess.reference_idx+1:],
+      ])
+    # Other interpretations don't need to have the reference re-added.
+    
+      
+    # Add baseline and intercept
     prediction_input = np.vstack([baseline_input, prediction_input])
-
     if with_intercept:
       constants = np.ones((prediction_input.shape[0], 1))
       prediction_input = np.hstack([constants, prediction_input])
-      
+
     return prediction_input
   
   def _dependent_variable_levels(self, Y: pd.Series, reference_dependent: Optional[str]):
+    # get the dependent variable level info
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = []
     for level in Y.cat.categories:
       sample_size = (Y == level).astype(np.int32).sum()

@@ -13,6 +13,7 @@ from modules.regression.results.linear import LinearRegressionFitEvaluation, Lin
 class LinearRegressionModel(BaseRegressionModel):
   input: LinearRegressionInput
   def fit(self):
+    # region Preprocess
     input = self.input
     load_result = self._load(
       groups=input.groups,
@@ -30,11 +31,13 @@ class LinearRegressionModel(BaseRegressionModel):
     Y = load_result.Y
 
     from sklearn.discriminant_analysis import StandardScaler
+    # standardize Y if requested by user.
     if input.standardized:
       Y = StandardScaler().fit_transform(Y.to_numpy().reshape(-1, 1))[:, 0]
 
     import statsmodels.api as sm
 
+    # region Fitting
     model = sm.OLS(Y, X).fit()
     self.logger.info(model.summary())
     model_id = RegressionModelCacheManager().linear.save(RegressionModelCacheWrapper(
@@ -44,6 +47,7 @@ class LinearRegressionModel(BaseRegressionModel):
 
     results: list[RegressionCoefficient] = []
     confidence_intervals = model.conf_int()
+    # Coefficients is flat.
     for col_idx, col in enumerate(X.columns):
       results.append(RegressionCoefficient(
         name=str(col),
@@ -56,24 +60,26 @@ class LinearRegressionModel(BaseRegressionModel):
         confidence_interval=confidence_intervals.loc[col, :],
       ))
 
+    # Re-add missing coefficient for GrandMeanDeviation
     remaining_coefficient = self._calculate_remaining_coefficient(
       model=model,
       coefficients=model.params,
-      interpretation=input.interpretation,
       preprocess=preprocess_result,
     )
-    if remaining_coefficient is not None:
-      results.append(remaining_coefficient)
+    if remaining_coefficient is not None and preprocess_result.reference_idx is not None:
+      results.insert(preprocess_result.reference_idx, remaining_coefficient)
 
+
+    # region Predictions
     model_predictions = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation)
+      self._regression_prediction_input(preprocess_result)
     )
 
     prediction_results = list(map(
       lambda result: LinearRegressionPredictionResult(
         mean=result,
       ),
-      model_predictions
+      model_predictions,
     ))
     
     return LinearRegressionResult(

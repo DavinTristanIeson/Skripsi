@@ -15,6 +15,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
   input: OrdinalRegressionInput
 
   def fit(self):
+    # region Preprocess
     input = self.input
 
     load_result = self._load(
@@ -34,14 +35,18 @@ class OrdinalRegressionModel(BaseRegressionModel):
 
     warnings = []
 
+    # Don't bother with unused categories. 
     Y = Y.cat.remove_unused_categories()
     levels = Y.cat.categories
+    # Make sure there's more than 2 levels.
     OrdinalRegressionNotEnoughLevelsException.assert_levels(cast(Sequence[Any], levels), input.target)
 
+    # region Fitting
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
     model = regression.fit(method='bfgs')
     self.logger.info(model.summary())
 
+    # get dependent variables
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y, reference_dependent=None)
     dependent_variable_level_names = list(map(lambda level: level.name, dependent_variable_levels))
     model_id = RegressionModelCacheManager().ordinal.save(RegressionModelCacheWrapper(
@@ -74,7 +79,6 @@ class OrdinalRegressionModel(BaseRegressionModel):
     
     thresholds: list[OrdinalRegressionThreshold] = []
     for level_idx, raw_threshold in enumerate(raw_thresholds):
-      idx = len(X.columns) + level_idx
       thresholds.append(OrdinalRegressionThreshold(
         # This is also safe. Hopefully.
         from_level=levels[level_idx],
@@ -82,28 +86,31 @@ class OrdinalRegressionModel(BaseRegressionModel):
         value=raw_threshold,
       ))
 
+    # Get the remaining coefficient
     remaining_coefficient = self._calculate_remaining_coefficient(
       model=model,
       coefficients=model.params,
-      interpretation=input.interpretation,
       preprocess=preprocess_result,
     )
-    if remaining_coefficient is not None:
-      results.append(OrdinalRegressionCoefficient.model_validate(
+    if remaining_coefficient is not None and preprocess_result.reference_idx is not None:
+      results.insert(preprocess_result.reference_idx, OrdinalRegressionCoefficient.model_validate(
         remaining_coefficient,
         from_attributes=True,
       ))
 
+
+    # region Predictions
+    # Order is same as coefficients (special case for GrandMeanDeviation!)
     model_predictions_probabilities = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation),
+      self._regression_prediction_input(preprocess_result),
       which="prob"
     )
     model_predictions_latent_scores = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation),
+      self._regression_prediction_input(preprocess_result),
       which="linpred"
     )
     model_predictions_cumulative_probabilities = model.predict(
-      self._regression_prediction_input(X, interpretation=input.interpretation),
+      self._regression_prediction_input(preprocess_result),
       which="cumprob"
     )
     prediction_results = list(map(
