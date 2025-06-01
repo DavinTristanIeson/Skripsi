@@ -3,4 +3,4 @@ from . import general
 from . import table
 from . import topic
 from . import userdata
-from . import statistic_test
+from . import statistical_analysis
