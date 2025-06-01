@@ -6,7 +6,7 @@ from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaCo
 from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
-from modules.regression.models.cache import RegressionModelCacheManager
+from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionFitEvaluation, LogisticRegressionInput, LogisticRegressionPredictionResult, MultinomialLogisticRegressionFacetResult, MultinomialLogisticRegressionPredictionResult, MultinomialLogisticRegressionResult, LogisticRegressionResult, MultinomialLogisticRegressionInput
 
@@ -37,7 +37,10 @@ class LogisticRegressionModel(BaseRegressionModel):
 
     model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
     self.logger.info(model.summary())
-    model_id = RegressionModelCacheManager().logistic.save(model) # type: ignore
+    model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
+      model=model,
+      levels=None
+    ))
 
     confidence_intervals = model.conf_int()
 
@@ -66,7 +69,7 @@ class LogisticRegressionModel(BaseRegressionModel):
       ))
 
     model_predictions = model.predict(
-      self._regression_prediction_input(X)
+      self._regression_prediction_input(X, interpretation=input.interpretation)
     )
 
     prediction_results = list(map(
@@ -174,13 +177,18 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
 
     Y = pd.Series(cat_Y, index=Y.index)
 
-    print(X.index.symmetric_difference(Y.index))
-
     import statsmodels.api as sm
     # Newton solver produces NaN too often.
     model = sm.MNLogit(Y, X).fit(maxiter=500, method="bfgs")
     self.logger.info(model.summary())
-    model_id = RegressionModelCacheManager().multinomial_logistic.save(model) # type: ignore
+
+    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(
+      Y, reference_dependent=reference_dependent
+    )
+    model_id = RegressionModelCacheManager().multinomial_logistic.save(RegressionModelCacheWrapper(
+      model=model,
+      levels=list(map(lambda level: level.name, dependent_variable_levels))
+    ))
     
     confidence_intervals = model.conf_int()
 
@@ -220,10 +228,9 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         intercept=intercept,
       ))
 
-    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y)
     raw_levels = list(map(lambda level: level.name, dependent_variable_levels))
     model_predictions = model.predict(
-      self._regression_prediction_input(X)
+      self._regression_prediction_input(X, interpretation=input.interpretation)
     )
     prediction_results = list(map(
       lambda result: MultinomialLogisticRegressionPredictionResult(

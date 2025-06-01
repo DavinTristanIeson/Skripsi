@@ -4,7 +4,7 @@ import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.models.base import BaseRegressionModel
-from modules.regression.models.cache import RegressionModelCacheManager
+from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
 from modules.regression.results.linear import LinearRegressionFitEvaluation, LinearRegressionInput, LinearRegressionPredictionResult, LinearRegressionResult
 
@@ -37,7 +37,10 @@ class LinearRegressionModel(BaseRegressionModel):
 
     model = sm.OLS(Y, X).fit()
     self.logger.info(model.summary())
-    model_id = RegressionModelCacheManager().linear.save(model) # type: ignore
+    model_id = RegressionModelCacheManager().linear.save(RegressionModelCacheWrapper(
+      model=model,
+      levels=None
+    ))
 
     results: list[RegressionCoefficient] = []
     confidence_intervals = model.conf_int()
@@ -63,7 +66,7 @@ class LinearRegressionModel(BaseRegressionModel):
       results.append(remaining_coefficient)
 
     model_predictions = model.predict(
-      self._regression_prediction_input(X)
+      self._regression_prediction_input(X, interpretation=input.interpretation)
     )
 
     prediction_results = list(map(

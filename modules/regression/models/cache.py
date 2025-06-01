@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, Optional, TypeVar
 from modules.baseclass import Singleton
 from modules.regression.exceptions import MissingStoredRegressionModelException
 from modules.storage.cache import CacheClient, CacheItem
@@ -10,10 +10,16 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+
+@dataclass
+class RegressionModelCacheWrapper(Generic[T]):
+  model: T
+  levels: Optional[list[str]]
+
 @dataclass
 class BaseRegressionModelCacheAdapter(Generic[T]):
-  cache: CacheClient[T]
-  def save(self, model: T):
+  cache: CacheClient[RegressionModelCacheWrapper[T]]
+  def save(self, model: RegressionModelCacheWrapper[T]):
     import uuid
     id = uuid.uuid4().hex
     self.cache.set(CacheItem(
@@ -22,7 +28,7 @@ class BaseRegressionModelCacheAdapter(Generic[T]):
     ))
     return id
   
-  def load(self, id: str)->T:
+  def load(self, id: str)->RegressionModelCacheWrapper[T]:
     model = self.cache.get(id)
     if model is None:
       raise MissingStoredRegressionModelException(id=id)

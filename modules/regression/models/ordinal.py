@@ -6,7 +6,7 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.regression.exceptions import OrdinalRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel
-from modules.regression.models.cache import RegressionModelCacheManager
+from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionDependentVariableLevelInfo
 from modules.regression.results.ordinal import OrdinalRegressionCoefficient, OrdinalRegressionFitEvaluation, OrdinalRegressionInput, OrdinalRegressionPredictionResult, OrdinalRegressionThreshold, OrdinalRegressionResult
 
@@ -41,7 +41,13 @@ class OrdinalRegressionModel(BaseRegressionModel):
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
     model = regression.fit(method='bfgs')
     self.logger.info(model.summary())
-    model_id = RegressionModelCacheManager().ordinal.save(model) # type: ignore
+
+    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y, reference_dependent=None)
+    dependent_variable_level_names = list(map(lambda level: level.name, dependent_variable_levels))
+    model_id = RegressionModelCacheManager().ordinal.save(RegressionModelCacheWrapper(
+      model=model,
+      levels=dependent_variable_level_names
+    ))
 
     confidence_intervals = model.conf_int()
     results: list[OrdinalRegressionCoefficient] = []
@@ -65,8 +71,6 @@ class OrdinalRegressionModel(BaseRegressionModel):
     raw_threshold_increments = model.params[-(len(levels) - 2):]
     # Ignore the first and last element (that only contains -inf and inf)
     raw_thresholds = regression.transform_threshold_params(raw_threshold_increments)[1:-1]
-
-    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y)
     
     thresholds: list[OrdinalRegressionThreshold] = []
     for level_idx, raw_threshold in enumerate(raw_thresholds):
@@ -91,21 +95,27 @@ class OrdinalRegressionModel(BaseRegressionModel):
       ))
 
     model_predictions_probabilities = model.predict(
-      self._regression_prediction_input(X),
+      self._regression_prediction_input(X, interpretation=input.interpretation),
       which="prob"
     )
     model_predictions_latent_scores = model.predict(
-      self._regression_prediction_input(X),
-      which="linear"
+      self._regression_prediction_input(X, interpretation=input.interpretation),
+      which="linpred"
+    )
+    model_predictions_cumulative_probabilities = model.predict(
+      self._regression_prediction_input(X, interpretation=input.interpretation),
+      which="cumprob"
     )
     prediction_results = list(map(
-      lambda latent_score, probabilities: OrdinalRegressionPredictionResult(
+      lambda latent_score, probabilities, cumulative_probabilities: OrdinalRegressionPredictionResult(
         probabilities=probabilities,
-        levels=probabilities.columns,
+        cumulative_probabilities=cumulative_probabilities,
+        levels=dependent_variable_level_names,
         latent_score=latent_score
       ),
       model_predictions_latent_scores,
-      model_predictions_probabilities.iterrows()
+      model_predictions_probabilities,
+      model_predictions_cumulative_probabilities,
     ))
   
     return OrdinalRegressionResult(

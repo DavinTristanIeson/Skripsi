@@ -105,7 +105,7 @@ class OrdinalRegressionNotEnoughLevelsException(ApiErrorAdaptableException):
         dependent_variable=dependent_variable
       )
     
-RESERVED_SUBDATASET_NAMES = ["const", "Intercept"]
+RESERVED_SUBDATASET_NAMES = ["const", "Intercept", "Baseline"]
 @dataclass
 class ReservedSubdatasetNameException(ApiErrorAdaptableException):
   name: str

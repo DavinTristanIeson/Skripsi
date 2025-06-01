@@ -24,6 +24,7 @@ class OrdinalRegressionFitEvaluation(BaseRegressionFitEvaluationResult, pydantic
 class OrdinalRegressionPredictionResult(pydantic.BaseModel):
   latent_score: float
   probabilities: list[float]
+  cumulative_probabilities: list[float]
   levels: list[str]
 
 class OrdinalRegressionResult(BaseRegressionResult, pydantic.BaseModel):

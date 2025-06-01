@@ -194,30 +194,36 @@ class BaseRegressionModel(abc.ABC):
       # VIF doesn't make sense here.
     )
 
-  def _regression_prediction_input(self, X: pd.DataFrame):
+  def _regression_prediction_input(self, X: pd.DataFrame, *, interpretation: RegressionInterpretation):
     variable_count = len(X.columns)
-    if "const" in X.columns:
+    with_intercept = "const" in X.columns
+    if with_intercept:
       variable_count -= 1
-    # Include intercept
-    constants = np.ones((variable_count, 1))
-    intercept_prediction_input = np.hstack([
-      np.array([[1]]),
-      np.zeros((1, variable_count))
-    ])
-    prediction_input = np.hstack([constants, np.eye(variable_count)])
-    prediction_input = np.vstack([
-      intercept_prediction_input,
-      prediction_input
-    ])
 
+    prediction_input = np.eye(variable_count)
+    if interpretation == RegressionInterpretation.GrandMeanDeviation:
+      baseline_input = np.full((1, variable_count), -1)
+    else:
+      baseline_input = np.zeros((1, variable_count))
+
+    prediction_input = np.vstack([baseline_input, prediction_input])
+
+    if with_intercept:
+      constants = np.ones((prediction_input.shape[0], 1))
+      prediction_input = np.hstack([constants, prediction_input])
+      
     return prediction_input
   
-  def _dependent_variable_levels(self, Y: pd.Series):
+  def _dependent_variable_levels(self, Y: pd.Series, reference_dependent: Optional[str]):
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = []
     for level in Y.cat.categories:
       sample_size = (Y == level).astype(np.int32).sum()
+      level_name = str(level)
+      if len(level_name) == 0 and reference_dependent is not None:
+        level_name = reference_dependent
+
       dependent_variable_levels.append(RegressionDependentVariableLevelInfo(
-        name=str(level),
+        name=level_name,
         sample_size=sample_size,
       ))
     return dependent_variable_levels

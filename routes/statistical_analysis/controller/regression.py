@@ -22,39 +22,41 @@ def ordinal_regression(cache: ProjectCache, input: OrdinalRegressionInput)->Ordi
   return OrdinalRegressionModel(cache=cache, input=input).fit()
 
 def linear_regression_predict(input: BaseRegressionPredictionInput):
-  model = RegressionModelCacheManager().linear.load(input.model_id)
+  model_wrapper = RegressionModelCacheManager().linear.load(input.model_id)
   X = input.as_regression_input()
-  Y = model.predict(X)
+  Y = model_wrapper.model.predict(X)
   return LinearRegressionPredictionResult(
     mean=Y[0],
   )
 
 def logistic_regression_predict(input: BaseRegressionPredictionInput):
-  model = RegressionModelCacheManager().logistic.load(input.model_id)
+  model_wrapper = RegressionModelCacheManager().logistic.load(input.model_id)
   X = input.as_regression_input()
-  Y = model.predict(X)
+  Y = model_wrapper.model.predict(X)
   return LogisticRegressionPredictionResult(
     probability=Y[0]
   )
 
 def multinomial_logistic_regression_predict(input: BaseRegressionPredictionInput):
-  model = RegressionModelCacheManager().multinomial_logistic.load(input.model_id)
+  model_wrapper = RegressionModelCacheManager().multinomial_logistic.load(input.model_id)
   X = input.as_regression_input()
-  Y = model.predict(X)
+  Y = model_wrapper.model.predict(X)
   return MultinomialLogisticRegressionPredictionResult(
     probabilities=Y[0],
-    levels=Y.columns,
+    levels=model_wrapper.levels, # type: ignore
   )
 
 def ordinal_regression_predict(input: BaseRegressionPredictionInput):
-  model = RegressionModelCacheManager().ordinal.load(input.model_id)
-  X = np.array([[True, *input.input]])
-  latent_variable = model.predict(X, which="linear")[0]
-  probabilities = model.predict(X, which="prob")[0]
+  model_wrapper = RegressionModelCacheManager().ordinal.load(input.model_id)
+  X = np.array([input.input,]) # no intercept
+  latent_variable = model_wrapper.model.predict(X, which="linpred")[0]
+  probabilities = model_wrapper.model.predict(X, which="prob")[0]
+  cumulative_probabilities = model_wrapper.model.predict(X, which="cumprob")[0]
   return OrdinalRegressionPredictionResult(
     probabilities=probabilities, # type: ignore
-    latent_variable=latent_variable, # type: ignore
-    levels=probabilities.columns,
+    cumulative_probabilities=cumulative_probabilities, # type: ignore
+    latent_score=latent_variable, # type: ignore
+    levels=model_wrapper.levels, # type: ignore
   )
 
 __all__ = [
