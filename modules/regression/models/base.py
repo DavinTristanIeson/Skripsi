@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from modules.config.schema.base import SchemaColumnTypeEnum
-from modules.config.schema.schema_variants import SchemaColumn
+from modules.config.schema.schema_variants import SchemaColumn, TemporalPrecisionEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
 from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, ReservedSubdatasetNameException
@@ -32,6 +32,7 @@ class RegressionProcessXResult:
 class RegressionLoadResult:
   X: pd.DataFrame
   Y: pd.Series
+  column: Optional[SchemaColumn]
   independent_variables: list[str]
 
 @dataclass
@@ -53,6 +54,10 @@ class BaseRegressionModel(abc.ABC):
         False: "False"
       })
       return pd.Series(categorical_data, name=column.name)
+    if column.type == SchemaColumnTypeEnum.Temporal:
+      cat_Y_categories = pd.Categorical(data.sort_values(), ordered=True).categories
+      cat_Y = pd.Categorical(data, categories=cat_Y_categories, ordered=True)
+      return pd.Series(cat_Y, index=data.index)
     # if column.type == SchemaColumnTypeEnum.Temporal and column.internal:
     #   if column.temporal_precision == TemporalPrecisionEnum.Year:
     #     strftime_format = "%Y"
@@ -63,7 +68,8 @@ class BaseRegressionModel(abc.ABC):
     #   else:
     #     return data
     #   categories = data.sort_values().dt.strftime(strftime_format).unique()
-    #   categorical_data = pd.Categorical(data, categories=categories, ordered=True)
+    #   # Messes with reference_dependent.
+    #   categorical_data = pd.Categorical(data.dt.strftime(strftime_format), categories=categories, ordered=True)
     #   return pd.Series(categorical_data, name=column.name)
     return data
   
@@ -81,7 +87,9 @@ class BaseRegressionModel(abc.ABC):
       )),
       dtype=pd.BooleanDtype(),
     )
+    X = X.fillna(False)
 
+    column: Optional[SchemaColumn] = None
     if isinstance(target, str):
       Y = df[target]
       column = config.data_schema.assert_of_type(target, supported_types)
@@ -112,7 +120,8 @@ class BaseRegressionModel(abc.ABC):
       Y=Y,
       independent_variables=list(map(
         lambda group: group.name, groups
-      ))
+      )),
+      column=column
     )
 
   def _process_X(self, X: pd.DataFrame, *, with_intercept: bool, interpretation: RegressionInterpretation, reference: Optional[str]):
@@ -238,7 +247,7 @@ class BaseRegressionModel(abc.ABC):
 
     return prediction_input
   
-  def _dependent_variable_levels(self, Y: pd.Series, reference_dependent: Optional[str]):
+  def _dependent_variable_levels(self, Y: pd.Series, reference_dependent: Optional[str], column: Optional[SchemaColumn]):
     # get the dependent variable level info
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = []
     for level in Y.cat.categories:
@@ -246,6 +255,29 @@ class BaseRegressionModel(abc.ABC):
       level_name = str(level)
       if len(level_name) == 0 and reference_dependent is not None:
         level_name = reference_dependent
+
+      if column is not None and column.type == SchemaColumnTypeEnum.Temporal and column.internal and pd.api.types.is_datetime64_any_dtype(level):
+        # only format when temporal precision exists and level is datetime64.
+        strftime_format: Optional[str] = None
+        if column.temporal_precision == TemporalPrecisionEnum.Year:
+          strftime_format = "%Y"
+        elif column.temporal_precision == TemporalPrecisionEnum.Month:
+          strftime_format = "%m %Y"
+        elif column.temporal_precision == TemporalPrecisionEnum.Date:
+          strftime_format = "%d %m %Y"
+        else:
+          pass
+
+        if strftime_format is not None:
+          try:
+            dt_python = level.astype('datetime64[s]').tolist()
+            level_name = dt_python.strftime(strftime_format)
+          except Exception:
+            pass
+    #   categories = data.sort_values().dt.strftime(strftime_format).unique()
+    #   # Messes with reference_dependent.
+    #   categorical_data = pd.Categorical(data.dt.strftime(strftime_format), categories=categories, ordered=True)
+    #   return pd.Series(categorical_data, name=column.name)
 
       dependent_variable_levels.append(RegressionDependentVariableLevelInfo(
         name=level_name,

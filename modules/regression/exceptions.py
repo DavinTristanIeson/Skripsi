@@ -7,6 +7,7 @@ import pydantic
 from modules.api.wrapper import ApiError, ApiErrorAdaptableException
 from modules.table.filter_variants import NamedTableFilter
 
+@dataclass
 class MissingReferenceSubdatasetException(ApiErrorAdaptableException):
   groups: list[str]
   def to_api(self):

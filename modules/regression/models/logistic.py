@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Optional, cast
+from typing import Any, Optional
 import numpy as np
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
-from modules.logger.provisioner import ProvisionedLogger
 from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
@@ -198,7 +197,9 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
 
     # Get dependent variable levels
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(
-      Y, reference_dependent=reference_dependent
+      Y,
+      reference_dependent=reference_dependent,
+      column=load_result.column
     )
     model_id = RegressionModelCacheManager().multinomial_logistic.save(RegressionModelCacheWrapper(
       model=model,

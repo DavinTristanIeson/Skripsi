@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Sequence, cast
+import pandas as pd
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
@@ -35,6 +36,10 @@ class OrdinalRegressionModel(BaseRegressionModel):
 
     warnings = []
 
+    cat_Y_categories = pd.Categorical(Y.sort_values(), ordered=True).categories
+    cat_Y = pd.Categorical(Y, categories=cat_Y_categories, ordered=True)
+    Y = pd.Series(cat_Y, index=Y.index)
+
     # Don't bother with unused categories. 
     Y = Y.cat.remove_unused_categories()
     levels = Y.cat.categories
@@ -47,7 +52,11 @@ class OrdinalRegressionModel(BaseRegressionModel):
     self.logger.info(model.summary())
 
     # get dependent variables
-    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(Y, reference_dependent=None)
+    dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(
+      Y,
+      reference_dependent=None,
+      column=load_result.column
+    )
     dependent_variable_level_names = list(map(lambda level: level.name, dependent_variable_levels))
     model_id = RegressionModelCacheManager().ordinal.save(RegressionModelCacheWrapper(
       model=model,
@@ -81,8 +90,8 @@ class OrdinalRegressionModel(BaseRegressionModel):
     for level_idx, raw_threshold in enumerate(raw_thresholds):
       thresholds.append(OrdinalRegressionThreshold(
         # This is also safe. Hopefully.
-        from_level=levels[level_idx],
-        to_level=levels[level_idx + 1],
+        from_level=str(levels[level_idx]),
+        to_level=str(levels[level_idx + 1]),
         value=raw_threshold,
       ))
 
