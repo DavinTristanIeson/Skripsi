@@ -23,7 +23,7 @@ class BaseRegressionInput(pydantic.BaseModel):
 
   def assert_reference(self)->NamedTableFilter:
     if self.reference is None:
-      raise MissingReferenceSubdatasetException()
+      raise MissingReferenceSubdatasetException(groups=list(map(lambda group: group.name, self.groups)))
     return ReferenceMustBeAValidSubdatasetException.assert_reference(self.reference, self.groups)
   
   @pydantic.model_validator(mode="after")

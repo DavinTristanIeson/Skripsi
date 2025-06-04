@@ -65,14 +65,23 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
     
     original_documents: Sequence[str] = raw_documents[mask] # type: ignore
-    self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
-    # Light preprocessing for SBERT
-    sbert_documents = column.preprocessing.preprocess_light(original_documents)
-    self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
+
+    try:
+      document_vectors = cache.document_vectors.load(column.name)
+    except Exception as e:
+      document_vectors = None
+    if document_vectors is None:
+      self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
+      # Light preprocessing for SBERT
+      sbert_documents = column.preprocessing.preprocess_light(original_documents)
+      self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
+      self.state.embedding_documents = sbert_documents
+    else:
+      self.task.log_pending(f"As there are cached document vectors, light preprocessing will not be performed for the documents in column \"{column.name}\".")
+    # Else, no need to perform any more light preprocessing
 
     # Effect
     self.state.mask = mask
-    self.state.embedding_documents = sbert_documents
     self.state.documents = preprocess_documents # type: ignore
 
 @dataclass
@@ -84,7 +93,6 @@ class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
     df = cache.workspaces.load(cached=False)
     preprocess_name = column.preprocess_column.name
 
-    raw_documents = df[column.name]
     column.assert_internal_columns(df, with_preprocess=True, with_topics=False)
     
     # Cache
@@ -92,15 +100,8 @@ class BERTopicCacheOnlyPreprocessProcedureComponent(BERTopicProcedureComponent):
     mask = df[preprocess_name].notna()
     preprocess_documents = raw_preprocess_documents[mask]
     
-    original_documents: Sequence[str] = raw_documents[mask] # type: ignore
-    self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
-    sbert_documents = column.preprocessing.preprocess_light(original_documents)
-    # Light preprocessing for SBERT
-    self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
-
     # Effect
     self.state.mask = mask
-    self.state.embedding_documents = sbert_documents
     self.state.documents = preprocess_documents # type: ignore
 
 __all__ = [
