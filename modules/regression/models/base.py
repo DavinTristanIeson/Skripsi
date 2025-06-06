@@ -9,7 +9,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn, TemporalPrecisionEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
-from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, ReservedSubdatasetNameException
+from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException, ReservedSubdatasetNameException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
 from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionIndependentVariableInfo, RegressionInterpretation
 from modules.table.engine import TableEngine
@@ -146,6 +146,8 @@ class BaseRegressionModel(abc.ABC):
       # X must be mutually exclusive
       if not is_boolean_dataframe_mutually_exclusive(X):
         raise RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException()
+      if len(X.columns) < 2:
+        raise RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException()
       reference_column = X[reference]
       reference_idx = list(X.columns).index(reference)
       # Remove ref

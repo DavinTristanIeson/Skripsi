@@ -5,7 +5,7 @@ from statsmodels.miscmodels.ordinal_model import OrderedModel
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
-from modules.regression.exceptions import OrdinalRegressionNotEnoughLevelsException
+from modules.regression.exceptions import MultilevelRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
@@ -44,7 +44,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
     Y = Y.cat.remove_unused_categories()
     levels = Y.cat.categories
     # Make sure there's more than 2 levels.
-    OrdinalRegressionNotEnoughLevelsException.assert_levels(cast(Sequence[Any], levels), input.target)
+    MultilevelRegressionNotEnoughLevelsException.assert_levels("Ordinal", list(map(str, levels)), input.target)
 
     # region Fitting
     regression = OrderedModel(Y.cat.codes, X, distr='logit')

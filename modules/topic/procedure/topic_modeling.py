@@ -52,6 +52,8 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
 
     self.task.log_pending(f"Starting the topic modeling process for \"{column.name}\".")
 
+    self.task.logger.debug("Input shapes", len(documents), document_vectors.shape)
+
     with TimeLogger("Topic Modeling", "Performing Topic Modeling", report_start=True):
       topics, probs = model.fit_transform(documents, document_vectors)
 

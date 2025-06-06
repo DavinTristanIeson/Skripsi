@@ -44,6 +44,20 @@ class CachedEmbeddingBehavior(abc.ABC):
       logger.exception(e)
       logger.info(f"Failed to load cached embeddings from \"{self.embedding_path}\".")
       return None
+    
+  def delete_cached_embeddings(self):
+    if not os.path.exists(self.embedding_path):
+      logger.warning(f"Requested deletion of \"{self.embedding_path}\", but there's no file in that location.")
+      return
+    try:
+      os.remove(self.embedding_path)
+      logger.info(f"Deleted cached embeddings from \"{self.embedding_path}\".")
+      return
+    except Exception as e:
+      # Silent failure. Continue process as normal.
+      logger.exception(e)
+      logger.info(f"Failed to delete cached embeddings from \"{self.embedding_path}\".")
+      return
 
 class SavedModelBehavior(abc.ABC, Generic[TModel]):
   @property
@@ -111,7 +125,17 @@ class CachedEmbeddingTransformerBehavior(CachedEmbeddingBehavior, abc.ABC, Gener
   def transform(self, X: TInput):
     cached_embeddings = self.load_cached_embeddings()
     if cached_embeddings is not None:
-      return cached_embeddings
+      if not getattr(X, "__len__"):
+        logger.debug(f"Embedding transformer input doesn't support __len__. We cannot check if shape is synced.")
+        return cached_embeddings
+      
+      X_length = len(X) # type: ignore
+      logger.debug(f"Comparing shape of cached embeddings (shape: {cached_embeddings.shape}) with length of embedding transformer input (length: {X_length})")
+      if X_length == len(cached_embeddings): # type: ignore
+        logger.debug(f"Shape of cached embeddings matches input shape. Cached embeddings will be reused.")
+        return cached_embeddings
+      else:
+        logger.debug(f"Shape of cached embeddings doesn't match input shape. Embeddings will be recalculated.")
     
     embeddings = self._transform(X)
     self.save_embeddings(embeddings)

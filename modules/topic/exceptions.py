@@ -29,6 +29,7 @@ class UnsyncedDocumentVectorsException(ApiErrorAdaptableException):
   column: str
   observed_rows: int
   expected_rows: int
+  is_topic_modeling: bool
   def to_api(self):
     return ApiError(f"The topic modeling results are not in sync with the {self.type} for {self.column} (Found: {self.observed_rows}, Expected: {self.expected_rows}). The file may be corrupted. Try running the topic modeling procedure again.", HTTPStatus.BAD_REQUEST)
   
@@ -39,3 +40,9 @@ class MissingCachedTopicModelingResult(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(f"We were unable to find any {self.type} for {self.column} even though it should exist after the topic modeling algorithm has been executed. The file may be corrupted. Try running the topic modeling procedure again.", HTTPStatus.BAD_REQUEST)
   
+class MissingHyperparameterOptimizationConstraintsException(ApiErrorAdaptableException):
+  def to_api(self):
+    return ApiError(
+      message="Provide constraints for at least one hyperparameter for the experiments.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+    )

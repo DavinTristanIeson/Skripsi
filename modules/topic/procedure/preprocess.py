@@ -68,18 +68,25 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
 
     try:
       document_vectors = cache.document_vectors.load(column.name)
+      self.task.logger.debug(f"[Preprocessing] Cached document vectors shape: {document_vectors.shape}, versus documents count: {len(preprocess_documents)}")
+      if len(document_vectors) != len(original_documents):
+        # No longer synced
+        document_vectors = None
     except Exception as e:
       document_vectors = None
+
     if document_vectors is None:
       self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
       # Light preprocessing for SBERT
       sbert_documents = column.preprocessing.preprocess_light(original_documents)
       self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
       self.state.embedding_documents = sbert_documents
+      self.task.logger.debug(f"[Preprocessing] SBERT documents count: {len(sbert_documents)}")
     else:
-      self.task.log_pending(f"As there are cached document vectors, light preprocessing will not be performed for the documents in column \"{column.name}\".")
+      self.task.log_success(f"As there are cached document vectors, light preprocessing will not be performed for the documents in column \"{column.name}\".")
     # Else, no need to perform any more light preprocessing
 
+    self.task.logger.debug(f"[Preprocessing] Documents count: {len(preprocess_documents)}")
     # Effect
     self.state.mask = mask
     self.state.documents = preprocess_documents # type: ignore

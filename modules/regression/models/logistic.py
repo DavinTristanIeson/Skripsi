@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
-from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException
+from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException, MultilevelRegressionNotEnoughLevelsException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
@@ -189,6 +189,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     })
 
     Y = pd.Series(cat_Y, index=Y.index)
+    MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", list(map(str, Y.unique())), input.target)
 
     import statsmodels.api as sm
     # Newton solver produces NaN too often.

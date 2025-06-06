@@ -5,6 +5,7 @@ import pydantic
 
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.topic.evaluation.model import TopicEvaluationResult
+from modules.topic.exceptions import MissingHyperparameterOptimizationConstraintsException
 from modules.validation.array import StartBeforeEndValidator
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ class BERTopicHyperparameterConstraint(pydantic.BaseModel):
       self.max_topics is None and\
       self.topic_confidence_threshold is None
     ):
-      raise ValueError("Provide constraints for at least one hyperparameter for the experiments.")
+      raise MissingHyperparameterOptimizationConstraintsException("Provide constraints for at least one hyperparameter for the experiments.")
     return self
 
   def suggest(self, trial: "Trial")->BERTopicHyperparameterCandidate:

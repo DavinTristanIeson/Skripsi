@@ -51,21 +51,28 @@ class NoIndependentVariableDataException(ApiErrorAdaptableException):
 class RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(
-      message=f"Your independent variables (subdatasets) are not mutually exclusive with each other. This means that we cannot naively set a variable as a reference since there may be interactions with other variables that could cause the model to produce inaccurate coefficients. Please change the interpretation to something else.",
+      message=f"Your independent variables (subdatasets) are not mutually exclusive with each other. This means that we cannot naively set a variable as a reference since there may be interactions with other variables that could cause the model to produce inaccurate coefficients. Please change the interpretation to something else. Consider interpreting the regression as effects relative to the baseline instead.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+
+class RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException(ApiErrorAdaptableException):
+  def to_api(self):
+    return ApiError(
+      message=f"There should be at least two independent variables (subdatasets) for this interpretation; so that one independent variable will act as the reference.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
   
 class RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(
-      message=f"There are no rows that can be used as the baseline for your independent variables (your subdatasets) as they are mutually exclusive with each other. We cannot naively perform regression otherwise we risk producing inflated/false coefficients due to multicollinearity. Please change the interpretation to something else.",
+      message=f"There are no rows that can be used as the baseline for your independent variables (your subdatasets) as they are mutually exclusive with each other. We cannot naively perform regression otherwise we risk producing inflated/false coefficients due to multicollinearity. Consider interpreting the regression as effects relative to a reference or as deviation from the grand mean instead.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
 
 class RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(
-      message=f"Your independent variables (subdatasets) are not mutually exclusive from each other. This means that we cannot perform effect coding which is necessary to interpret regression results as deviation from the grand mean. Consider interpreting the regression as effects relative to a reference or a baseline instead.",
+      message=f"Your independent variables (subdatasets) are not mutually exclusive from each other. This means that we cannot perform effect coding which is necessary to interpret regression results as deviation from the grand mean. Consider interpreting the regression as effects relative to the baseline instead.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
     
@@ -88,20 +95,22 @@ class DependentVariableReferenceMustBeAValidValueException(ApiErrorAdaptableExce
     )
 
 @dataclass
-class OrdinalRegressionNotEnoughLevelsException(ApiErrorAdaptableException):
+class MultilevelRegressionNotEnoughLevelsException(ApiErrorAdaptableException):
+  type: str
   levels: Sequence[Any]
   dependent_variable: str
   def to_api(self):
     levels = list(map(str, self.levels))
     return ApiError(
-      message=f"Ordinal regression typically involves dependent variables with more than two levels, but the levels of {self.dependent_variable} only consists of {'{' + ', '.join(levels) + '}'}]. If there are only two levels, consider using logistic regression instead.",
+      message=f"{self.type} regression typically involves dependent variables with more than two levels, but the levels of {self.dependent_variable} only consists of {'{' + ', '.join(levels) + '}'}]. If there are only two levels, consider using logistic regression instead.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
   
   @staticmethod
-  def assert_levels(levels: Sequence[Any], dependent_variable: str):
+  def assert_levels(type: str, levels: Sequence[Any], dependent_variable: str):
     if len(levels) <= 2:
-      raise OrdinalRegressionNotEnoughLevelsException(
+      raise MultilevelRegressionNotEnoughLevelsException(
+        type=type,
         levels=levels,
         dependent_variable=dependent_variable
       )
