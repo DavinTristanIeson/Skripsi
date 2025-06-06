@@ -216,6 +216,14 @@ class BERTopicModelCacheAdapter(ProjectCacheAdapter["BERTopic"]):
     
   def _save(self, value, key):
     config = self.config.load()
+
+    if value.vectorizer_model is not None and getattr(value.vectorizer_model, "vocabulary_"):
+      # max_features from CountVectorizer turn vectorizer model IDs into np.int32 (probably for quicker sorting), but JSON reeeally doesn't like numpy types
+      # So we gotta transform the np.int32 back into ints first.
+      # ...very hacky way of doing this.
+      # If worst comes to worst, just disable the max unique words feature.
+      value.vectorizer_model.vocabulary_ = {word: int(index) for word, index in value.vectorizer_model.vocabulary_.items()}
+
     model_path = config.paths.allocate_path(ProjectPaths.BERTopic(key))
     with self.lock(key):
       value.save(model_path, "safetensors", save_ctfidf=True)

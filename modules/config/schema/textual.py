@@ -80,8 +80,10 @@ class TextPreprocessingConfig(pydantic.BaseModel):
     return sbert_corpus
 
   def preprocess_heavy(self, raw_documents: Sequence[str])->list[str]:
+    from gensim.corpora import Dictionary
     nlp = self.load_nlp()
-    greedy_corpus: list[str] = []
+    greedy_corpus: list[list[str]] = []
+    dictionary = Dictionary()
     spacy_docs = nlp.pipe(raw_documents)
     for doc in tqdm.tqdm(spacy_docs, desc="Preprocessing documents...", total=len(raw_documents)):
       tokens = []
@@ -108,37 +110,25 @@ class TextPreprocessingConfig(pydantic.BaseModel):
           continue
 
         tokens.append(token.lemma_.lower())
-      greedy_corpus.append(' '.join(tokens))
+      greedy_corpus.append(tokens)
+    dictionary.add_documents(greedy_corpus)
 
-    from sklearn.feature_extraction.text import CountVectorizer
-    vectorizer = CountVectorizer(
-      min_df=self.min_df,
-      max_df=self.max_df,
-      max_features=self.max_unique_words,
-      ngram_range=self.n_gram_range,
+    # just use gensim's dictionary rather than sklearn CountVectorizer; so that we don't have to redundantly
+    # join the string again to fit CountVectorizer.
+    dictionary.filter_extremes(
+      no_below=self.min_df,
+      no_above=float(self.max_df),
+      keep_n=10000000000000000 if self.max_unique_words is None else self.max_unique_words,
+      keep_tokens=self.ignore_tokens
     )
 
-    # Train naive vocabulary
-    vectorizer.fit(greedy_corpus)
-    if len(self.ignore_tokens) > 0:
-      vocabulary = list(vectorizer.vocabulary_.keys())
-      vocabulary.extend(self.ignore_tokens)
-      # No need to set min_df and max_df anymore
-      vectorizer = CountVectorizer(vocabulary=vocabulary)
-
-    analyzer = vectorizer.build_analyzer()
-
     corpus: list[str] = []
-    for original_text in greedy_corpus:
-      tokens: Sequence[str] = list(analyzer(original_text))
-      if len(tokens) < self.min_document_length:
-        corpus.append(cast(str, None))
+    for doc in greedy_corpus:
+      filtered_doc = list(filter(lambda token: token in dictionary.token2id, doc))
+      if len(filtered_doc) < self.min_document_length:
+        corpus.append(None) # type: ignore
         continue
-      
-      # Make sure to join ngrams with _
-      joined_tokens = map(lambda token: token.replace(' ', '_'), tokens)
-      corpus.append(' '.join(joined_tokens))
-
+      corpus.append(' '.join(filtered_doc))
     return corpus
   
 
