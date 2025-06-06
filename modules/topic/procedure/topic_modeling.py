@@ -22,37 +22,10 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
     document_vectors = self.state.document_vectors
     model = self.state.model
 
-
     bertopic_path = config.paths.full_path(os.path.join(ProjectPaths.BERTopic(column.name)))
 
-    if os.path.exists(bertopic_path):
-      # Cache
-      self.task.log_pending(f"Loading cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
-      new_model: Optional[BERTopic] = None
-      try:
-        loaded_model = BERTopic.load(bertopic_path, embedding_model=model.embedding_model)
-        loaded_model.umap_model = model.umap_model
-        loaded_model.hdbscan_model = model.hdbscan_model
-
-        new_model = loaded_model
-        self.task.log_success(f"Loaded cached BERTopic model for \"{column.name}\" from \"{bertopic_path}\".")
-      except Exception as e:
-        self.task.log_error(f"Failed to load cached BERTopic model from {bertopic_path}. Re-fitting BERTopic model again.")
-        logger.error(e)
-
-      if new_model:
-        # Only runs if we successfully loaded cached BERTopic
-        topics_of_model_is_synced_with_current_documents = new_model.topics_ and len(new_model.topics_) == len(documents)
-        if topics_of_model_is_synced_with_current_documents:
-          self.state.model = new_model
-          self.state.document_topic_assignments = np.array(new_model.topics_, dtype=np.int32)
-          return
-        # Can't use cached model.
-        self.task.log_error(f"Cached BERTopic model in {bertopic_path} is not synchronized with current dataset. Re-fitting BERTopic model again.")
-
     self.task.log_pending(f"Starting the topic modeling process for \"{column.name}\".")
-
-    self.task.logger.debug("Input shapes", len(documents), document_vectors.shape)
+    self.task.logger.debug(f"Input shapes: Documents={len(documents)} Document Vectors={document_vectors.shape}")
 
     with TimeLogger("Topic Modeling", "Performing Topic Modeling", report_start=True):
       topics, probs = model.fit_transform(documents, document_vectors)

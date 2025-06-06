@@ -266,6 +266,11 @@ class GenericEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray], abc.ABC):
     with self.lock(key):
       cached_vectors = cached_model.load_cached_embeddings()
     df = self.workspace.load()
+    if textual_column.preprocess_column.name not in df:
+      raise MissingCachedTopicModelingResult(
+        type="preprocessed documents",
+        column=key,
+      )
     documents_column = df[textual_column.preprocess_column.name]
     mask = documents_column.notna() & (documents_column.str.len() > 0)
     corpus_size = len(df[mask])
@@ -290,19 +295,51 @@ class GenericEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray], abc.ABC):
 
 
 @dataclass
-class DocumentEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
-  def _get_file_path(self, column: str)->str:
-    return ProjectPaths.DocumentEmbeddings(column)
+class DocumentEmbeddingsCacheAdapter(ProjectCacheAdapter[pd.DataFrame]):
+  config: ConfigCacheAdapter
+  workspace: WorkspaceCacheAdapter
 
-  def _get_cached_model(self, column)->CachedEmbeddingBehavior:
-    return BERTopicEmbeddingModelFactory(
+  def lock(self, key: str):
+    return ProjectFileLockManager().lock_file(
       project_id=self.project_id,
-      column=column
-    ).build()
+      path=ProjectPaths.DocumentEmbeddings(key),
+      wait=True,
+    )
 
-  def _get_label(self)->str:
-    return "document vectors"
-  
+  def _load(self, key):
+    config = self.config.load()
+    
+    # Path should exist
+    try:
+      path = config.paths.assert_path(ProjectPaths.DocumentEmbeddings(key))
+    except FileNotExistsException:
+      raise MissingCachedTopicModelingResult(
+        type="document vectors",
+        column=key,
+      )
+    
+    with self.lock(key):
+      try:
+        # File may be corrupted
+        cached_vectors = pd.read_parquet(path)
+      except Exception as e:
+        logger.exception(e)
+        raise CorruptedFileException(CorruptedFileException.format_message(
+          path=path,
+          purpose="document vectors",
+          solution="Try running the topic model again without reusing cached document vectors."
+        ))
+      
+      # Directly return, no further processing
+      return cached_vectors
+     
+  def _save(self, value, key):
+    config = self.config.load()
+    path = config.paths.allocate_path(ProjectPaths.DocumentEmbeddings(key))
+    logger.debug(f"Saving document vectors in {path}...")
+
+    with atomic_write(path, mode="binary") as f:
+      value.to_parquet(f)
 @dataclass
 class UMAPEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
   def _get_file_path(self, column: str)->str:

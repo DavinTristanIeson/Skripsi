@@ -59,61 +59,6 @@ class CachedEmbeddingBehavior(abc.ABC):
       logger.info(f"Failed to delete cached embeddings from \"{self.embedding_path}\".")
       return
 
-class SavedModelBehavior(abc.ABC, Generic[TModel]):
-  @property
-  @abc.abstractmethod
-  def embedding_model_path(self)->str:
-    ...
-  
-  @abc.abstractmethod
-  def _save_model(self, model: TModel):
-    ...
-
-  @abc.abstractmethod
-  def _load_model(self)->TModel:
-    ...
-
-  @abc.abstractmethod
-  def load_default_model(self)->TModel:
-    ...
-
-  def save_model(self, model: TModel):
-    os.makedirs(os.path.dirname(self.embedding_model_path), exist_ok=True)
-    self._save_model(model)
-    logger.info(f"Saved model in \"{self.embedding_model_path}\"")
-
-  def load_model(self)->Optional[TModel]:
-    if not os.path.exists(self.embedding_model_path):
-      return None
-    try:
-      model = cast(TModel, self._load_model())
-      return model
-    except Exception as e:
-      logger.exception(e)
-      logger.error(f"Failed to load cached model from \"{self.embedding_model_path}\". Creating a new model...")
-      return None
-
-@dataclass
-class SavedModelTransformerBehavior(SavedModelBehavior, abc.ABC, Generic[TModel, TInput]):
-  model: TModel = field(init=False)
-
-  @abc.abstractmethod
-  def _fit(self, X: TInput):
-    ...
-
-  def fit(self, X: TInput):
-    model = self.load_model()
-    if model:
-      self.model = model
-      return self
-    model = self.load_default_model()
-    self.model = model
-
-    self._fit(X)
-
-    self.save_model(model)
-    return self
-
 @dataclass
 class CachedEmbeddingTransformerBehavior(CachedEmbeddingBehavior, abc.ABC, Generic[TModel, TInput]):
   model: TModel = field(init=False)
@@ -143,7 +88,5 @@ class CachedEmbeddingTransformerBehavior(CachedEmbeddingBehavior, abc.ABC, Gener
   
 __all__ = [
   "CachedEmbeddingBehavior",
-  "SavedModelBehavior",
   "CachedEmbeddingTransformerBehavior",
-  "SavedModelTransformerBehavior"
 ]

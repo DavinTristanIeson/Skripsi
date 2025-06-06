@@ -29,7 +29,6 @@ class UnsyncedDocumentVectorsException(ApiErrorAdaptableException):
   column: str
   observed_rows: int
   expected_rows: int
-  is_topic_modeling: bool
   def to_api(self):
     return ApiError(f"The topic modeling results are not in sync with the {self.type} for {self.column} (Found: {self.observed_rows}, Expected: {self.expected_rows}). The file may be corrupted. Try running the topic modeling procedure again.", HTTPStatus.BAD_REQUEST)
   

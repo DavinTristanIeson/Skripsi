@@ -61,7 +61,7 @@ class ProjectCache:
       project_id=project_id,
       config=self.config_cache,
       workspace=self.workspaces,
-      cache=CacheClient[np.ndarray](
+      cache=CacheClient[pd.DataFrame](
         name="Document Vectors", maxsize=5, ttl=5 * 60
       ),
     )

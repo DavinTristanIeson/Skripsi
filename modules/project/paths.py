@@ -39,7 +39,7 @@ class ProjectPaths(SimpleNamespace):
   def Topics(column: str):
     return os.path.join(ProjectPaths.TopicModelingFolder(column), ProjectPaths.TopicsFileName)
 
-  DocumentEmbeddingsFileName = "document_vectors.npy"
+  DocumentEmbeddingsFileName = "document_vectors.parquet"
   @staticmethod
   def DocumentEmbeddings(column: str):
     return os.path.join(

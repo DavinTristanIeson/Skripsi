@@ -2,10 +2,13 @@ from dataclasses import dataclass
 import threading
 from typing import Sequence, cast
 
+import pandas as pd
+
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import TextualSchemaColumn
 from modules.project.cache import ProjectCache
 from modules.project.paths import ProjectPathManager
+from modules.topic.bertopic_ext.embedding import BERTopicEmbeddingModelPreprocessingPreference, get_embedding_model_preference
 from modules.topic.procedure.base import BERTopicProcedureComponent
 
 @dataclass
@@ -41,7 +44,8 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     df = cache.workspaces.load(cached=False)
     preprocess_name = column.preprocess_column.name
 
-    raw_documents = df[column.name]
+    raw_documents_series = df[column.name]
+    document_vector_mask = raw_documents_series.notna() & raw_documents_series.str.len() > 0
     if column.preprocess_column.name in df.columns:
       # Cache
       raw_preprocess_documents = df[preprocess_name]
@@ -50,12 +54,11 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       self.task.log_success(f"Using the preprocessed documents in column \"{column.preprocess_column.name}\".")
     else:
       # Compute
-      original_mask = raw_documents.notna()
-      original_documents: Sequence[str] = raw_documents[original_mask] # type: ignore
-
       self.task.log_pending(f"Preprocessing the documents in column \"{column.name}\". Text preprocessing may take some time...")
       # preprocess_topic_keywords set NA for invalid documents, so we need to recompute mask
-      df.loc[original_mask, preprocess_name] = column.preprocessing.preprocess_heavy(original_documents) # type: ignore
+      df.loc[document_vector_mask, preprocess_name] = column.preprocessing.preprocess_heavy(
+        cast(Sequence[str], raw_documents_series[document_vector_mask])
+      )
       mask = df[preprocess_name].notna()
       preprocess_documents = df.loc[mask, preprocess_name]
       self.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
@@ -64,31 +67,41 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     if len(preprocess_documents) == 0:
       raise ValueError(f"\"{column.name}\" does not contain any valid documents after the preprocessing step. Either change the preprocessing configuration of \"{column.name}\" to be more lax (e.g: lower the min word frequency, min document length), or set the type of this column to Unique.")
     
-    original_documents: Sequence[str] = raw_documents[mask] # type: ignore
-
     try:
       document_vectors = cache.document_vectors.load(column.name)
-      self.task.logger.debug(f"[Preprocessing] Cached document vectors shape: {document_vectors.shape}, versus documents count: {len(preprocess_documents)}")
-      if len(document_vectors) != len(original_documents):
-        # No longer synced
+      # Try to access mask. If this fails, then documents are desynced with cached embeddings.
+      empty_count = document_vectors.loc[mask, :].isna().sum().sum()
+      if empty_count > 0:
+        self.task.logger.warning(f"Cached document vectors contains {empty_count} NA values. Document vectors will need to be recalculated.")
         document_vectors = None
     except Exception as e:
+      self.task.logger.debug(f"An exception occurred while loading document vectors: {e}. Documents will be lightly preprocessed just in case the embedding model needs them.")
       document_vectors = None
 
     if document_vectors is None:
+      # Only preprocess lightly if document_vectors doesn't exist
       self.task.log_pending(f"Performing light preprocessing for the documents in column \"{column.name}\". This shouldn't take too long...")
       # Light preprocessing for SBERT
-      sbert_documents = column.preprocessing.preprocess_light(original_documents)
-      self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\". {len(original_documents) - len(preprocess_documents)} document(s) has been excluded from the topic modeling process.")
-      self.state.embedding_documents = sbert_documents
-      self.task.logger.debug(f"[Preprocessing] SBERT documents count: {len(sbert_documents)}")
+      # Preprocess everything at once, including documents that are not included in the documents after preprocessing. This is so that we can make better use of the document vector cache.
+      # Otherwise document vector cache has to be recalculated whenever document preprocessing accidentally excludes some previously existing document.
+      embedding_documents = raw_documents_series.copy()
+      embedding_documents[document_vector_mask] = column.preprocessing.preprocess_light(
+        cast(Sequence[str], raw_documents_series[document_vector_mask])
+      )
+      embedding_documents[~document_vector_mask] = pd.NA
+      self.task.log_success(f"Finished performing light preprocessing for the documents in column \"{column.name}\".")
     else:
+      embedding_documents = raw_documents_series.copy()
       self.task.log_success(f"As there are cached document vectors, light preprocessing will not be performed for the documents in column \"{column.name}\".")
     # Else, no need to perform any more light preprocessing
 
     self.task.logger.debug(f"[Preprocessing] Documents count: {len(preprocess_documents)}")
     # Effect
     self.state.mask = mask
+    if get_embedding_model_preference(column) == BERTopicEmbeddingModelPreprocessingPreference.Heavy:
+      self.state.embedding_documents = preprocess_documents
+    else:
+      self.state.embedding_documents = raw_documents_series
     self.state.documents = preprocess_documents # type: ignore
 
 @dataclass

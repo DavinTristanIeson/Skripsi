@@ -22,8 +22,8 @@ class BERTopicIntermediateState:
 
   # Configured BERTopic model
   model: "BERTopic"
-  # Documents used for embedding
-  embedding_documents: list[str]
+  # Documents used for embedding. This contains a Series so that we can create an index-based mapping to document vectors
+  embedding_documents: pd.Series
   # Documents used for c-TF-IDF
   documents: pd.Series
   # Marks which documents are excluded from the original dataset

@@ -11,7 +11,6 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 
-from modules.api.wrapper import ApiError
 from modules.config import TextualSchemaColumn
 from modules.exceptions.dependencies import DependencyImportException, InvalidValueTypeException
 from modules.logger.provisioner import ProvisionedLogger
@@ -19,7 +18,6 @@ from modules.project.paths import ProjectPathManager, ProjectPaths
 from modules.config.schema.textual import DocumentEmbeddingMethodEnum
 from modules.logger import TimeLogger
 from modules.storage.atomic import atomic_write
-from modules.storage.transformer import SavedModelTransformerBehavior, CachedEmbeddingTransformerBehavior
 
 if TYPE_CHECKING:
   from gensim.models import Doc2Vec
@@ -37,31 +35,20 @@ class _DocumentEmbeddingModelDependency:
   column: TextualSchemaColumn
 
 @dataclass
-class _BaseDocumentEmbeddingModel(_DocumentEmbeddingModelDependency, CachedEmbeddingTransformerBehavior, abc.ABC):
-  @property
-  def embedding_path(self):
-    paths = ProjectPathManager(project_id=self.project_id)
-    return paths.full_path(ProjectPaths.DocumentEmbeddings(self.column.name))
-
+class _BaseDocumentEmbeddingModel(_DocumentEmbeddingModelDependency, abc.ABC):
   @classmethod
   @abc.abstractmethod
   def preference(cls)->BERTopicEmbeddingModelPreprocessingPreference:
     ...
 
-class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerBehavior, BaseEstimator, TransformerMixin):
-  @property
-  def embedding_model_path(self):
-    return ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
+@dataclass
+class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, BaseEstimator, TransformerMixin):
+  def save_model(self, model: "Doc2Vec"):
+    embedding_model_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "doc2vec"))
+    model.save(embedding_model_path)
   
-  def _save_model(self, model: "Doc2Vec"):
-    model.save(self.embedding_model_path)
-  
-  def _load_model(self)->"Doc2Vec":
-    from gensim.models import Doc2Vec
-    model = Doc2Vec.load(self.embedding_model_path)
-    return cast(Doc2Vec, model)
-  
-  def load_default_model(self)->"Doc2Vec":
+  @functools.cached_property
+  def model(self)->"Doc2Vec":
     try:
       from gensim.models import Doc2Vec
       return Doc2Vec(dm=0, dbow_words=0, min_count=1, vector_size=100)
@@ -70,16 +57,12 @@ class Doc2VecSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransfor
         name="gensim",
         purpose="Doc2Vec document embedding can be performed"
       )
-  
-@dataclass
-class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel, BaseEstimator, TransformerMixin):
-  model: "Doc2Vec" = field(init=False)
 
   @classmethod
   def preference(cls):
     return BERTopicEmbeddingModelPreprocessingPreference.Heavy
 
-  def _fit(self, X: Sequence[str]):
+  def fit(self, X: Sequence[str]):
     import gensim
     training_corpus = tuple(
       gensim.models.doc2vec.TaggedDocument(doc.split(), (idx,))
@@ -92,7 +75,7 @@ class Doc2VecEmbeddingModel(_BaseDocumentEmbeddingModel, Doc2VecSaveableModel, B
       self.__built_vocab = True
       self.model.train(training_corpus, total_examples=self.model.corpus_count, epochs=self.model.epochs)
   
-  def _transform(self, X: Sequence[str]):
+  def transform(self, X: Sequence[str]):
     with TimeLogger(logger, "Transforming documents to embeddings with Doc2Vec", report_start=True):
       return np.array(tuple(
         self.model.infer_vector(doc.split())
@@ -119,32 +102,24 @@ class SbertEmbeddingModel(_BaseDocumentEmbeddingModel, BaseEstimator, Transforme
     # There's no fitting
     return self
   
-  def _transform(self, X: Sequence[str]):
+  def transform(self, X: Sequence[str]):
     # Use the original documents since SBERT performs better with full data
     with TimeLogger(logger, "Transforming documents to embeddings with SBERT", report_start=True):
       embeddings = self.model.encode(X, show_progress_bar=True) # type: ignore
     return embeddings
 
-
-class LsaSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerBehavior):
-  @property
-  def embedding_model_path(self):
-    return ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "lsa.pickle"))
-  
-  def _save_model(self, model: Pipeline):
+@dataclass
+class LsaEmbeddingModel(_BaseDocumentEmbeddingModel):
+  def save_model(self, model: Pipeline):
     import pickle
-    embedding_model_dirpath = os.path.dirname(self.embedding_model_path)
+    embedding_model_path = ProjectPathManager(project_id=self.project_id).full_path(ProjectPaths.EmbeddingModel(self.column.name, "lsa.pickle"))
+    embedding_model_dirpath = os.path.dirname(embedding_model_path)
     os.makedirs(embedding_model_dirpath, exist_ok=True)
-    with atomic_write(self.embedding_model_path, mode="binary") as f:
+    with atomic_write(embedding_model_path, mode="binary") as f:
       pickle.dump(model, f)
   
-  def _load_model(self):
-    import pickle
-    with open(self.embedding_model_path, 'rb') as f:
-      cached_model = pickle.load(f)
-      return cast(Pipeline, cached_model)
-  
-  def load_default_model(self):
+  @functools.cached_property
+  def model(self):
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.decomposition import TruncatedSVD
     from sklearn.pipeline import make_pipeline
@@ -158,18 +133,15 @@ class LsaSaveableModel(_DocumentEmbeddingModelDependency, SavedModelTransformerB
     pipeline = make_pipeline(vectorizer, svd)
     return pipeline
 
-@dataclass
-class LsaEmbeddingModel(_BaseDocumentEmbeddingModel, LsaSaveableModel):
-  model: Pipeline = field(init=False)
 
   @classmethod
   def preference(cls):
     return BERTopicEmbeddingModelPreprocessingPreference.Heavy
 
-  def _fit(self, X: Sequence[str]):
+  def fit(self, X: Sequence[str]):
     self.model.fit(X)
   
-  def _transform(self, X: Sequence[str]):
+  def transform(self, X: Sequence[str]):
     with TimeLogger(logger, "Transforming documents to embeddings with LSA", report_start=True):
       return self.model.transform(X, show_progress_bar=True) # type: ignore
 
@@ -188,10 +160,18 @@ class BERTopicEmbeddingModelFactory:
     else:
       raise InvalidValueTypeException(value=self.column.topic_modeling.embedding_method, type="document embedding method")
  
+def get_embedding_model_preference(column: TextualSchemaColumn)->BERTopicEmbeddingModelPreprocessingPreference:
+  return BERTopicEmbeddingModelFactory(
+    # This is not relevant
+    project_id=None, # type: ignore
+    column=column,
+  ).build().preference()
+
 SupportedBERTopicEmbeddingModels = Union[SbertEmbeddingModel, Doc2VecEmbeddingModel, LsaEmbeddingModel]
 
 __all__ = [
   "BERTopicEmbeddingModelFactory",
   "SupportedBERTopicEmbeddingModels",
-  "BERTopicEmbeddingModelPreprocessingPreference"
+  "BERTopicEmbeddingModelPreprocessingPreference",
+  "get_embedding_model_preference",
 ]
