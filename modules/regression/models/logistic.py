@@ -35,6 +35,7 @@ class LogisticRegressionModel(BaseRegressionModel):
     import statsmodels.api as sm
 
     # region Fit Model
+    Y = Y.astype(np.bool_)
     model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
     self.logger.info(model.summary())
     model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
@@ -189,11 +190,11 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     })
 
     Y = pd.Series(cat_Y, index=Y.index)
-    MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", list(map(str, Y.unique())))
+    MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", Y_categories)
 
     import statsmodels.api as sm
     # Newton solver produces NaN too often.
-    model = sm.MNLogit(Y, X).fit(maxiter=500, method="bfgs")
+    model = sm.MNLogit(Y, X).fit(maxiter=100, method="bfgs")
     self.logger.info(model.summary())
 
     # Get dependent variable levels

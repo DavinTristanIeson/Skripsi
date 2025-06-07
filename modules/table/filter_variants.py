@@ -105,8 +105,8 @@ class EqualToTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
-    return data == value
-
+    return (data == value).fillna(False)
+  
 class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.IsOneOf] = TableFilterTypeEnum.IsOneOf
   values: list[ValueType]
@@ -115,7 +115,7 @@ class IsOneOfTableFilter(_BaseTableFilter, pydantic.BaseModel):
     values = list(map(lambda value: parse_value(self, params, value=value, operand="values"), self.values))
     mask = params.mask(False)
     for value in values:
-      new_mask = data.notna() & (data == value)
+      new_mask = (data == value).fillna(False)
       mask = mask | new_mask
     return mask
 
@@ -125,7 +125,7 @@ class GreaterThanTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
-    return data > value
+    return (data > value).fillna(False)
   
 class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.LessThan] = TableFilterTypeEnum.LessThan
@@ -133,7 +133,7 @@ class LessThanTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
-    return data < value
+    return (data < value).fillna(False)
   
 class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.GreaterThanOrEqualTo] = TableFilterTypeEnum.GreaterThanOrEqualTo
@@ -141,7 +141,7 @@ class GreaterThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
-    return data >= value
+    return (data >= value).fillna(False)
   
 class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.LessThanOrEqualTo] = TableFilterTypeEnum.LessThanOrEqualTo
@@ -149,7 +149,7 @@ class LessThanOrEqualToTableFilter(_BaseTableFilter, pydantic.BaseModel):
   def apply(self, params):
     data = access_series(self, params)
     value = parse_value(self, params, value=self.value, operand="value")
-    return data <= value
+    return (data <= value).fillna(False)
 
 class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.HasText] = TableFilterTypeEnum.HasText
@@ -163,17 +163,19 @@ class HasTextTableFilter(_BaseTableFilter, pydantic.BaseModel):
         column_type=column.type,
         target=self.target
       )
-    return data.str.contains(self.value)
+    return data.str.contains(self.value).fillna(False)
   
 class IsTrueTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.IsTrue] = TableFilterTypeEnum.IsTrue
   def apply(self, params):
-    return access_series(self, params) == True
+    data = access_series(self, params)
+    return (data == True).fillna(False)
 
 class IsFalseTableFilter(_BaseTableFilter, pydantic.BaseModel):
   type: Literal[TableFilterTypeEnum.IsFalse] = TableFilterTypeEnum.IsFalse
   def apply(self, params):
-    return access_series(self, params) == False
+    data = access_series(self, params)
+    return (data == False).fillna(False)
   
 TableFilterUnion = Union[
   AndTableFilter,

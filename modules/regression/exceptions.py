@@ -39,11 +39,10 @@ class ReferenceMustBeAValidSubdatasetException(ApiErrorAdaptableException):
     )
   
 @dataclass
-class NoIndependentVariableDataException(ApiErrorAdaptableException):
-  column: str
+class NoDependentVariableDataException(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(
-      message=f"Column \"{self.column}\" as the independent variable for the regression model does not contain any data that can be fitted to.",
+      message=f"The dependent variable for the regression model does not contain any data that can be fitted to.",
       status_code=HTTPStatus.NOT_FOUND
     )
   
