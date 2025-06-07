@@ -46,13 +46,9 @@ class EmptyBERTopicModelBuilder:
   def build_vectorizer_model(self)->"CountVectorizer":
     from sklearn.feature_extraction.text import CountVectorizer
     vectorizer_model = CountVectorizer(
-      # Min DF is mainly used to remove invalid n-grams.
-      # N-Gram Calculation will be performed here rather than at the preprocessed documents.
-      min_df=self.column.preprocessing.min_df,
+      min_df=1,
       max_df=1.0,
       stop_words=None,
-      max_features=self.column.preprocessing.max_unique_words,
-      ngram_range=self.column.preprocessing.n_gram_range,
     )
     return vectorizer_model
   
