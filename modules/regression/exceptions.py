@@ -98,21 +98,19 @@ class DependentVariableReferenceMustBeAValidValueException(ApiErrorAdaptableExce
 class MultilevelRegressionNotEnoughLevelsException(ApiErrorAdaptableException):
   type: str
   levels: Sequence[Any]
-  dependent_variable: str
   def to_api(self):
     levels = list(map(str, self.levels))
     return ApiError(
-      message=f"{self.type} regression typically involves dependent variables with more than two levels, but the levels of {self.dependent_variable} only consists of {'{' + ', '.join(levels) + '}'}]. If there are only two levels, consider using logistic regression instead.",
+      message=f"{self.type} regression typically involves dependent variables with more than two levels, but there are only {len(levels)} levels:  {'{' + ', '.join(levels) + '}'}]. If there are only 2 levels, consider using logistic regression instead.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
   
   @staticmethod
-  def assert_levels(type: str, levels: Sequence[Any], dependent_variable: str):
+  def assert_levels(type: str, levels: Sequence[Any]):
     if len(levels) <= 2:
       raise MultilevelRegressionNotEnoughLevelsException(
         type=type,
         levels=levels,
-        dependent_variable=dependent_variable
       )
     
 RESERVED_SUBDATASET_NAMES = ["const", "Intercept", "Baseline"]
@@ -139,5 +137,13 @@ class MissingStoredRegressionModelException(ApiErrorAdaptableException):
   def to_api(self):
     return ApiError(
       message=f"There are no stored regression models with this ID \"{self.id}\". This may be because the regression model has been deleted due to inactivity; please fit the regression model again.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+@dataclass
+class NonMutuallyExclusiveDependentVariableLevelsException(ApiErrorAdaptableException):
+  def to_api(self):
+    return ApiError(
+      message=f"The levels of the dependent variable should be mutually exclusive.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )

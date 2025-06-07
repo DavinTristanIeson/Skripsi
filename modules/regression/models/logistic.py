@@ -189,7 +189,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     })
 
     Y = pd.Series(cat_Y, index=Y.index)
-    MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", list(map(str, Y.unique())), input.target)
+    MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", list(map(str, Y.unique())))
 
     import statsmodels.api as sm
     # Newton solver produces NaN too often.

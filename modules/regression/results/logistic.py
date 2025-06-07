@@ -4,8 +4,7 @@ import pydantic
 from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.table.filter_variants import NamedTableFilter
 
-class LogisticRegressionInput(pydantic.BaseModel):
-  groups: list[NamedTableFilter]
+class LogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   target: NamedTableFilter
   reference: Optional[str]
   interpretation: RegressionInterpretation
@@ -14,6 +13,7 @@ class LogisticRegressionInput(pydantic.BaseModel):
 
 class MultinomialLogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   reference_dependent: Optional[str]
+  target: list[NamedTableFilter] | str
 
 class LogisticRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass
