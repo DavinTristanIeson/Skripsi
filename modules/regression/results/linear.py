@@ -1,9 +1,9 @@
-from typing import Optional
 import pydantic
 
 from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
 
 class LinearRegressionInput(BaseRegressionInput, pydantic.BaseModel):
+  target: str
   standardized: bool
 
 class LinearRegressionFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.BaseModel):

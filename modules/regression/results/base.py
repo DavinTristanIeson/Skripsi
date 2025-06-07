@@ -15,7 +15,6 @@ class RegressionInterpretation(str, Enum):
 ExposedEnum().register(RegressionInterpretation)
 
 class BaseRegressionInput(pydantic.BaseModel):
-  target: str
   groups: list[NamedTableFilter]
   reference: Optional[str]
   interpretation: RegressionInterpretation

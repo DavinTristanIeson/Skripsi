@@ -9,7 +9,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn, TemporalPrecisionEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
-from modules.regression.exceptions import NoIndependentVariableDataException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException, ReservedSubdatasetNameException
+from modules.regression.exceptions import NoDependentVariableDataException, NonMutuallyExclusiveDependentVariableLevelsException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException, ReservedSubdatasetNameException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
 from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionIndependentVariableInfo, RegressionInterpretation
 from modules.table.engine import TableEngine
@@ -73,7 +73,14 @@ class BaseRegressionModel(abc.ABC):
     #   return pd.Series(categorical_data, name=column.name)
     return data
   
-  def _load(self, groups: list[NamedTableFilter], target: str | NamedTableFilter, constrain_by_X: bool, supported_types: list[SchemaColumnTypeEnum], transform_data: bool = False):
+  def _load(
+    self,
+    groups: list[NamedTableFilter],
+    target: str | NamedTableFilter | list[NamedTableFilter],
+    constrain_by_X: bool,
+    supported_types: list[SchemaColumnTypeEnum],
+    transform_data: bool = True
+  ):
     cache = self.cache
     config = cache.config
 
@@ -98,15 +105,36 @@ class BaseRegressionModel(abc.ABC):
       Y = Y[mask]
       if column.type == SchemaColumnTypeEnum.Topic:
         mask = mask & (Y != -1)
+    elif isinstance(target, list):
+      engine = TableEngine(config=cache.config)
+      Y = pd.Series(pd.NA, index=df.index, dtype=pd.Int32Dtype())
+      masks: list[pd.Series] = []
+      for idx, tgt in enumerate(target):
+        mask = engine.filter_mask(df, tgt.filter)
+        mask.name = tgt.name
+        Y[mask] = idx
+        masks.append(mask)
+      
+      masks_df = pd.concat(masks, axis=1)
+      mask = Y.notna()
+      masks_df = masks_df.loc[mask, :]
+      if not is_boolean_dataframe_mutually_exclusive(masks_df):
+        raise NonMutuallyExclusiveDependentVariableLevelsException()
+      if mask.sum() == 0:
+        raise NoDependentVariableDataException()
+    
+      Y = Y[mask]
+      X = X.loc[mask, :]
+      Y_cat = pd.Categorical(Y)
+      Y_cat = Y_cat.rename_categories({idx: tgt.name for idx, tgt in enumerate(target)})
+      Y = pd.Series(Y_cat, index=Y.index)
     else:
       Y = TableEngine(config=cache.config).filter_mask(df, target.filter)
       Y.name = target.name
       column = None
 
     if len(Y) == 0:
-      raise NoIndependentVariableDataException(
-        column=column.name if column is not None else str(Y.name)
-      )
+      raise NoDependentVariableDataException()
     
     if constrain_by_X:
       X_agg = X.any(axis=1)
@@ -114,7 +142,8 @@ class BaseRegressionModel(abc.ABC):
       Y = Y[X_agg]
 
     # Use categorical dtype for topic
-    Y = self._transform_data(Y, column)
+    if transform_data:
+      Y = self._transform_data(Y, column)
     return RegressionLoadResult(
       X=X,
       Y=Y,

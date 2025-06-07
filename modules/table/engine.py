@@ -36,6 +36,7 @@ class TableEngine:
         config=self.config,
         data=df
       ))
+      mask = mask.fillna(True)
       return mask
   def filter(self, df: pd.DataFrame, filter: Optional[TableFilter])->pd.DataFrame:
     if filter is None:

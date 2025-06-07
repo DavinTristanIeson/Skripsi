@@ -44,7 +44,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
     Y = Y.cat.remove_unused_categories()
     levels = Y.cat.categories
     # Make sure there's more than 2 levels.
-    MultilevelRegressionNotEnoughLevelsException.assert_levels("Ordinal", list(map(str, levels)), input.target)
+    MultilevelRegressionNotEnoughLevelsException.assert_levels("Ordinal", list(map(str, levels)))
 
     # region Fitting
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
