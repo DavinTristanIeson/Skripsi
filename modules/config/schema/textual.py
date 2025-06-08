@@ -92,7 +92,8 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         remove_email = self.remove_email and token.like_email
         remove_url = self.remove_url and token.like_url
         remove_number = self.remove_number and token.like_num
-        invalid_token = token.is_stop or token.is_punct or token.is_space
+        is_stop_word = token.is_stop or (token.norm_.lower() in self.stopwords) or (token.lemma_.lower() in self.stopwords)
+        invalid_token = is_stop_word or token.is_punct or token.is_space
         empty_token = len(token) < self.min_word_length
 
         if remove_email:
