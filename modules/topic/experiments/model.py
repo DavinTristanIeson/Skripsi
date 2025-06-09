@@ -30,32 +30,28 @@ class BERTopicHyperparameterCandidate(pydantic.BaseModel):
 
 class BERTopicHyperparameterConstraint(pydantic.BaseModel):
   min_topic_size: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
-  max_topics: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
   topic_confidence_threshold: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
+  topic_count: Annotated[Optional[tuple[int, int]], StartBeforeEndValidator]
 
   @pydantic.model_validator(mode="after")
   def __validate_constraints(self):
     if (
       self.min_topic_size is None and\
-      self.max_topics is None and\
       self.topic_confidence_threshold is None
     ):
-      raise MissingHyperparameterOptimizationConstraintsException("Provide constraints for at least one hyperparameter for the experiments.")
+      raise MissingHyperparameterOptimizationConstraintsException("Provide constraints for at least min. topic size or topic confidence threshold for the experiments.")
     return self
 
   def suggest(self, trial: "Trial")->BERTopicHyperparameterCandidate:
     min_topic_size = self.min_topic_size and trial.suggest_int(
       "min_topic_size", self.min_topic_size[0], self.min_topic_size[1]
     )
-    max_topics = self.max_topics and trial.suggest_int(
-      "max_topics", self.max_topics[0], self.max_topics[1]
-    )
     topic_confidence_threshold = self.topic_confidence_threshold and trial.suggest_int(
       "topic_confidence_threshold", self.topic_confidence_threshold[0], self.topic_confidence_threshold[1]
     )
     return BERTopicHyperparameterCandidate(
       topic_confidence_threshold=topic_confidence_threshold,
-      max_topics=max_topics,
+      max_topics=self.topic_count and self.topic_count[1],
       min_topic_size=min_topic_size
     )
 

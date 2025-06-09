@@ -85,9 +85,12 @@ class BERTopicExperimentLab:
       with lock:
         experiment_result.trials.append(result)
         cache.bertopic_experiments.save(experiment_result, column.name)
+
+      # If exception occurred, return -1. Avoid at all costs.
       return -1.0
 
     self.task.log_success(f"Finished running trial {trial.number + 1} with the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v:.4f} and diversity of {evaluation.topic_diversity:.4f}.")
+    topics_count = len(evaluation.topics)
     result = BERTopicExperimentTrialResult(
       evaluation=evaluation,
       candidate=candidate,
@@ -97,6 +100,12 @@ class BERTopicExperimentLab:
     with lock:
       experiment_result.trials.append(result)
       cache.bertopic_experiments.save(experiment_result, column.name)
+
+    if self.constraint.topic_count is not None:
+      min_topic_count = self.constraint.topic_count[0]
+      if topics_count < min_topic_count:
+        # Dynamic penalty so that there's a better slope for Optuna to optimize.
+        return -1 * ((min_topic_count - topics_count) / min_topic_count)
 
     return evaluation.coherence_v
   
