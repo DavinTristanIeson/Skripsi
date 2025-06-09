@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import threading
 from typing import Sequence, cast
 
+import numpy as np
 import pandas as pd
 
 from modules.config.schema.base import SchemaColumnTypeEnum
@@ -70,9 +71,8 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     try:
       document_vectors = cache.document_vectors.load(column.name)
       # Try to access mask. If this fails, then documents are desynced with cached embeddings.
-      empty_count = document_vectors.loc[mask, :].isna().sum().sum()
-      if empty_count > 0:
-        self.task.logger.warning(f"Cached document vectors contains {empty_count} NA values. Document vectors will need to be recalculated.")
+      if np.any(np.isnan(document_vectors[mask, :])):
+        self.task.logger.warning(f"Cached document vectors contains NA values, which indicates that they are desynced with the current documents. Document vectors will need to be recalculated.")
         document_vectors = None
     except Exception as e:
       self.task.logger.debug(f"An exception occurred while loading document vectors: {e}. Documents will be lightly preprocessed just in case the embedding model needs them.")

@@ -295,7 +295,7 @@ class GenericEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray], abc.ABC):
 
 
 @dataclass
-class DocumentEmbeddingsCacheAdapter(ProjectCacheAdapter[pd.DataFrame]):
+class DocumentEmbeddingsCacheAdapter(ProjectCacheAdapter[np.ndarray]):
   config: ConfigCacheAdapter
   workspace: WorkspaceCacheAdapter
 
@@ -321,7 +321,7 @@ class DocumentEmbeddingsCacheAdapter(ProjectCacheAdapter[pd.DataFrame]):
     with self.lock(key):
       try:
         # File may be corrupted
-        cached_vectors = pd.read_parquet(path)
+        cached_vectors = np.load(path)
       except Exception as e:
         logger.exception(e)
         raise CorruptedFileException(CorruptedFileException.format_message(
@@ -339,7 +339,7 @@ class DocumentEmbeddingsCacheAdapter(ProjectCacheAdapter[pd.DataFrame]):
     logger.debug(f"Saving document vectors in {path}...")
 
     with atomic_write(path, mode="binary") as f:
-      value.to_parquet(f)
+      np.save(f, value)
 @dataclass
 class UMAPEmbeddingsCacheAdapter(GenericEmbeddingsCacheAdapter):
   def _get_file_path(self, column: str)->str:

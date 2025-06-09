@@ -80,6 +80,7 @@ class BERTopicExperimentLab:
         evaluation=None,
         candidate=candidate,
         error=str(e),
+        optuna_metric=-1.0,
         trial_number=trial.number + 1,
       )
       with lock:
@@ -91,23 +92,26 @@ class BERTopicExperimentLab:
 
     self.task.log_success(f"Finished running trial {trial.number + 1} with the following hyperparameters: {candidate} with coherence score of {evaluation.coherence_v:.4f} and diversity of {evaluation.topic_diversity:.4f}.")
     topics_count = len(evaluation.topics)
+    optuna_metric = evaluation.coherence_v
+    
+    if self.constraint.topic_count is not None:
+      min_topic_count = self.constraint.topic_count[0]
+      if topics_count < min_topic_count:
+        # Dynamic penalty so that there's a better slope for Optuna to optimize.
+        optuna_metric = -1 * ((min_topic_count - topics_count) / min_topic_count)
+
     result = BERTopicExperimentTrialResult(
       evaluation=evaluation,
       candidate=candidate,
       error=None,
+      optuna_metric=optuna_metric,
       trial_number=trial.number + 1,
     )
     with lock:
       experiment_result.trials.append(result)
       cache.bertopic_experiments.save(experiment_result, column.name)
 
-    if self.constraint.topic_count is not None:
-      min_topic_count = self.constraint.topic_count[0]
-      if topics_count < min_topic_count:
-        # Dynamic penalty so that there's a better slope for Optuna to optimize.
-        return -1 * ((min_topic_count - topics_count) / min_topic_count)
-
-    return evaluation.coherence_v
+    return optuna_metric
   
   def evaluate_current(self, shared_state: BERTopicIntermediateState, column: TextualSchemaColumn):
     placeholder_task = self.get_placeholder_task(0)

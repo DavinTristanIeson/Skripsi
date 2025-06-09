@@ -1,4 +1,5 @@
 
+from typing import Optional
 import numpy as np
 import pandas as pd
 from modules.project.paths import ProjectPaths
@@ -26,7 +27,7 @@ class BERTopicEmbeddingProcedureComponent(BERTopicProcedureComponent):
     # Cache
     try:
       # First try to load cache as a dataframe
-      embeddings = cache.document_vectors.load(column.name)
+      embeddings: Optional[np.ndarray] = cache.document_vectors.load(column.name)
     except Exception:
       # If not, then don't even bother with cached stuff anymore
       embeddings = None
@@ -34,12 +35,12 @@ class BERTopicEmbeddingProcedureComponent(BERTopicProcedureComponent):
     if embeddings is not None:
       try:
         # Check if the mask can still be applied. If it still can, then everything's hunky-dory. File is still synced.
-        cached_embeddings = embeddings.loc[mask, :]
+        cached_embeddings = embeddings[mask, :]
         # Has NA values
-        if cached_embeddings.isna().sum().sum() > 0:
+        if np.any(np.isnan(cached_embeddings)):
           raise KeyError()
         # Else, just use the values
-        self.state.document_vectors = cached_embeddings.to_numpy()
+        self.state.document_vectors = cached_embeddings
         self.task.log_success(f"Using cached document vectors for \"{column.name}\" from \"{embedding_path}\".")
         # no need to continue from here on out
         return
@@ -57,26 +58,19 @@ class BERTopicEmbeddingProcedureComponent(BERTopicProcedureComponent):
     self.task.log_success(f"All documents from \"{column.name}\" has been successfully embedded using {column.topic_modeling.embedding_method}.")
 
     # Create a container first. Use mask.index as the source of truth for the indices.
-    cached_document_vectors_raw = np.zeros((len(self.state.embedding_documents), embeddings.shape[1]), 
-    dtype=np.float32)
+    # Model uses F32 so this is enough precision https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+    cached_document_vectors = np.zeros((len(self.state.embedding_documents), embeddings.shape[1]), dtype=np.float32)
 
-    # Use DataFrame rather than npy file for safer .loc-based mapping to perform masking.
-    # Numpy might not play well with pandas' boolean masks
-    cached_document_vectors = pd.DataFrame(
-      data=cached_document_vectors_raw,
-      index=document_vector_mask.index,
-      columns=list(map(str, range(embeddings.shape[1]))),
-      dtype=pd.Float64Dtype(),
-    )
     self.task.logger.debug(f"Shape of documents: {embedding_documents.shape}. Shape of mask: {document_vector_mask.shape} (True: {document_vector_mask.sum()}). Shape of embeddings: {embeddings.shape}. Shape of cached document vectors: {cached_document_vectors.shape}. Shape of embedding model input: {len(embedding_documents_masked)}")
+    document_vector_mask.to_numpy()
     # Assign only the rows touched by mask; otherwise, leave them empty.
-    cached_document_vectors.loc[document_vector_mask, :] = embeddings
-    cached_document_vectors.loc[~document_vector_mask, :] = pd.NA
+    cached_document_vectors[document_vector_mask, :] = embeddings
+    cached_document_vectors[~document_vector_mask, :] = np.nan
     # Save the document vectors
     cache.document_vectors.save(cached_document_vectors, column.name)
     
     # Effect
-    self.state.document_vectors = cached_document_vectors.loc[mask, :].to_numpy()
+    self.state.document_vectors = cached_document_vectors[mask, :]
 
     # self.task.logger.debug(str(cached_document_vectors.loc[mask, :]))
     # self.task.logger.debug(f"NA values in document vectors: {cached_document_vectors.loc[mask, :].isna().sum().sum()}. Document vectors type: {self.state.document_vectors.dtype}. Intersection: {(mask & document_vector_mask).sum()} (Mask: {mask.sum()}, Document Vector Mask: {document_vector_mask.sum()})") # type: ignore

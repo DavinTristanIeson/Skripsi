@@ -59,6 +59,7 @@ class BERTopicExperimentTrialResult(pydantic.BaseModel):
   trial_number: int
   candidate: BERTopicHyperparameterCandidate
   evaluation: Optional[TopicEvaluationResult]
+  optuna_metric: float
   error: Optional[str]
   timestamp: datetime.datetime = pydantic.Field(default_factory=lambda: datetime.datetime.now())
 

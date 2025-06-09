@@ -115,7 +115,4 @@ class LinearRegressionModel(BaseRegressionModel):
 
       warnings=[],
     )
-
-    # Clean up memory
-    model.remove_data()
     return result

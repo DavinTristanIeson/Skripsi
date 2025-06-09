@@ -115,7 +115,6 @@ class LogisticRegressionModel(BaseRegressionModel):
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
     )
-    model.remove_data()
     return result
 
 @dataclass
@@ -305,5 +304,4 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
     )
-    model.remove_data()
     return result
