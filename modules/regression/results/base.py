@@ -70,6 +70,16 @@ class BaseRegressionFitEvaluationResult(pydantic.BaseModel):
   converged: bool
   p_value: float
 
+
+class LogLikelihoodBasedFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.BaseModel):
+  log_likelihood_ratio: float
+  log_likelihood: float
+  log_likelihood_null: float
+  aic: float
+  bic: float
+  pseudo_r_squared: float
+
+
 T = TypeVar("T")
 class RegressionPredictionPerIndependentVariableResult(pydantic.BaseModel, Generic[T]):
   variable: str

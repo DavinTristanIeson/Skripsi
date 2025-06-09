@@ -86,7 +86,7 @@ class LinearRegressionModel(BaseRegressionModel):
       model_predictions,
     ))
     
-    return LinearRegressionResult(
+    result = LinearRegressionResult(
       model_id=model_id,
       independent_variables=preprocess_result.independent_variables,
       reference=preprocess_result.reference_name,
@@ -103,10 +103,17 @@ class LinearRegressionModel(BaseRegressionModel):
         f_statistic=model.fvalue,
         p_value=model.f_pvalue,
         r_squared=model.rsquared_adj,
-        rmse=np.sqrt(model.mse_resid)
+        rmse=np.sqrt(model.mse_resid),
+        log_likelihood=model.llf,
+        aic=model.aic,
+        bic=model.bic,
       ),
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
 
       warnings=[],
     )
+
+    # Clean up memory
+    model.remove_data()
+    return result

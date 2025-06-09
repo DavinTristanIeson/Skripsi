@@ -10,6 +10,9 @@ class LinearRegressionFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.
   f_statistic: float
   r_squared: float
   rmse: float
+  log_likelihood: float
+  aic: float
+  bic: float
 
 class LinearRegressionPredictionResult(pydantic.BaseModel):
   mean: float

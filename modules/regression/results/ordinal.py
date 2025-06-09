@@ -1,7 +1,7 @@
 import numpy as np
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.table.filter_variants import NamedTableFilter
 
 class OrdinalRegressionInput(BaseRegressionInput, pydantic.BaseModel):
@@ -18,9 +18,8 @@ class OrdinalRegressionThreshold(pydantic.BaseModel):
 class OrdinalRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass
 
-class OrdinalRegressionFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.BaseModel):
-  log_likelihood_ratio: float
-  pseudo_r_squared: float
+class OrdinalRegressionFitEvaluation(LogLikelihoodBasedFitEvaluation, pydantic.BaseModel):
+  pass
 
 class OrdinalRegressionPredictionResult(pydantic.BaseModel):
   latent_score: float

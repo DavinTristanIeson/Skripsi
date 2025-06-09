@@ -1,7 +1,7 @@
 from typing import Optional
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
@@ -20,9 +20,9 @@ class LogisticRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.Bas
 
 class LogisticRegressionPredictionResult(pydantic.BaseModel):
   probability: float
-class LogisticRegressionFitEvaluation(BaseRegressionFitEvaluationResult):
-  pseudo_r_squared: float
-  log_likelihood_ratio: float
+
+class LogisticRegressionFitEvaluation(LogLikelihoodBasedFitEvaluation, pydantic.BaseModel):
+  pass
 
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
