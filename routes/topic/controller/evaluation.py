@@ -2,6 +2,7 @@ import functools
 import http
 from typing import cast
 
+from modules.project.paths import ProjectPaths
 from modules.task.convenience import AlternativeTaskResponse, get_task_result_or_else
 from typing import cast
 from modules.topic.experiments.model import BERTopicExperimentResult, BERTopicHyperparameterCandidate
@@ -137,7 +138,14 @@ def apply_topic_model_hyperparameter(
   
   config.save_to_json()
   cache.config_cache.invalidate()
-  config.paths.cleanup_topic_modeling(column.name)
+  directories = [
+    ProjectPaths.BERTopic(column.name),
+  ]
+  files = [
+    ProjectPaths.TopicEvaluation(column.name),
+    ProjectPaths.Topics(column.name),
+  ]
+  config.paths._cleanup(directories, files)
   TaskManager().invalidate(prefix=f"{config.project_id}__{column.name}", clear=True)
 
   start_topic_modeling(

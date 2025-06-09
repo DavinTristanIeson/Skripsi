@@ -122,7 +122,6 @@ def update_project(cache: ProjectCache, body: ProjectMutationSchema):
   new_config.paths._cleanup(
     directories=[],
     files=cleanup_targets,
-    soft=True
   )
 
   return ApiResult(

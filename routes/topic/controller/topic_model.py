@@ -60,7 +60,6 @@ def start_topic_modeling(options: StartTopicModelingSchema, cache: ProjectCacheD
   config.paths._cleanup(
     directories=[ProjectPaths.BERTopic(column.name)],
     files=cleanup_files,
-    soft=True
   )
   cache.invalidate_topic_modeling(column=column.name)
 

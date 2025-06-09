@@ -118,14 +118,14 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
         ProjectPaths.UserDataFolder,
         ProjectPaths.Config,
       ])
-    self._cleanup(directories, files, soft=not all)
+    self._cleanup(directories, files)
 
   def cleanup_topic_modeling(self, column: str):
     directories = [
       ProjectPaths.TopicModelingFolder(column),
     ]
     files = []
-    self._cleanup(directories, files, soft=True)
+    self._cleanup(directories, files)
 
 __all__ = [
   "ProjectPathManager",

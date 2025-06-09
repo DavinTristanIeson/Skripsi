@@ -38,7 +38,7 @@ class AbstractPathManager(abc.ABC):
     os.makedirs(dirpath, exist_ok=True)
     return full_path
   
-  def _cleanup(self, directories: list[str], files: list[str], *, soft: bool):
+  def _cleanup(self, directories: list[str], files: list[str]):
     """``directories`` and ``files`` should be relative to ``base_path``."""
     directories_str = ', '.join(map(lambda dir: f'"{dir}"', directories))
     files_str = ', '.join(map(lambda file: f'"{file}"', files))

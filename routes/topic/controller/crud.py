@@ -83,7 +83,6 @@ def refine_topics_topics_only(cache: ProjectCache, df: pd.DataFrame, topics: lis
       ProjectPaths.TopicModelExperiments(column.name),
       ProjectPaths.TopicEvaluation(column.name),
     ],
-    soft=True
   )
 
 def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: TextualSchemaColumn, topic_modeling_result: TopicModelingResult):
