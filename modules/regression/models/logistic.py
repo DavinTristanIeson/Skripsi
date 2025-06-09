@@ -88,7 +88,7 @@ class LogisticRegressionModel(BaseRegressionModel):
       model_predictions
     ))
 
-    return LogisticRegressionResult(
+    result = LogisticRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
       independent_variables=preprocess_result.independent_variables,
@@ -103,6 +103,8 @@ class LogisticRegressionModel(BaseRegressionModel):
       fit_evaluation=LogisticRegressionFitEvaluation(
         converged=model.mle_retvals.get('converged', True),
         p_value=model.llr_pvalue,
+        model_dof=model.df_model,
+        residual_dof=model.df_resid,
         pseudo_r_squared=model.prsquared,
         log_likelihood_ratio=model.llr,
         log_likelihood=model.llf,
@@ -113,6 +115,8 @@ class LogisticRegressionModel(BaseRegressionModel):
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
     )
+    model.remove_data()
+    return result
 
 @dataclass
 class MultinomialLogisticRegressionModel(BaseRegressionModel):
@@ -273,7 +277,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     ))
 
   
-    return MultinomialLogisticRegressionResult(
+    result = MultinomialLogisticRegressionResult(
       model_id=model_id,
       reference=preprocess_result.reference_name,
       reference_dependent=reference_dependent,
@@ -289,6 +293,8 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       fit_evaluation=LogisticRegressionFitEvaluation(
         converged=model.mle_retvals.get('converged', True),
         p_value=model.llr_pvalue,
+        model_dof=model.df_model,
+        residual_dof=model.df_resid,
         pseudo_r_squared=model.prsquared,
         log_likelihood_ratio=model.llr,
         log_likelihood=model.llf,
@@ -299,3 +305,5 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
     )
+    model.remove_data()
+    return result

@@ -11,9 +11,6 @@ class OrdinalRegressionThreshold(pydantic.BaseModel):
   from_level: str
   to_level: str
   value: float
-  @pydantic.computed_field
-  def odds_ratio(self)->float:
-    return np.exp(self.value)
 
 class OrdinalRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass

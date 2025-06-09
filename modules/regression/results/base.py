@@ -69,7 +69,8 @@ class BaseRegressionResult(pydantic.BaseModel):
 class BaseRegressionFitEvaluationResult(pydantic.BaseModel):
   converged: bool
   p_value: float
-
+  model_dof: float
+  residual_dof: float
 
 class LogLikelihoodBasedFitEvaluation(BaseRegressionFitEvaluationResult, pydantic.BaseModel):
   log_likelihood_ratio: float
@@ -78,6 +79,10 @@ class LogLikelihoodBasedFitEvaluation(BaseRegressionFitEvaluationResult, pydanti
   aic: float
   bic: float
   pseudo_r_squared: float
+
+  @pydantic.computed_field
+  def likelihood_ratio(self)->float:
+    return np.exp(self.log_likelihood_ratio / 2)
 
 
 T = TypeVar("T")

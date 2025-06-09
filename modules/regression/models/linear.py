@@ -101,6 +101,8 @@ class LinearRegressionModel(BaseRegressionModel):
       fit_evaluation=LinearRegressionFitEvaluation(
         converged=True, # OLS has no convergence concept
         f_statistic=model.fvalue,
+        model_dof=model.df_model,
+        residual_dof=model.df_resid,
         p_value=model.f_pvalue,
         r_squared=model.rsquared_adj,
         rmse=np.sqrt(model.mse_resid),

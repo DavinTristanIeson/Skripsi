@@ -140,7 +140,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
       model_predictions_cumulative_probabilities,
     ))
   
-    return OrdinalRegressionResult(
+    result = OrdinalRegressionResult(
       # Ordinal doesn't have intercept
       model_id=model_id,
       reference=preprocess_result.reference_name,
@@ -157,6 +157,10 @@ class OrdinalRegressionModel(BaseRegressionModel):
       fit_evaluation=OrdinalRegressionFitEvaluation(
         log_likelihood_ratio=model.llr,
         p_value=model.llr_pvalue,
+        # No intercept, degree of freedom is just number of independent variables
+        model_dof=len(X.columns),
+        # Degree of freedom is number observations subtracted by number of fitted parameters (coefficients + thresholds)
+        residual_dof=len(Y) - len(model.params),
         pseudo_r_squared=model.prsquared,
         converged=model.mle_retvals.get('converged', True),
         log_likelihood=model.llf,
@@ -167,3 +171,5 @@ class OrdinalRegressionModel(BaseRegressionModel):
       predictions=prediction_results[1:],
       baseline_prediction=prediction_results[0].prediction,
     )
+    model.remove_data()
+    return result
