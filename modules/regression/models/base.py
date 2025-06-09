@@ -9,7 +9,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.config.schema.schema_variants import SchemaColumn, TemporalPrecisionEnum
 from modules.logger.provisioner import ProvisionedLogger
 from modules.project.cache import ProjectCache
-from modules.regression.exceptions import NoIndependentVariableDataException, NonMutuallyExclusiveDependentVariableLevelsException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException, ReservedSubdatasetNameException
+from modules.regression.exceptions import NoDependentVariableDataException, NonMutuallyExclusiveDependentVariableLevelsException, RegressionInterpretationGrandMeanDeviationMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToBaselineMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceMutualExclusivityRequirementsViolationException, RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException, ReservedSubdatasetNameException
 from modules.regression.models.utils import is_boolean_dataframe_mutually_exclusive, one_hot_to_effect_coding
 from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionIndependentVariableInfo, RegressionInterpretation
 from modules.table.engine import TableEngine
@@ -115,12 +115,16 @@ class BaseRegressionModel(abc.ABC):
         Y[mask] = idx
         masks.append(mask)
       
-      masks_df = pd.DataFrame(masks, dtype=pd.BooleanDtype())
+      masks_df = pd.concat(masks, axis=1)
+      mask = Y.notna()
+      masks_df = masks_df.loc[mask, :]
       if not is_boolean_dataframe_mutually_exclusive(masks_df):
         raise NonMutuallyExclusiveDependentVariableLevelsException()
-      agg_mask = masks_df.any()
-      Y = Y[agg_mask]
-      X = X.loc[agg_mask, :]
+      if mask.sum() == 0:
+        raise NoDependentVariableDataException()
+    
+      Y = Y[mask]
+      X = X.loc[mask, :]
       Y_cat = pd.Categorical(Y)
       Y_cat = Y_cat.rename_categories({idx: tgt.name for idx, tgt in enumerate(target)})
       Y = pd.Series(Y_cat, index=Y.index)
@@ -130,9 +134,7 @@ class BaseRegressionModel(abc.ABC):
       column = None
 
     if len(Y) == 0:
-      raise NoIndependentVariableDataException(
-        column=column.name if column is not None else str(Y.name)
-      )
+      raise NoDependentVariableDataException()
     
     if constrain_by_X:
       X_agg = X.any(axis=1)

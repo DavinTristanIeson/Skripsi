@@ -34,8 +34,6 @@ class TextPreprocessingConfig(pydantic.BaseModel):
   max_unique_words: Optional[int] = pydantic.Field(default=None, gt=0)
   min_document_length: int = pydantic.Field(default=5, gt=0)
   min_word_length: int = pydantic.Field(default=3, gt=0)
-  n_gram_range: Annotated[tuple[int, int], StartBeforeEndValidator]
-
   @property
   def spacy_pipeline_name(self):
     if self.pipeline_type == DocumentPreprocessingMethodEnum.English:
@@ -81,6 +79,7 @@ class TextPreprocessingConfig(pydantic.BaseModel):
 
   def preprocess_heavy(self, raw_documents: Sequence[str])->list[str]:
     from gensim.corpora import Dictionary
+    from gensim.models.phrases import Phrases, ENGLISH_CONNECTOR_WORDS
     nlp = self.load_nlp()
     greedy_corpus: list[list[str]] = []
     dictionary = Dictionary()
@@ -93,7 +92,8 @@ class TextPreprocessingConfig(pydantic.BaseModel):
         remove_email = self.remove_email and token.like_email
         remove_url = self.remove_url and token.like_url
         remove_number = self.remove_number and token.like_num
-        invalid_token = token.is_stop or token.is_punct or token.is_space
+        is_stop_word = token.is_stop or (token.norm_.lower() in self.stopwords) or (token.lemma_.lower() in self.stopwords)
+        invalid_token = is_stop_word or token.is_punct or token.is_space
         empty_token = len(token) < self.min_word_length
 
         if remove_email:
@@ -111,6 +111,16 @@ class TextPreprocessingConfig(pydantic.BaseModel):
 
         tokens.append(token.lemma_.lower())
       greedy_corpus.append(tokens)
+
+    phrases = Phrases(
+      tqdm.tqdm(greedy_corpus, desc="Training Phrases Detector"),
+      min_count=self.min_df,
+      connector_words=ENGLISH_CONNECTOR_WORDS,
+      delimiter='_',
+    )
+    for idx, doc in enumerate(tqdm.tqdm(greedy_corpus, desc="Concatenating phrases")):
+      greedy_corpus[idx] = list(map(lambda x: x[0], phrases.analyze_sentence(doc)))
+  
     dictionary.add_documents(greedy_corpus)
 
     # just use gensim's dictionary rather than sklearn CountVectorizer; so that we don't have to redundantly
