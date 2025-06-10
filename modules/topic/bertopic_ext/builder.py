@@ -138,7 +138,7 @@ class BERTopicModelBuilder:
 
     kwargs = dict()
     if column.topic_modeling.max_topics is not None:
-      kwargs["nr_topics"] = column.topic_modeling.max_topics
+      kwargs["nr_topics"] = column.topic_modeling.max_topics + 1 # there seems to be an off by one error in BERTopic's code.
 
     model = BERTopic(
       embedding_model=self.build_embedding_model(),

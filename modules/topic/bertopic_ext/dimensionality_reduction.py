@@ -67,8 +67,7 @@ class VisualizationCachedUMAP(__CachedUMAP):
     from umap import UMAP
     return UMAP(
       random_state=2025,
-      n_neighbors=self.column.topic_modeling.reference_document_count
-        or self.column.topic_modeling.min_topic_size,
+      n_neighbors=10, # BERTopic default
       min_dist=0.1,
       n_components=2,
       n_jobs=1,
