@@ -62,9 +62,9 @@ class BERTopicPostprocessProcedureComponent(BERTopicProcedureComponent):
     self.task.log_pending(f"Applying post-processing on the topics of \"{column.name}\"...")
 
     # Set topic assignments
-    document_topic_mapping_column = pd.Series(np.full(len(df), -1), dtype="Int32")
-    document_topic_mapping_column[mask] = model.topics_
-    document_topic_mapping_column[~mask] = pd.NA
+    document_topic_mapping_column = pd.Series(np.full(len(mask), -1), index=mask.index, dtype="Int32")
+    document_topic_mapping_column.loc[mask] = model.topics_ # type: ignore
+    document_topic_mapping_column.loc[~mask] = pd.NA # type: ignore
     df[column.topic_column.name] = document_topic_mapping_column
 
     topics = BERTopicInterpreter(model).extract_topics()

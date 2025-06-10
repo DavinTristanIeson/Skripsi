@@ -19,82 +19,14 @@ from .textual import TextPreprocessingConfig, TopicModelingConfig
 
 class ContinuousSchemaColumn(_BaseSchemaColumn, pydantic.BaseModel, frozen=True):
   type: Literal[SchemaColumnTypeEnum.Continuous]
-  # Note: bins contain the bin edges. So this should have length bin_count + 1
-  bins: Optional[list[float]] = None
-  bin_count: int = pydantic.Field(default=3, ge=2)
   
   @property
   def is_ordered(self)->bool:
     return True
-
-  @pydantic.field_validator("bins", mode="after")
-  def __validate_bins(cls, value: Optional[list[float]]):
-    if value is not None:
-      return sorted(value)
-    return None
-
-  @functools.cached_property
-  def bins_column(self):
-    return OrderedCategoricalSchemaColumn(
-      type=SchemaColumnTypeEnum.OrderedCategorical,
-      name=f"{self.name} (Bins)",
-      min_frequency=0,
-      internal=True,
-      source_name=self.name,
-    )
   
-  def get_internal_columns(self)->list["SchemaColumn"]:
-    return [self.bins_column]
-  
-  def __format_3f(self, value: float)->str:
-    return f"{value:.3f}".rstrip('0').rstrip('.')
-  
-  def __histogram(self, data: pd.Series):
-    # Get histogram edges
-    if self.bins is not None:
-      histogram_edges = np.array(self.bins)
-      histogram_edges.sort()
-    else:
-      histogram_data = data[data.notna()]
-      histogram_edges = np.histogram_bin_edges(histogram_data, self.bin_count)
-
-    # Split data to bins
-    bins = np.digitize(data, histogram_edges)
-    categorical_bins = pd.Categorical(bins, categories=np.arange(1, len(histogram_edges)+1), ordered=True)
-
-    # Name the bins so that it can be sorted alphanumerically.
-    digit_length = math.floor(math.log10(len(histogram_edges))) + 1
-
-    bin_categories = dict()
-    for category in range(1, len(histogram_edges)):
-      # Get the edges that define the bin
-      current_histogram_edge_str = self.__format_3f(histogram_edges[category]) # Right edge
-      prev_histogram_edge_str = self.__format_3f(histogram_edges[category - 1]) # Left edge 
-      hist_range = f"[{prev_histogram_edge_str}, {current_histogram_edge_str})" # Range
-
-      # Give the bin an alphanumerically sortable prefix.
-      bin_name = str(category).rjust(digit_length, '0')
-      bin_categories[category] = f"Bin {bin_name}: {hist_range}"
-    
-    # Handle the first bin and last bin cases.
-    first_histogram_edge_str = self.__format_3f(histogram_edges[0])
-    first_bin_id = str(0).rjust(digit_length, '0') 
-    bin_categories[0] = f"Bin {first_bin_id}: (-inf, {first_histogram_edge_str})"
-
-    last_histogram_edge_str = self.__format_3f(histogram_edges[len(histogram_edges) - 1])
-    last_bin_id = str(len(histogram_edges)).rjust(digit_length, '0')
-    bin_categories[len(histogram_edges)] = f"Bin {last_bin_id}: [{last_histogram_edge_str}, inf)"
-    
-    # Rename the categorical values
-    categorical_bins = categorical_bins.rename_categories(bin_categories)
-    categorical_bins = categorical_bins.set_categories(sorted(bin_categories.values()), ordered=True)
-
-    return categorical_bins
-
   def fit(self, df):
     data = df[self.name].astype(pd.Float64Dtype())
     df[self.name] = data
-    df[self.bins_column.name] = self.__histogram(data)
   
 
 def _fit_category(raw_data: pd.Series, min_frequency: int):
