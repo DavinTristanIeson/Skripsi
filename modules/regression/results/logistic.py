@@ -1,7 +1,10 @@
 from typing import Optional
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import (
+  BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient,
+  RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
+)
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
@@ -9,11 +12,12 @@ class LogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   reference: Optional[str]
   interpretation: RegressionInterpretation
   constrain_by_groups: bool
-
+  penalty: Optional[float]
 
 class MultinomialLogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   reference_dependent: Optional[str]
   target: list[NamedTableFilter] | str
+  penalty: Optional[float]
 
 class LogisticRegressionCoefficient(OddsBasedRegressionCoefficient, pydantic.BaseModel):
   pass

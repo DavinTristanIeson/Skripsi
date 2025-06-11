@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, Sequence, cast
+import numpy as np
 import pandas as pd
 from statsmodels.miscmodels.ordinal_model import OrderedModel
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
 from modules.regression.exceptions import MultilevelRegressionNotEnoughLevelsException
@@ -48,7 +47,17 @@ class OrdinalRegressionModel(BaseRegressionModel):
 
     # region Fitting
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
-    model = regression.fit(method='bfgs')
+
+    # Fit the model with custom regularization
+    def penalized_loglike(params):
+      llf = regression.loglike(params)
+      if not input.penalty:
+        return llf
+      # -Log-likelihood + Alpha * Sum of Params Squared
+      # See https://www.statsmodels.org/stable/generated/statsmodels.discrete.discrete_model.Logit.fit_regularized.html
+      penalty = (input.penalty * np.abs(params)).sum()  # L1 regularization (lasso). L2 is more preferable, but as our logistic regression implementation uses L1; it's better to be consistent.
+      return llf + penalty
+    model = regression.fit(method='bfgs', f=penalized_loglike if input.penalty else None)
     self.logger.info(model.summary())
 
     # get dependent variables

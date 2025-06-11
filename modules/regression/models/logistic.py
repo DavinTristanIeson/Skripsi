@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, cast
 import numpy as np
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
@@ -33,13 +33,20 @@ class LogisticRegressionModel(BaseRegressionModel):
     Y = load_result.Y
 
     import statsmodels.api as sm
+    from statsmodels.discrete.discrete_model import BinaryResultsWrapper
 
     # region Fit Model
     Y = Y.astype(np.bool_)
-    model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+    regression = sm.Logit(Y, X)
+    if input.penalty is not None:
+      # Model should have supported float. Not sure why the typing is int.
+      model = regression.fit_regularized(alpha=cast(int, input.penalty))
+    else:
+      model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+
     self.logger.info(model.summary())
     model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
-      model=model,
+      model=cast(BinaryResultsWrapper, model),
       levels=None
     ))
 
@@ -200,8 +207,16 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     MultilevelRegressionNotEnoughLevelsException.assert_levels("Multinomial Logistic", Y_categories)
 
     import statsmodels.api as sm
+    from statsmodels.discrete.discrete_model import MultinomialResultsWrapper
+    # region Fit Model
     # Newton solver produces NaN too often.
-    model = sm.MNLogit(Y, X).fit(maxiter=100, method="bfgs")
+    regression = sm.MNLogit(Y, X)
+    if input.penalty is not None:
+      # Model should have supported float. Not sure why the typing is int.
+      model = regression.fit_regularized(alpha=cast(int, input.penalty))
+    else:
+      model = regression.fit(maxiter=300, method="bfgs")
+      
     self.logger.info(model.summary())
 
     # Get dependent variable levels
@@ -211,12 +226,15 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
       column=load_result.column
     )
     model_id = RegressionModelCacheManager().multinomial_logistic.save(RegressionModelCacheWrapper(
-      model=model,
+      model=cast(MultinomialResultsWrapper, model),
       # Store the levels since statsmodels doesn't.
       levels=list(map(lambda level: level.name, dependent_variable_levels))
     ))
-    
-    confidence_intervals = model.conf_int()
+
+    if input.penalty is not None:
+      confidence_intervals = model._results.conf_int()
+    else:
+      confidence_intervals = model.conf_int()
 
     facets: list[MultinomialLogisticRegressionFacetResult] = []
     # First category is excluded. First category is guaranteed to be the reference_dependent from the code above.
@@ -231,7 +249,11 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
 
           statistic=model.tvalues.at[col, row_idx],
           p_value=model.pvalues.at[col, row_idx],
-          confidence_interval=confidence_intervals.loc[(row, col)].to_list(),
+          confidence_interval=(
+            confidence_intervals.loc[(row, col)].to_list()
+            if hasattr(confidence_intervals, "loc")
+            else confidence_intervals[row_idx, col_idx].tolist()
+          ),
         ))
 
       # Add the reference coefficient (this has to be done for every MNLogit level)

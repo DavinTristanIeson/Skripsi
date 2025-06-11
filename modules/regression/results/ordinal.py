@@ -1,11 +1,12 @@
-import numpy as np
+from typing import Optional
 import pydantic
 
-from modules.regression.results.base import BaseRegressionFitEvaluationResult, BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 from modules.table.filter_variants import NamedTableFilter
 
 class OrdinalRegressionInput(BaseRegressionInput, pydantic.BaseModel):
   target: list[NamedTableFilter] | str
+  penalty: Optional[float]
 
 class OrdinalRegressionThreshold(pydantic.BaseModel):
   from_level: str
