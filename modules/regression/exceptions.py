@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 import pandas as pd
 import pydantic
@@ -146,3 +146,24 @@ class NonMutuallyExclusiveDependentVariableLevelsException(ApiErrorAdaptableExce
       message=f"The levels of the dependent variable should be mutually exclusive.",
       status_code=HTTPStatus.UNPROCESSABLE_ENTITY
     )
+  
+
+@dataclass
+class HessianMatrixInversionException(ApiErrorAdaptableException):
+  def to_api(self):
+    return ApiError(
+      message=f"The hessian matrix cannot be inverted, which means we cannot properly calculate the confidence levels of the regression coefficients. This may be because of quasi-complete separation; try adding some regularization to the model.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  
+@dataclass
+class RegressionFailedException(ApiErrorAdaptableException):
+  error: Exception
+  def to_api(self):
+    if isinstance(self.error, ApiErrorAdaptableException):
+      return cast(ApiErrorAdaptableException, self.error).to_api()
+    return ApiError(
+      message=f"An error occurred while fitting the regression model: {str(self.error)}.",
+      status_code=HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+  

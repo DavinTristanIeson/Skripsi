@@ -3,7 +3,7 @@ from typing import Any, Optional, cast
 import numpy as np
 import pandas as pd
 from modules.config.schema.base import CATEGORICAL_SCHEMA_COLUMN_TYPES, SchemaColumnTypeEnum
-from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException, MultilevelRegressionNotEnoughLevelsException
+from modules.regression.exceptions import DependentVariableReferenceMustBeAValidValueException, HessianMatrixInversionException, MultilevelRegressionNotEnoughLevelsException, RegressionFailedException
 from modules.regression.models.base import BaseRegressionModel, RegressionProcessXResult
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.models.logistic import effect_coding_reference_marginal_effect
@@ -98,13 +98,15 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     # region Fit Model
     # Newton solver produces NaN too often.
     regression = sm.MNLogit(Y, X)
-    if input.penalty is not None:
-      # Model should have supported float. Not sure why the typing is int.
-      model = regression.fit_regularized(alpha=cast(int, input.penalty))
-    else:
-      model = regression.fit(maxiter=300, method="bfgs")
-  
-    self.logger.info(model.summary())
+    try:
+      if input.penalty is not None:
+        # Model should have supported float. Not sure why the typing is int.
+        model = regression.fit_regularized(alpha=cast(int, input.penalty))
+      else:
+        model = regression.fit(maxiter=300, method="bfgs")
+      self.logger.info(model.summary())
+    except Exception as e:
+      raise RegressionFailedException(e)
 
     # Get dependent variable levels
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(

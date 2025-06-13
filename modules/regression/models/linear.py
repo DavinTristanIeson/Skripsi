@@ -3,6 +3,7 @@ from typing import cast
 import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.logger.provisioner import ProvisionedLogger
+from modules.regression.exceptions import RegressionFailedException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionCoefficient, RegressionPredictionPerIndependentVariableResult
@@ -38,8 +39,12 @@ class LinearRegressionModel(BaseRegressionModel):
     import statsmodels.api as sm
 
     # region Fitting
-    model = sm.OLS(Y, X).fit()
-    self.logger.info(model.summary())
+    try:
+      model = sm.OLS(Y, X).fit()
+      self.logger.info(model.summary())
+    except Exception as e:
+      raise RegressionFailedException(e)
+
     model_id = RegressionModelCacheManager().linear.save(RegressionModelCacheWrapper(
       model=model,
       levels=None

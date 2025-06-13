@@ -4,7 +4,7 @@ import pandas as pd
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 
 from modules.config.schema.base import ORDERED_CATEGORICAL_SCHEMA_COLUMN_TYPES
-from modules.regression.exceptions import MultilevelRegressionNotEnoughLevelsException
+from modules.regression.exceptions import MultilevelRegressionNotEnoughLevelsException, RegressionFailedException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
@@ -46,10 +46,12 @@ class OrdinalRegressionModel(BaseRegressionModel):
     MultilevelRegressionNotEnoughLevelsException.assert_levels("Ordinal", list(map(str, levels)))
 
     # region Fitting
-    regression = OrderedModel(Y.cat.codes, X, distr='logit')
-
-    model = regression.fit(method='bfgs')
-    self.logger.info(model.summary())
+    try:
+      regression = OrderedModel(Y.cat.codes, X, distr='logit')
+      model = regression.fit(method='bfgs')
+      self.logger.info(model.summary())
+    except Exception as e:
+      raise RegressionFailedException(e)
 
     # get dependent variables
     dependent_variable_levels: list[RegressionDependentVariableLevelInfo] = self._dependent_variable_levels(

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import cast
 import numpy as np
 from modules.config.schema.base import SchemaColumnTypeEnum
+from modules.regression.exceptions import RegressionFailedException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
 from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
@@ -17,8 +18,9 @@ def effect_coding_reference_marginal_effect(name: str, margeff: np.ndarray, cova
   # https://stats.stackexchange.com/questions/160230/variance-of-linear-combinations-of-correlated-random-variables#:~:text=Or%20with%20a%20matrix%20%28the%20result%20will%20be,A%20on%20the%20off-diagonal%20elements%20in%20the%20result.
 
   # Assume column vector by default; because math notation.
-  weight_vector = np.full((len(margeff), 1), -1)
+  weight_vector = np.full(margeff.shape, -1).reshape((covariance_matrix.shape[0], -1))
   # (1, k) x (k, k) x (k, 1) = (1, 1)
+  print(weight_vector.shape, covariance_matrix.shape)
   variance_ndarray = weight_vector.T @ covariance_matrix @ weight_vector
   variance = variance_ndarray[0, 0]
   
@@ -77,14 +79,17 @@ class LogisticRegressionModel(BaseRegressionModel):
 
     # region Fit Model
     Y = Y.astype(np.bool_)
-    regression = sm.Logit(Y, X)
-    if input.penalty is not None:
-      # Model should have supported float. Not sure why the typing is int.
-      model = regression.fit_regularized(alpha=cast(int, input.penalty))
-    else:
-      model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+    try:
+      regression = sm.Logit(Y, X)
+      if input.penalty is not None:
+        # Model should have supported float. Not sure why the typing is int.
+        model = regression.fit_regularized(alpha=cast(int, input.penalty))
+      else:
+        model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+      self.logger.info(model.summary())
+    except Exception as e:
+      raise RegressionFailedException(e)
 
-    self.logger.info(model.summary())
     model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
       model=cast(BinaryResultsWrapper, model),
       levels=None
