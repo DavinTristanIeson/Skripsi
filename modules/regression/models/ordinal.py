@@ -48,16 +48,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
     # region Fitting
     regression = OrderedModel(Y.cat.codes, X, distr='logit')
 
-    # Fit the model with custom regularization
-    def penalized_loglike(params):
-      llf = regression.loglike(params)
-      if not input.penalty:
-        return llf
-      # -Log-likelihood + Alpha * Sum of Params Squared
-      # See https://www.statsmodels.org/stable/generated/statsmodels.discrete.discrete_model.Logit.fit_regularized.html
-      penalty = (input.penalty * np.abs(params)).sum()  # L1 regularization (lasso). L2 is more preferable, but as our logistic regression implementation uses L1; it's better to be consistent.
-      return llf + penalty
-    model = regression.fit(method='bfgs', f=penalized_loglike if input.penalty else None)
+    model = regression.fit(method='bfgs')
     self.logger.info(model.summary())
 
     # get dependent variables
@@ -91,10 +82,10 @@ class OrdinalRegressionModel(BaseRegressionModel):
     # https://www.statsmodels.org/dev/examples/notebooks/generated/ordinal_regression.html
 
     # len(levels) - 2 is safe. We already asserted the bounds above. Thresholds don't include the first and last element, so it's always -2.
-    raw_threshold_increments = model.params[-(len(levels) - 2):]
+    raw_threshold_increments = model.params[-(len(levels) - 1):]
     # Ignore the first and last element (that only contains -inf and inf)
     raw_thresholds = regression.transform_threshold_params(raw_threshold_increments)[1:-1]
-    
+
     thresholds: list[OrdinalRegressionThreshold] = []
     for level_idx, raw_threshold in enumerate(raw_thresholds):
       thresholds.append(OrdinalRegressionThreshold(
