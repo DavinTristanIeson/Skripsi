@@ -2,7 +2,8 @@ import numpy as np
 from modules.project.cache import ProjectCache
 from modules.regression.models.cache import RegressionModelCacheManager
 from modules.regression.models.linear import LinearRegressionModel
-from modules.regression.models.logistic import LogisticRegressionModel, MultinomialLogisticRegressionModel
+from modules.regression.models.logistic import LogisticRegressionModel
+from modules.regression.models.multinomial_logistic import MultinomialLogisticRegressionModel
 from modules.regression.models.ordinal import OrdinalRegressionModel
 from modules.regression.results.base import BaseRegressionPredictionInput
 from modules.regression.results.linear import LinearRegressionInput, LinearRegressionPredictionResult, LinearRegressionResult

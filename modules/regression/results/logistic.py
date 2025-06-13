@@ -2,7 +2,7 @@ from typing import Optional
 import pydantic
 
 from modules.regression.results.base import (
-  BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient,
+  BaseRegressionInput, BaseRegressionResult, LogLikelihoodBasedFitEvaluation, OddsBasedRegressionCoefficient, RegressionCoefficient,
   RegressionInterpretation, RegressionDependentVariableLevelInfo, RegressionPredictionPerIndependentVariableResult
 )
 from modules.table.filter_variants import NamedTableFilter
@@ -30,6 +30,7 @@ class LogisticRegressionFitEvaluation(LogLikelihoodBasedFitEvaluation, pydantic.
 
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
+  marginal_effects: list[RegressionCoefficient]
   intercept: LogisticRegressionCoefficient
   fit_evaluation: LogisticRegressionFitEvaluation
   predictions: list[RegressionPredictionPerIndependentVariableResult[LogisticRegressionPredictionResult]]
@@ -40,6 +41,10 @@ class MultinomialLogisticRegressionFacetResult(pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
   intercept: LogisticRegressionCoefficient
 
+class MultinomialLogisticRegressionMarginalEffectsFacetResult(pydantic.BaseModel):
+  level: str
+  marginal_effects: list[RegressionCoefficient]
+
 class MultinomialLogisticRegressionPredictionResult(pydantic.BaseModel):
   probabilities: list[float]
   levels: list[str]
@@ -48,6 +53,7 @@ class MultinomialLogisticRegressionResult(BaseRegressionResult, pydantic.BaseMod
   reference: Optional[str]
   reference_dependent: str
   levels: list[RegressionDependentVariableLevelInfo]
+  marginal_effects: list[MultinomialLogisticRegressionMarginalEffectsFacetResult]
 
   facets: list[MultinomialLogisticRegressionFacetResult]
   fit_evaluation: LogisticRegressionFitEvaluation
