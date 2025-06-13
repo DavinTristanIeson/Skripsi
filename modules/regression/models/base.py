@@ -46,14 +46,14 @@ class BaseRegressionModel(abc.ABC):
       tm_result = self.cache.topics.load(cast(str, column.source_name))
       categorical_data = pd.Categorical(data)
       categorical_data = categorical_data.rename_categories(tm_result.renamer)
-      return pd.Series(categorical_data, name=column.name)
+      return pd.Series(categorical_data, index=data.index, name=column.name)
     if column.type == SchemaColumnTypeEnum.Boolean:
       categorical_data = pd.Categorical(data)
       categorical_data = categorical_data.rename_categories({
         True: "True",
         False: "False"
       })
-      return pd.Series(categorical_data, name=column.name)
+      return pd.Series(categorical_data, index=data.index, name=column.name)
     if column.type == SchemaColumnTypeEnum.Temporal:
       cat_Y_categories = pd.Categorical(data.sort_values(), ordered=True).categories
       cat_Y = pd.Categorical(data, categories=cat_Y_categories, ordered=True)
@@ -101,10 +101,10 @@ class BaseRegressionModel(abc.ABC):
       Y = df[target]
       column = config.data_schema.assert_of_type(target, supported_types)
       mask = Y.notna()
-      X = X.loc[mask, :]
-      Y = Y[mask]
       if column.type == SchemaColumnTypeEnum.Topic:
         mask = mask & (Y != -1)
+      X = X.loc[mask, :]
+      Y = Y[mask]
     elif isinstance(target, list):
       engine = TableEngine(config=cache.config)
       Y = pd.Series(pd.NA, index=df.index, dtype=pd.Int32Dtype())

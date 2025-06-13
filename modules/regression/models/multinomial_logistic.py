@@ -172,20 +172,24 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     # MNLogit has a bug with marginal effects wherein it doesn't support dummy=True.
     # Using dummy=False is technically incorrect for binary variables since something like X=0.1 doesn't make sense, but it's a good enough approximation
     raw_marginal_effects = model.get_margeff(at="overall", method="dydx", dummy=False)
+    self.logger.info(raw_marginal_effects.summary())
     raw_marginal_effects_conf_int = raw_marginal_effects.conf_int()
     marginal_effects: list[MultinomialLogisticRegressionMarginalEffectsFacetResult] = []
     # First category is included
     for row_idx, category in enumerate(Y_categories):
       marginal_effects_row: list[RegressionCoefficient] = []
       # but skip intercept
-      for col_idx, column in X.columns[1:]:
+      for col_idx, column in enumerate(X.columns[1:]):
         marginal_effects_row.append(RegressionCoefficient(
           name=column,
-          value=raw_marginal_effects.margeff[row_idx, col_idx],
-          std_err=raw_marginal_effects.margeff_se[row_idx, col_idx],
-          statistic=raw_marginal_effects.tvalues[row_idx, col_idx],
-          p_value=raw_marginal_effects.pvalues[row_idx, col_idx],
-          confidence_interval=raw_marginal_effects_conf_int[row_idx, col_idx],
+          value=raw_marginal_effects.margeff[col_idx, row_idx],
+          std_err=raw_marginal_effects.margeff_se[col_idx, row_idx],
+          statistic=raw_marginal_effects.tvalues[col_idx, row_idx],
+          p_value=raw_marginal_effects.pvalues[col_idx, row_idx],
+          confidence_interval=(
+            raw_marginal_effects_conf_int[col_idx, 0, row_idx],
+            raw_marginal_effects_conf_int[col_idx, 1, row_idx],
+          ),
         ))
       # Re-add reference coefficient for GrandMeanDeviation
       if (

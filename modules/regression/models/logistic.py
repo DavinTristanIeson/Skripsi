@@ -123,6 +123,7 @@ class LogisticRegressionModel(BaseRegressionModel):
     marginal_effects: list[RegressionCoefficient] = []
     # Use AME
     raw_marginal_effects = model.get_margeff(at="overall", method="dydx", dummy=True)
+    self.logger.info(raw_marginal_effects.summary())
     raw_marginal_effects_conf_int = raw_marginal_effects.conf_int()
     # Intercept is excluded. Skip the first column.
     for col_idx, col in enumerate(X.columns[1:]):
