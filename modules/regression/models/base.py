@@ -178,7 +178,7 @@ class BaseRegressionModel(abc.ABC):
       if len(X.columns) < 2:
         raise RegressionInterpretationRelativeToReferenceNotEnoughIndependentVariablesException()
       reference_column = X[reference]
-      reference_idx = list(X.columns).index(reference)
+      reference_idx = list(X.columns).index(reference) + 1
       # Remove ref
       X = X.drop(columns=[reference])
     elif interpretation == RegressionInterpretation.RelativeToBaseline:

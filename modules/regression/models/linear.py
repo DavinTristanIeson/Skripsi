@@ -40,7 +40,7 @@ class LinearRegressionModel(BaseRegressionModel):
 
     # region Fitting
     try:
-      model = sm.OLS(Y, X).fit()
+      model = sm.OLS(Y, X).fit(cov_type="HC3")
       self.logger.info(model.summary())
     except Exception as e:
       raise RegressionFailedException(e)

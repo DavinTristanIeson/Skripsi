@@ -20,7 +20,6 @@ def effect_coding_reference_marginal_effect(name: str, margeff: np.ndarray, cova
   # Assume column vector by default; because math notation.
   weight_vector = np.full(margeff.shape, -1).reshape((covariance_matrix.shape[0], -1))
   # (1, k) x (k, k) x (k, 1) = (1, 1)
-  print(weight_vector.shape, covariance_matrix.shape)
   variance_ndarray = weight_vector.T @ covariance_matrix @ weight_vector
   variance = variance_ndarray[0, 0]
   
@@ -85,7 +84,7 @@ class LogisticRegressionModel(BaseRegressionModel):
         # Model should have supported float. Not sure why the typing is int.
         model = regression.fit_regularized(alpha=cast(int, input.penalty))
       else:
-        model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs")
+        model = sm.Logit(Y, X).fit(maxiter=100, method="bfgs", cov_type="HC0")
       self.logger.info(model.summary())
     except Exception as e:
       raise RegressionFailedException(e)

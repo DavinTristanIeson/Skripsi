@@ -48,7 +48,7 @@ class OrdinalRegressionModel(BaseRegressionModel):
     # region Fitting
     try:
       regression = OrderedModel(Y.cat.codes, X, distr='logit')
-      model = regression.fit(method='bfgs')
+      model = regression.fit(method='bfgs', cov_type="HC0")
       self.logger.info(model.summary())
     except Exception as e:
       raise RegressionFailedException(e)

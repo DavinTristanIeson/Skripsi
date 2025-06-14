@@ -103,7 +103,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
         # Model should have supported float. Not sure why the typing is int.
         model = regression.fit_regularized(alpha=cast(int, input.penalty))
       else:
-        model = regression.fit(maxiter=300, method="bfgs")
+        model = regression.fit(maxiter=300, method="bfgs", cov_type="HC0")
       self.logger.info(model.summary())
     except Exception as e:
       raise RegressionFailedException(e)
