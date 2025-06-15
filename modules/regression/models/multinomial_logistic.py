@@ -101,7 +101,7 @@ class MultinomialLogisticRegressionModel(BaseRegressionModel):
     try:
       if input.penalty is not None:
         # Model should have supported float. Not sure why the typing is int.
-        model = regression.fit_regularized(alpha=cast(int, input.penalty))
+        model = regression.fit_regularized(alpha=cast(int, input.penalty), cov_type="HC0")
       else:
         model = regression.fit(maxiter=300, method="bfgs", cov_type="HC0")
       self.logger.info(model.summary())
