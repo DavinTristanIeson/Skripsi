@@ -1,7 +1,7 @@
 bertopic==0.17.0 # BERTopic implementation.
 gensim>=4.3.3 # Doc2vec implementation. 4.3.3 and above is required due to outdated scipy.
 
-spacy # Preprocessing
+spacy==3.8.7 # Preprocessing
 
 pydantic # Validation
 fastapi[standard]==0.115.2 # API Server

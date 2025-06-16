@@ -11,7 +11,7 @@ from scripts.config import Ansi
 
 parser = argparse.ArgumentParser(
   prog="Setup Project",
-  description="This script is used to setup the virtual environment and its dependencies. Your global environment will not be polluted by the dependencies of this project; all of the library versions are self-contained in the Venv directory.",
+  description="This script is used to setup the virtual environment and its dependencies. Your global environment will not be polluted by the dependencies of this project; all of the library versions are self-contained in the \"venv\" directory.",
 )
 parser.add_argument("--dev", dest="is_dev", action="store_const", default=False, const=True, help="Installs the dependencies into the virtual environment. The dependencies in this file do not have their versions pinned; instead, the versions are resolved by pip-compile. This also means that there's no guarantee the versions produced by two pip-compile calls will be the same. Do not use unless you're a developer and want to change the dependencies.")
 args = parser.parse_args()

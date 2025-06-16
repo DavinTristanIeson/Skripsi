@@ -13,7 +13,7 @@ class Ansi:
   Underline = "\033[4m"
 
 # Virtual Environment
-VIRTUALENV_NAME = "Venv"
+VIRTUALENV_NAME = "venv"
 PYTHON_NAME = "python3"
 PIP_NAME = "pip3"
 
