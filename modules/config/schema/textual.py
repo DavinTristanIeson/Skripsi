@@ -1,11 +1,9 @@
 from enum import Enum
-from typing import Annotated, Any, Iterable, Optional, Sequence, cast
-import pandas as pd
+from typing import Any, Optional, Sequence
 import pydantic
 import tqdm
 
 from modules.api import ExposedEnum
-from modules.validation.array import StartBeforeEndValidator
 
 
 class DocumentEmbeddingMethodEnum(str, Enum):

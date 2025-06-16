@@ -46,7 +46,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
     preprocess_name = column.preprocess_column.name
 
     raw_documents_series = df[column.name]
-    document_vector_mask = raw_documents_series.notna() & raw_documents_series.str.len() > 0
+    document_vector_mask = raw_documents_series.notna() & (raw_documents_series.str.len() > 0)
     if column.preprocess_column.name in df.columns:
       # Cache
       raw_preprocess_documents = df[preprocess_name]
@@ -60,6 +60,7 @@ class BERTopicPreprocessProcedureComponent(BERTopicProcedureComponent):
       df.loc[document_vector_mask, preprocess_name] = column.preprocessing.preprocess_heavy(
         cast(Sequence[str], raw_documents_series[document_vector_mask])
       )
+      df.loc[~document_vector_mask, preprocess_name] = pd.NA
       mask = df[preprocess_name].notna()
       preprocess_documents = df.loc[mask, preprocess_name]
       self.task.log_success(f"Finished preprocessing the documents in column \"{column.name}\".")
