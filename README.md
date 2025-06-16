@@ -12,9 +12,9 @@ For example, one might be inclined to check if a particular topic is associated 
 
 **Setup**:
 
-- Get a copy of this repository. Run `git clone https://github.com/DavinTristanIeson/Skripsi` in the directory where you want to have the project if you have Git; or just download a copy of it from GitHub and unzip it in your folder of choice.
+- Get a copy of this repository. Run `git clone https://github.com/DavinTristanIeson/TopicTrail` in the directory where you want to have the project if you have Git; or just download a copy of it from GitHub and unzip it in your folder of choice.
 - Run `python scripts/setup.py` from the same directory as this file (README.md). If you're a developer and wants to mess around with the dependencies in requirements.in, use `python scripts/setup.py --dev` to sync `requirements.lock` with `requirements.in`.
-- Run `python scripts/download_interface.py` to download the default front-end interface which is hosted in `https://github.com/DavinTristanIeson/Skripsi-Frontend`.
+- Run `python scripts/download_interface.py` to download the default front-end interface which is hosted in [https://github.com/DavinTristanIeson/TopicTrail-Frontend](https://github.com/DavinTristanIeson/TopicTrail-Frontend) for more information.
 
 **Run App**:
 
