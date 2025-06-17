@@ -4,15 +4,20 @@ sys.path.append(os.getcwd())
 
 import urllib.request
 import zipfile
+import shutil
 from config import Ansi
 
-INTERFACE_RELEASE_URL = "https://github.com/DavinTristanIeson/Skripsi-Frontend/releases/download/v0.0.0/v0_0_0.zip"
+INTERFACE_RELEASE_URL = "https://github.com/DavinTristanIeson/Skripsi-Frontend/releases/download/v1.0.0/interface.zip"
 INTERFACE_DESTINATION = "views"
 INTERFACE_DESTINATION_TEMP = "views/temp.zip"
 
 if not os.path.exists(INTERFACE_DESTINATION):
   print(f"{Ansi.Warning}Creating {INTERFACE_DESTINATION} since it hasn't existed before.{Ansi.End}")
   os.mkdir(INTERFACE_DESTINATION)
+else:
+  shutil.rmtree(INTERFACE_DESTINATION)
+  os.mkdir(INTERFACE_DESTINATION)
+  
 
 try:
   print(f"{Ansi.Grey}Fetching files from {INTERFACE_RELEASE_URL}...{Ansi.End}")
