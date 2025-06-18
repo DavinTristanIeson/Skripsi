@@ -7,7 +7,7 @@ import zipfile
 import shutil
 from config import Ansi
 
-INTERFACE_RELEASE_URL = "https://github.com/DavinTristanIeson/Skripsi-Frontend/releases/download/v1.0.0/interface.zip"
+INTERFACE_RELEASE_URL = "https://github.com/DavinTristanIeson/Skripsi-Frontend/releases/latest/download/interface.zip"
 INTERFACE_DESTINATION = "views"
 INTERFACE_DESTINATION_TEMP = "views/temp.zip"
 

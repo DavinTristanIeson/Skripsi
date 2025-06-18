@@ -62,6 +62,7 @@ register_error_handlers(api_app)
 app.mount('/api', api_app)
 
 if os.path.exists("views"):
+  app.include_router(routes.app.router)
   app.mount("/", StaticFiles(directory="views", html = True), name="static")
 else:
   print("No interface files has been found in /views. You should run \"python scripts/download_interface.py\" to download the default interface.")
