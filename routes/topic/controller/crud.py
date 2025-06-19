@@ -6,6 +6,7 @@ import pandas as pd
 from modules.project.paths import ProjectPaths
 from modules.table.serialization import serialize_pandas
 from modules.task.manager import TaskManager
+from modules.topic.exceptions import UnsyncedDocumentVectorsException
 from routes.topic.model import DocumentPerTopicResource, RefineTopicsSchema, TopicsOfColumnSchema
 from modules.api.wrapper import ApiResult
 from modules.config import TextualSchemaColumn
@@ -123,8 +124,19 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
   # BERTopic has a bug wherein it ignores y=. So build a specific version that doesn't have any dimensionality reducer and clustering.
   bertopic_model = model_builder.build_slim()
 
+  document_vectors = cache.document_vectors.load(column.name)
+  document_vectors = document_vectors[mask, :]
+  if np.any(np.isnan(document_vectors)) or len(document_vectors) != len(documents):
+    raise UnsyncedDocumentVectorsException(
+      type="document vectors",
+      column=column.name,
+      observed_rows=len(document_vectors),
+      expected_rows=len(documents),
+    )
+
   bertopic_model.fit(
     cast(list[str], documents),
+    embeddings=document_vectors,
     y=cast(np.ndarray, document_topics)
   )
 

@@ -40,7 +40,7 @@ class BERTopicTopicModelingProcedureComponent(BERTopicProcedureComponent):
     self.state.model = model
     self.state.document_topic_assignments = np.array(topics, dtype=np.int32)
 
-    self.task.log_pending(f"Saving... BERTopic model in \"{bertopic_path}\".")
+    self.task.log_pending(f"Saving BERTopic model in \"{bertopic_path}\".")
     cache = ProjectCacheManager().get(project_id=config.project_id)
 
     cache.bertopic_models.save(model, column.name)
