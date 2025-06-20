@@ -5,7 +5,7 @@ from modules.config.schema.base import SchemaColumnTypeEnum
 from modules.regression.exceptions import RegressionFailedException
 from modules.regression.models.base import BaseRegressionModel
 from modules.regression.models.cache import RegressionModelCacheManager, RegressionModelCacheWrapper
-from modules.regression.results.base import RegressionCoefficient, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
+from modules.regression.results.base import RegressionCoefficient, RegressionDependentVariableLevelInfo, RegressionInterpretation, RegressionPredictionPerIndependentVariableResult
 from modules.regression.results.logistic import LogisticRegressionCoefficient, LogisticRegressionFitEvaluation, LogisticRegressionInput, LogisticRegressionPredictionResult, LogisticRegressionResult
 
 def effect_coding_reference_marginal_effect(name: str, margeff: np.ndarray, covariance_matrix: np.ndarray):
@@ -89,6 +89,18 @@ class LogisticRegressionModel(BaseRegressionModel):
     except Exception as e:
       raise RegressionFailedException(e)
 
+    # Get dependent variable levels
+    true_count = Y.astype(np.int32).sum()
+    dependent_variable_levels = [
+      RegressionDependentVariableLevelInfo(
+        name="True",
+        sample_size=true_count,
+      ),
+      RegressionDependentVariableLevelInfo(
+        name="False",
+        sample_size=len(Y) - true_count,
+      )
+    ]
     model_id = RegressionModelCacheManager().logistic.save(RegressionModelCacheWrapper(
       model=cast(BinaryResultsWrapper, model),
       levels=None
@@ -178,6 +190,7 @@ class LogisticRegressionModel(BaseRegressionModel):
       intercept = results[0],
       coefficients = results[1:],
       marginal_effects=marginal_effects,
+      levels=dependent_variable_levels,
 
       sample_size=len(Y),
       warnings=[],
