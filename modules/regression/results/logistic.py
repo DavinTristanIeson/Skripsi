@@ -8,7 +8,7 @@ from modules.regression.results.base import (
 from modules.table.filter_variants import NamedTableFilter
 
 class LogisticRegressionInput(BaseRegressionInput, pydantic.BaseModel):
-  target: NamedTableFilter
+  target: NamedTableFilter | str
   reference: Optional[str]
   interpretation: RegressionInterpretation
   constrain_by_groups: bool
@@ -31,6 +31,7 @@ class LogisticRegressionFitEvaluation(LogLikelihoodBasedFitEvaluation, pydantic.
 class LogisticRegressionResult(BaseRegressionResult, pydantic.BaseModel):
   coefficients: list[LogisticRegressionCoefficient]
   marginal_effects: list[RegressionCoefficient]
+  levels: list[RegressionDependentVariableLevelInfo]
   intercept: LogisticRegressionCoefficient
   fit_evaluation: LogisticRegressionFitEvaluation
   predictions: list[RegressionPredictionPerIndependentVariableResult[LogisticRegressionPredictionResult]]

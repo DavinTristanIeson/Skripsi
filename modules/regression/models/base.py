@@ -1,6 +1,7 @@
 import abc
 from dataclasses import dataclass
 from typing import Any, Optional, cast
+import datetime
 
 import numpy as np
 import pandas as pd
@@ -128,10 +129,12 @@ class BaseRegressionModel(abc.ABC):
       Y_cat = pd.Categorical(Y)
       Y_cat = Y_cat.rename_categories({idx: tgt.name for idx, tgt in enumerate(target)})
       Y = pd.Series(Y_cat, index=Y.index)
-    else:
+    elif isinstance(target, NamedTableFilter):
       Y = TableEngine(config=cache.config).filter_mask(df, target.filter)
       Y.name = target.name
       column = None
+    else:
+      raise ValueError(f"Unsupported regression target: {target}")
 
     if len(Y) == 0:
       raise NoDependentVariableDataException()
@@ -287,7 +290,7 @@ class BaseRegressionModel(abc.ABC):
       if len(level_name) == 0 and reference_dependent is not None:
         level_name = reference_dependent
 
-      if column is not None and column.type == SchemaColumnTypeEnum.Temporal and column.internal and pd.api.types.is_datetime64_any_dtype(level):
+      if column is not None and column.type == SchemaColumnTypeEnum.Temporal and column.internal:
         # only format when temporal precision exists and level is datetime64.
         strftime_format: Optional[str] = None
         if column.temporal_precision == TemporalPrecisionEnum.Year:
@@ -299,17 +302,19 @@ class BaseRegressionModel(abc.ABC):
         else:
           pass
 
+        try:
+          level = np.datetime64(level_name)
+        except Exception:
+          strftime_format = None
+          pass
+
         if strftime_format is not None:
           try:
             dt_python = level.astype('datetime64[s]').tolist()
             level_name = dt_python.strftime(strftime_format)
           except Exception:
             pass
-    #   categories = data.sort_values().dt.strftime(strftime_format).unique()
-    #   # Messes with reference_dependent.
-    #   categorical_data = pd.Categorical(data.dt.strftime(strftime_format), categories=categories, ordered=True)
-    #   return pd.Series(categorical_data, name=column.name)
-
+ 
       dependent_variable_levels.append(RegressionDependentVariableLevelInfo(
         name=level_name,
         sample_size=sample_size,
