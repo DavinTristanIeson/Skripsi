@@ -1,0 +1,6 @@
+{
+  "search.exclude": {
+    "**/*.code-search": true,
+    "**/venv": true,
+  }
+}

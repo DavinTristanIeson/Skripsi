@@ -106,8 +106,8 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
 
   # Update document-topic mapping
   document_indices = list(map(lambda x: x.document_id, body.document_topics))
-  new_topics = list(map(lambda x: x.topic_id, body.document_topics))
-  df.loc[document_indices, column.topic_column.name] = new_topics
+  new_topics_assignments = list(map(lambda x: x.topic_id, body.document_topics))
+  df.loc[document_indices, column.topic_column.name] = new_topics_assignments
   df[column.topic_column.name] = df[column.topic_column.name].astype("Int32")
 
   documents = df[column.preprocess_column.name]
@@ -150,6 +150,13 @@ def refine_topics(cache: ProjectCache, body: RefineTopicsSchema, column: Textual
     body=body,
     column=column
   )
+
+  stored_topic_ids = set(map(lambda topic: topic.id, new_topics))
+  for unique_value in df[column.topic_column.name].unique():
+    # Remove values that are not valid IDs
+    if unique_value not in stored_topic_ids:
+      mask = df[column.topic_column.name] == unique_value
+      df.loc[mask, column.topic_column.name] = -1
 
   # Save model
   cache.bertopic_models.save(bertopic_model, column.name)
