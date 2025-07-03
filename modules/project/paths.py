@@ -110,12 +110,12 @@ class ProjectPathManager(pydantic.BaseModel, AbstractPathManager):
   def cleanup(self, all: bool = False):
     directories = [
       ProjectPaths.TopicModelingFolderName,
+      ProjectPaths.UserDataFolder,
     ]
     files = []
 
     if all:
       files.extend([
-        ProjectPaths.UserDataFolder,
         ProjectPaths.Config,
       ])
     self._cleanup(directories, files)
