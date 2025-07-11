@@ -1,4 +1,4 @@
-bertopic==0.17.0 # BERTopic implementation.
+bertopic==0.17.3 # BERTopic implementation.
 gensim>=4.3.3 # Doc2vec implementation. 4.3.3 and above is required due to outdated scipy.
 
 spacy==3.8.7 # Preprocessing
