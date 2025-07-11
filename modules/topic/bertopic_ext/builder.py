@@ -12,7 +12,7 @@ from .embedding import BERTopicEmbeddingModelFactory, SupportedBERTopicEmbedding
 if TYPE_CHECKING:
   from bertopic import BERTopic
   from bertopic.vectorizers import ClassTfidfTransformer
-  from bertopic.representation import KeyBERTInspired
+  from bertopic.representation import KeyBERTInspired, BaseRepresentation
   from hdbscan import HDBSCAN
   from umap import UMAP
   from sklearn.feature_extraction.text import CountVectorizer
@@ -125,12 +125,15 @@ class BERTopicModelBuilder:
   def build_ctfidf_model(self)->"ClassTfidfTransformer":
     return EmptyBERTopicModelBuilder(self.column).build_ctfidf_model()
   
-  def build_representation_model(self)->"KeyBERTInspired":
-    from bertopic.representation import KeyBERTInspired
-    return KeyBERTInspired(
-      top_n_words=self.column.topic_modeling.top_n_words
-    )
-
+  def build_representation_model(self)->"BaseRepresentation":
+    from bertopic.representation import BaseRepresentation
+    # return KeyBERTInspired(
+    #   nr_repr_docs=max(5, self.column.topic_modeling.min_topic_size),
+    #   top_n_words=self.column.topic_modeling.top_n_words,
+    #   random_state=2025
+    # )
+    return BaseRepresentation()
+  
   def build(self)->"BERTopic":
     from bertopic import BERTopic
 
