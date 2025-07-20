@@ -126,13 +126,13 @@ class BERTopicModelBuilder:
     return EmptyBERTopicModelBuilder(self.column).build_ctfidf_model()
   
   def build_representation_model(self)->"BaseRepresentation":
-    from bertopic.representation import BaseRepresentation
+    # from bertopic.representation import KeyBERTInspired
     # return KeyBERTInspired(
     #   nr_repr_docs=max(5, self.column.topic_modeling.min_topic_size),
     #   top_n_words=self.column.topic_modeling.top_n_words,
     #   random_state=2025
     # )
-    return BaseRepresentation()
+    return None # type: ignore
   
   def build(self)->"BERTopic":
     from bertopic import BERTopic
