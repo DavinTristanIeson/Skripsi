@@ -143,6 +143,8 @@ class ProjectCacheManager(metaclass=Singleton):
       projects=self.projects,
     )
     observed_path = os.path.join(os.getcwd(), DATA_DIRECTORY)
+    if not os.path.exists(observed_path):
+      os.mkdir(observed_path)
     observer.schedule(event_handler, path=observed_path, event_filter=[
       DirModifiedEvent,
       DirDeletedEvent,
